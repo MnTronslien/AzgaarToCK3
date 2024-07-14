@@ -15,6 +15,7 @@ Discord: https://discord.gg/CqHcpRRH
 
 ## Quirks
 - Todo: Link to conversion rules
+- Todo: Tips and tricks, what to manually modify to get the best conversion. 
 
 - Dynasties are randomized based on basenames.
 
