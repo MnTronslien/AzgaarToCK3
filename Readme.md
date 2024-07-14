@@ -6,42 +6,36 @@
 Supported game version: `1.12.5`
 Discord: https://discord.gg/CqHcpRRH
 
-## Generation requirements
-- use `Provinces ratio` = 100.
-- do not use high `Points number` option. Heightmap will be smoothed down and the borders will not match terrain.
+## Generation requirements (outdated)
+- Generate via https://pryvyd9.github.io/Fantasy-Map-Generator/ (It is a special version that allow the converter to make meaningfull sea zones. 
 
 ## Generation recommendations
-- Set `Cultures number` > `Religions number`.
-- Use high `States number`, `Towns number`
+- Default Azgaar
+- Do take your time and fix provinces manually. 
 
 ## Quirks
-- Azgaar only has 2 titles and CK3 has 5:
-	- barony = province
-	- county = 4 neighboring provinces of the same state
-	- duchy = state
-	- kingdom = all duchies of the same dominant culture
-	- empire = all kingdoms of the same dominant religion
-- Biome to terrain conversion is complicated and is WIP.
-- Detached single cell parts of provinces are reassigned to neighboring provinces.
-- Single cell provinces are deleted as it is not possible to put locators inside due to small size.
-- Dynasties are randomized based on basenames. They can repeat.
+- Todo: Link to conversion rules
+
+- Dynasties are randomized based on basenames.
+
+
 - No heads of religion.
 - Holy sites are mapped to random provinces/counties.
 - Characters are created and assigned titles randomly. They may have too many domains which they will give out after unpausing.
 - Cultures are mapped to random existing cultures.
 - Religions are mapped to random existing religions.
-- Rivers are not generated.
 
-## Known issues
+- Rivers are not generated. Todo, backport from Nifia Lemur Rivers. 
+
+## Known issues (outdated)
 - Water provinces are rarely convex. It means that ship routes will look like navigators are all drunk.
 - Map painting is not perfect.
 
-## Multiplayer
+## Multilayer (Never tested, verify?)
 - use [[UMMS]Ultimate Modded Multiplayer Solver:null checksum](https://steamcommunity.com/sharedfiles/filedetails/?id=3227254722) mod
 - use [IronyModManager](https://bcssov.github.io/IronyModManager/) to export the playset with the custom mod and friends should import the exported file
 
-## Usage
-1. Generate a map via https://pryvyd9.github.io/Fantasy-Map-Generator/ (It is a special version for better conversion)
+## Usage (move up) 
 2. Export GeoJSON cells and JSON full
 ![screenshot](docs/photo_2024-05-08_21-40-06.jpg)
 3. Place these files in the extracted folder
