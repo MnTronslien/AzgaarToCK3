@@ -72,7 +72,7 @@ public class Settings
     /// The minimum number of kingdoms per empire.
     /// Empires below this number will be merged into adjacent larger empires.
     /// </summary>
-    public int MinimumKingdomsPerEmpire { get; set; } = 2;
+    public int MinimumKingdomsPerEmpire { get; set; } = 3;
 
     public override string ToString()
     {

@@ -49,11 +49,12 @@ namespace Converter.Lemur
 
 
 
-            AssignUniqueColorsToBaronies(map); //Debugging
-            await ImageUtility.DrawProvincesImage(map); //Debugging
-            await ShowCounties(map);
-            await ShowDuchies(map);
-            await ShowKingdoms(map);
+            //Debugging
+            AssignUniqueColorsToBaronies(map); 
+            // await ImageUtility.DrawProvincesImage(map); 
+            // await ShowCounties(map);
+            // await ShowDuchies(map);
+            // await ShowKingdoms(map);
             await ShowEmpires(map);
 
 
@@ -859,7 +860,10 @@ namespace Converter.Lemur
             Dictionary<MagickColor, List<Cell>> empireCellsByColour = new();
             foreach (var empire in map.Empires!)
             {
-                empireCellsByColour.Add(empire.GetColor(), empire.GetAllCells());
+                //Empires can form from dead culture / religion sho we sanitize this a bit more
+                var cells = empire.GetAllCells();
+                if (!cells.Any()) continue;
+                 empireCellsByColour.Add(empire.GetColor(), cells);
             }
             await ImageUtility.DrawCellsWithColourImage(empireCellsByColour, map, "empires", Color.Transparent); //Debugging
         }

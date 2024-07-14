@@ -294,6 +294,14 @@ namespace Converter.Lemur.Graphs
                         }
                     }
 
+                    // If this node is completley isolated, then we will have to make it its own partition
+                    if (borderingPartitions.Count == 0)
+                    {
+                        Graph isolatedPartition = new(graph);
+                        isolatedPartition.AddNodeWithEdges(node, graph.adjacencyList[node]);
+                        partitions.Add(isolatedPartition);
+                        continue;
+                    }
                     // Add this node to the partition where adding it would bring the partition closest to the ideal population
                     int idealPopulation = graph.Population() / numberOfPartitions;
                     Graph targetPartition = borderingPartitions.OrderBy(x => Math.Abs(x.Population() + node.Population - idealPopulation)).First();
