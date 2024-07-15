@@ -19,7 +19,8 @@ Discord: https://discord.gg/CqHcpRRH
 - 
 - Dynasties are randomized based on basenames.
 
-# Todo: See issues tab
+# Todo: 
+- See issues tab
 
 ## Known issues (outdated)
 - Water provinces are rarely convex. It means that ship routes will look like navigators are all drunk.
