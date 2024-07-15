@@ -15,18 +15,11 @@ Discord: https://discord.gg/CqHcpRRH
 
 ## Quirks
 - Todo: Link to conversion rules
-- Todo: Tips and tricks, what to manually modify to get the best conversion. 
-
+- Todo: Tips and tricks, what to manually modify to get the best conversion.
+- 
 - Dynasties are randomized based on basenames.
 
-
-- No heads of religion.
-- Holy sites are mapped to random provinces/counties.
-- Characters are created and assigned titles randomly. They may have too many domains which they will give out after unpausing.
-- Cultures are mapped to random existing cultures.
-- Religions are mapped to random existing religions.
-
-- Rivers are not generated. Todo, backport from Nifia Lemur Rivers. 
+# Todo: See issues tab
 
 ## Known issues (outdated)
 - Water provinces are rarely convex. It means that ship routes will look like navigators are all drunk.
