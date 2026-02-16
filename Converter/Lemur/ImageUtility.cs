@@ -130,8 +130,8 @@ namespace Converter.Lemur
 
                if (Settings.Instance.Debug)
                 {
-                    Console.WriteLine("Debug is on, opening the image...");
-                    OpenImageInExplorer(path);
+                    Console.WriteLine("Debug is on, registering image for batch open...");
+                    RegisterGeneratedImage(path);
                 }
 
             }
@@ -201,8 +201,8 @@ namespace Converter.Lemur
 
                if (Settings.Instance.Debug)
                 {
-                    Console.WriteLine($"Debug is on, opening {name}.png");
-                    OpenImageInExplorer(path);
+                    Console.WriteLine($"Debug is on, registering {name}.png for batch open...");
+                    RegisterGeneratedImage(path);
                 }
 
             }
