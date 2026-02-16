@@ -114,23 +114,49 @@ namespace Converter.Lemur
             }
         }
 
-        public static async Task DrawCellsWithColourImage(Dictionary<MagickColor, List<Entities.Cell>> colorCellsMap, Entities.Map map, string name = "colorCellsMap", System.Drawing.Color background = default)
+        public static async Task DrawCellsWithColourImage(
+            Dictionary<MagickColor, List<Entities.Cell>> colorCellsMap,
+            Entities.Map map,
+            string name = "colorCellsMap",
+            System.Drawing.Color background = default)
         {
-            Console.WriteLine("Drawing cells by couloured groups to image...");   
+            Console.WriteLine("Drawing cells by couloured groups to image...");
             try
             {
+                // Default background to blue (ocean) if not specified
+                if (background == default(System.Drawing.Color))
+                {
+                    background = System.Drawing.Color.FromArgb(68, 107, 163); // CK3-style ocean blue
+                    // TODO: Add simple texture to ocean to make it distinct from blueish land regions
+                }
+
                 var settings = new MagickReadSettings()
                 {
                     Width = Map.MapWidth,
                     Height = Map.MapHeight,
                 };
-                using var cellsMap = new MagickImage($"xc:{background.Name.ToLower()}", settings);
+                using var cellsMap = new MagickImage($"xc:#{background.R:X2}{background.G:X2}{background.B:X2}", settings);
 
                 List<Drawables> drawablesList = new();
 
+                // Calculate wilderness cells (cells not in any colored group)
+                var coloredCellIds = new HashSet<int>(
+                    colorCellsMap.Values.SelectMany(cells => cells.Select(c => c.Id))
+                );
+                var wildernessCells = map.Cells!.Values
+                    .Where(cell => !coloredCellIds.Contains(cell.Id) && Entities.Cell.IsDryLand(cell.Type))
+                    .ToList();
+
+                // Draw wilderness cells in black first (so they appear as background layer)
+                if (wildernessCells.Any())
+                {
+                    Console.WriteLine($"Drawing {wildernessCells.Count} wilderness cells in black");
+                    drawablesList.Add(GenerateCellPolygons(wildernessCells, MagickColors.Black, map));
+                }
+
+                // Draw colored cells on top
                 foreach (var group in colorCellsMap)
                 {
-                    //drawablesList.Add(GenerateCellPolygons(province.Cells, province.Color, map));
                     drawablesList.Add(GenerateCellPolygons(group.Value, group.Key, map));
                 }
 
