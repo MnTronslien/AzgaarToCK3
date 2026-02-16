@@ -70,7 +70,8 @@ namespace Converter.Lemur
                 }
 
                 cellsMap.Draw(drawables);
-                string path = Converter.Helper.GetPath($"{Environment.CurrentDirectory}/cells.png");
+                var path = Helper.GetPath(Settings.OutputDirectory, "map_data", "cells.png");
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                 await cellsMap.WriteAsync(path);
 
                 if (Settings.Instance.Debug)
