@@ -4,12 +4,24 @@ namespace ConsoleUI;
 
 internal class Program
 {
-    static async Task Run()
+    static async Task Run(string? jsonPath = null, string? geojsonPath = null)
     {
         if (!SettingsManager.TryLoad())
         {
             SettingsManager.CreateDefault();
             Console.WriteLine("Default Settings file has been created.");
+        }
+
+        // Override settings with command-line arguments if provided
+        if (!string.IsNullOrWhiteSpace(jsonPath))
+        {
+            Settings.Instance.InputJsonPath = jsonPath;
+            Console.WriteLine($"Using JSON path from argument: {jsonPath}");
+        }
+        if (!string.IsNullOrWhiteSpace(geojsonPath))
+        {
+            Settings.Instance.InputGeojsonPath = geojsonPath;
+            Console.WriteLine($"Using GeoJSON path from argument: {geojsonPath}");
         }
 
         // Print settings
@@ -30,7 +42,12 @@ internal class Program
         }
 
         CheckIfShouldOverride();
-        FindInputs();
+
+        // Only search for inputs if paths were not provided via command line
+        if (string.IsNullOrWhiteSpace(jsonPath) && string.IsNullOrWhiteSpace(geojsonPath))
+        {
+            FindInputs();
+        }
 
         if (!File.Exists(Settings.Instance.InputJsonPath))
         {
@@ -79,7 +96,42 @@ internal class Program
     {
         try
         {
-            await Run();
+            string? jsonPath = null;
+            string? geojsonPath = null;
+
+            // Parse command-line arguments
+            for (int i = 0; i < args.Length; i++)
+            {
+                if ((args[i] == "--json" || args[i] == "-j") && i + 1 < args.Length)
+                {
+                    jsonPath = args[i + 1];
+                    i++; // Skip the next argument
+                }
+                else if ((args[i] == "--geojson" || args[i] == "-g") && i + 1 < args.Length)
+                {
+                    geojsonPath = args[i + 1];
+                    i++; // Skip the next argument
+                }
+                else if (args[i] == "--help" || args[i] == "-h")
+                {
+                    PrintUsage();
+                    return;
+                }
+                else if (!args[i].StartsWith("-"))
+                {
+                    // Positional arguments: first is JSON, second is GeoJSON
+                    if (jsonPath == null)
+                    {
+                        jsonPath = args[i];
+                    }
+                    else if (geojsonPath == null)
+                    {
+                        geojsonPath = args[i];
+                    }
+                }
+            }
+
+            await Run(jsonPath, geojsonPath);
         }
         catch (Exception ex)
         {
@@ -87,6 +139,27 @@ internal class Program
             Console.WriteLine(ex.Message);
             Console.WriteLine(ex.StackTrace);
         }
+    }
+
+    private static void PrintUsage()
+    {
+        Console.WriteLine("Azgaar to CK3 Converter");
+        Console.WriteLine();
+        Console.WriteLine("Usage:");
+        Console.WriteLine("  ConsoleUI [options]");
+        Console.WriteLine("  ConsoleUI <json-path> <geojson-path>");
+        Console.WriteLine();
+        Console.WriteLine("Options:");
+        Console.WriteLine("  --json, -j <path>      Path to the input .json file");
+        Console.WriteLine("  --geojson, -g <path>   Path to the input .geojson file");
+        Console.WriteLine("  --help, -h             Show this help message");
+        Console.WriteLine();
+        Console.WriteLine("Examples:");
+        Console.WriteLine("  ConsoleUI --json map.json --geojson map.geojson");
+        Console.WriteLine("  ConsoleUI -j map.json -g map.geojson");
+        Console.WriteLine("  ConsoleUI map.json map.geojson");
+        Console.WriteLine();
+        Console.WriteLine("If no arguments are provided, the program will use the settings.json file.");
     }
 
     private static bool YesNo(bool defaultIsYes = true)
