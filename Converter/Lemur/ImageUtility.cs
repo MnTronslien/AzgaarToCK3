@@ -100,7 +100,8 @@ namespace Converter.Lemur
 
                 if (Settings.Instance.Debug)
                 {
-                    var path = Helper.GetPath(Environment.CurrentDirectory, GetDebugFolderName(),"1_cells.png");
+                    var debugRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AzgaarToCK3", "debug");
+                    var path = Helper.GetPath(debugRoot, GetDebugFolderName(),"1_cells.png");
                     Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                     await cellsMap.WriteAsync(path);
                     Console.WriteLine($"Debug: Saved cells image to '{path}'");
@@ -174,7 +175,8 @@ namespace Converter.Lemur
                 // If debug enabled, also save as baronies.png in debug folder
                 if (Settings.Instance.Debug)
                 {
-                    var debugPath = Helper.GetPath(Environment.CurrentDirectory, GetDebugFolderName(),"2_baronies.png");
+                    var debugRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AzgaarToCK3", "debug");
+                    var debugPath = Helper.GetPath(debugRoot, GetDebugFolderName(),"2_baronies.png");
                     Directory.CreateDirectory(Path.GetDirectoryName(debugPath)!);
                     await cellsMap.WriteAsync(debugPath);
                     Console.WriteLine($"Debug: Saved baronies image to '{debugPath}'");
@@ -243,7 +245,8 @@ namespace Converter.Lemur
                 if (Settings.Instance.Debug)
                 {
                     var numberedName = GetNumberedImageName(name);
-                    var path = Helper.GetPath(Environment.CurrentDirectory, GetDebugFolderName(), numberedName);
+                    var debugRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AzgaarToCK3", "debug");
+                    var path = Helper.GetPath(debugRoot, GetDebugFolderName(), numberedName);
                     Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                     Console.WriteLine($"Debug: Saving {name} image to '{path}'");
                     await cellsMap.WriteAsync(path);
