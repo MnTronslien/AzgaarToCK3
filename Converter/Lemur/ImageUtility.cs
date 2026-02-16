@@ -122,12 +122,14 @@ namespace Converter.Lemur
             Console.WriteLine("Drawing provinces image...");
             try
             {
+                // Use CK3-style ocean blue background
+                var background = System.Drawing.Color.FromArgb(68, 107, 163);
                 var settings = new MagickReadSettings()
                 {
                     Width = Map.MapWidth,
                     Height = Map.MapHeight,
                 };
-                using var cellsMap = new MagickImage("xc:transparent", settings);
+                using var cellsMap = new MagickImage($"xc:#{background.R:X2}{background.G:X2}{background.B:X2}", settings);
 
                 List<Drawables> drawablesList = new();
                 //=================
@@ -136,10 +138,22 @@ namespace Converter.Lemur
                 //concat the list from baronies and in the future major rivers and sea zones
                 List<IProvince> provincesToDraw = map.Baronies!.Cast<IProvince>().ToList();
 
-                //Add wasteland provinces to the list as black
-                
+                // Calculate wilderness cells (cells not in any barony)
+                var baronyCellIds = new HashSet<int>(
+                    map.Baronies!.SelectMany(b => b.Cells.Select(c => c.Id))
+                );
+                var wildernessCells = map.Cells!.Values
+                    .Where(cell => !baronyCellIds.Contains(cell.Id) && Entities.Cell.IsDryLand(cell.Type))
+                    .ToList();
 
+                // Draw wilderness cells in black first (background layer)
+                if (wildernessCells.Any())
+                {
+                    Console.WriteLine($"Drawing {wildernessCells.Count} wilderness cells in black");
+                    drawablesList.Add(GenerateCellPolygons(wildernessCells, MagickColors.Black, map));
+                }
 
+                // Draw baronies on top
                 foreach (var province in provincesToDraw)
                 {
                     drawablesList.Add(GenerateCellPolygons(province.Cells, province.Color, map));
