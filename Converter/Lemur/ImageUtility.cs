@@ -70,13 +70,13 @@ namespace Converter.Lemur
                 }
 
                 cellsMap.Draw(drawables);
-                var path = Helper.GetPath(Settings.OutputDirectory, "map_data", "cells.png");
-                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                await cellsMap.WriteAsync(path);
 
                 if (Settings.Instance.Debug)
                 {
-                    Console.WriteLine("Debug is on, registering image for batch open...");
+                    var path = Helper.GetPath(Settings.OutputDirectory, "debug_images", "cells.png");
+                    Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                    await cellsMap.WriteAsync(path);
+                    Console.WriteLine($"Debug: Saved cells image to '{path}'");
                     RegisterGeneratedImage(path);
                 }
             }
@@ -122,17 +122,22 @@ namespace Converter.Lemur
                 IEnumerable<IDrawable> drawables = drawablesList.SelectMany(d => d);
 
                 cellsMap.Draw(drawables);
-                var path = Helper.GetPath(Settings.OutputDirectory, "map_data", "provinces.png");
-                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 
-                Console.WriteLine($"Saving provinces image to '{path}'");
-                await cellsMap.WriteAsync(path);
-                Console.WriteLine($"Provinces image has been drawn and saved to '{path}'");
+                // Always save production provinces.png to map_data
+                var productionPath = Helper.GetPath(Settings.OutputDirectory, "map_data", "provinces.png");
+                Directory.CreateDirectory(Path.GetDirectoryName(productionPath)!);
+                Console.WriteLine($"Saving provinces image to '{productionPath}'");
+                await cellsMap.WriteAsync(productionPath);
+                Console.WriteLine($"Provinces image has been drawn and saved to '{productionPath}'");
 
-               if (Settings.Instance.Debug)
+                // If debug enabled, also save as baronies.png in debug folder
+                if (Settings.Instance.Debug)
                 {
-                    Console.WriteLine("Debug is on, registering image for batch open...");
-                    RegisterGeneratedImage(path);
+                    var debugPath = Helper.GetPath(Settings.OutputDirectory, "debug_images", "baronies.png");
+                    Directory.CreateDirectory(Path.GetDirectoryName(debugPath)!);
+                    await cellsMap.WriteAsync(debugPath);
+                    Console.WriteLine($"Debug: Saved baronies image to '{debugPath}'");
+                    RegisterGeneratedImage(debugPath);
                 }
 
             }
@@ -193,16 +198,14 @@ namespace Converter.Lemur
                 IEnumerable<IDrawable> drawables = drawablesList.SelectMany(d => d);
 
                 cellsMap.Draw(drawables);
-                var path = Helper.GetPath(Settings.OutputDirectory, "map_data", $"{name}.png");
-                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 
-                Console.WriteLine($"Saving image to '{path}'");
-                await cellsMap.WriteAsync(path);
-                Console.WriteLine($"Image has been drawn and saved to '{path}'");
-
-               if (Settings.Instance.Debug)
+                if (Settings.Instance.Debug)
                 {
-                    Console.WriteLine($"Debug is on, registering {name}.png for batch open...");
+                    var path = Helper.GetPath(Settings.OutputDirectory, "debug_images", $"{name}.png");
+                    Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                    Console.WriteLine($"Debug: Saving {name} image to '{path}'");
+                    await cellsMap.WriteAsync(path);
+                    Console.WriteLine($"Debug: {name} image saved to '{path}'");
                     RegisterGeneratedImage(path);
                 }
 
