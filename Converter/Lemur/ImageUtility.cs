@@ -7,6 +7,20 @@ namespace Converter.Lemur
     public static class ImageUtility
     {
         private static List<string> _generatedImages = new List<string>();
+        private static string? _debugFolderName = null;
+
+        private static string GetDebugFolderName()
+        {
+            if (_debugFolderName == null)
+            {
+                // Extract map name from input path (e.g., "Touria.json" -> "Touria")
+                var mapName = Path.GetFileNameWithoutExtension(Settings.Instance.InputJsonPath);
+                // Generate timestamp in YYYY.MM.DD_HH.MM format
+                var timestamp = DateTime.Now.ToString("yyyy.MM.dd_HH.mm");
+                _debugFolderName = $"{mapName}_{timestamp}";
+            }
+            return _debugFolderName;
+        }
 
         public static void RegisterGeneratedImage(string path)
         {
@@ -73,7 +87,7 @@ namespace Converter.Lemur
 
                 if (Settings.Instance.Debug)
                 {
-                    var path = Helper.GetPath(Settings.OutputDirectory, "debug_images", "cells.png");
+                    var path = Helper.GetPath(Settings.OutputDirectory, GetDebugFolderName(),"cells.png");
                     Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                     await cellsMap.WriteAsync(path);
                     Console.WriteLine($"Debug: Saved cells image to '{path}'");
@@ -133,7 +147,7 @@ namespace Converter.Lemur
                 // If debug enabled, also save as baronies.png in debug folder
                 if (Settings.Instance.Debug)
                 {
-                    var debugPath = Helper.GetPath(Settings.OutputDirectory, "debug_images", "baronies.png");
+                    var debugPath = Helper.GetPath(Settings.OutputDirectory, GetDebugFolderName(),"baronies.png");
                     Directory.CreateDirectory(Path.GetDirectoryName(debugPath)!);
                     await cellsMap.WriteAsync(debugPath);
                     Console.WriteLine($"Debug: Saved baronies image to '{debugPath}'");
@@ -201,7 +215,7 @@ namespace Converter.Lemur
 
                 if (Settings.Instance.Debug)
                 {
-                    var path = Helper.GetPath(Settings.OutputDirectory, "debug_images", $"{name}.png");
+                    var path = Helper.GetPath(Settings.OutputDirectory, GetDebugFolderName(),$"{name}.png");
                     Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                     Console.WriteLine($"Debug: Saving {name} image to '{path}'");
                     await cellsMap.WriteAsync(path);
