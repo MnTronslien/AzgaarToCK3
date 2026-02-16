@@ -22,6 +22,19 @@ namespace Converter.Lemur
             return _debugFolderName;
         }
 
+        private static string GetNumberedImageName(string name)
+        {
+            // Map image names to chronological order numbers
+            return name switch
+            {
+                "counties" => "3_counties.png",
+                "duchies" => "4_duchies.png",
+                "kingdoms" => "5_kingdoms.png",
+                "empires" => "6_empires.png",
+                _ => $"{name}.png" // fallback for any other names
+            };
+        }
+
         public static void RegisterGeneratedImage(string path)
         {
             _generatedImages.Add(path);
@@ -87,7 +100,7 @@ namespace Converter.Lemur
 
                 if (Settings.Instance.Debug)
                 {
-                    var path = Helper.GetPath(Settings.OutputDirectory, GetDebugFolderName(),"cells.png");
+                    var path = Helper.GetPath(Settings.OutputDirectory, GetDebugFolderName(),"1_cells.png");
                     Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                     await cellsMap.WriteAsync(path);
                     Console.WriteLine($"Debug: Saved cells image to '{path}'");
@@ -147,7 +160,7 @@ namespace Converter.Lemur
                 // If debug enabled, also save as baronies.png in debug folder
                 if (Settings.Instance.Debug)
                 {
-                    var debugPath = Helper.GetPath(Settings.OutputDirectory, GetDebugFolderName(),"baronies.png");
+                    var debugPath = Helper.GetPath(Settings.OutputDirectory, GetDebugFolderName(),"2_baronies.png");
                     Directory.CreateDirectory(Path.GetDirectoryName(debugPath)!);
                     await cellsMap.WriteAsync(debugPath);
                     Console.WriteLine($"Debug: Saved baronies image to '{debugPath}'");
@@ -215,7 +228,8 @@ namespace Converter.Lemur
 
                 if (Settings.Instance.Debug)
                 {
-                    var path = Helper.GetPath(Settings.OutputDirectory, GetDebugFolderName(),$"{name}.png");
+                    var numberedName = GetNumberedImageName(name);
+                    var path = Helper.GetPath(Settings.OutputDirectory, GetDebugFolderName(), numberedName);
                     Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                     Console.WriteLine($"Debug: Saving {name} image to '{path}'");
                     await cellsMap.WriteAsync(path);
