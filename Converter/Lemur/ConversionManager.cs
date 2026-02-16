@@ -57,6 +57,11 @@ namespace Converter.Lemur
             await ShowEmpires(map);
 
             Console.WriteLine("Finished conversion!");
+
+            if (Settings.Instance.Debug)
+            {
+                ImageUtility.OpenAllImages();
+            }
         }
 
 

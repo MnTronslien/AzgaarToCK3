@@ -6,6 +6,34 @@ namespace Converter.Lemur
 {
     public static class ImageUtility
     {
+        private static List<string> _generatedImages = new List<string>();
+
+        public static void RegisterGeneratedImage(string path)
+        {
+            _generatedImages.Add(path);
+        }
+
+        public static void OpenAllImages()
+        {
+            if (_generatedImages.Count == 0) return;
+
+            // Open first image with default viewer
+            var firstImage = _generatedImages[0];
+            var psi = new ProcessStartInfo
+            {
+                FileName = firstImage,
+                UseShellExecute = true
+            };
+            Process.Start(psi);
+            Console.WriteLine($"Opened first image: {Path.GetFileName(firstImage)}");
+            Console.WriteLine($"Note: {_generatedImages.Count} total images available in folder");
+        }
+
+        public static void ClearImageRegistry()
+        {
+            _generatedImages.Clear();
+        }
+
         public static void OpenImageInExplorer(string path)
         {
             //Console.WriteLine("Debug is on, opening the image...");
@@ -47,8 +75,8 @@ namespace Converter.Lemur
 
                 if (Settings.Instance.Debug)
                 {
-                    Console.WriteLine("Debug is on, opening the image...");
-                    OpenImageInExplorer(path);
+                    Console.WriteLine("Debug is on, registering image for batch open...");
+                    RegisterGeneratedImage(path);
                 }
             }
             catch (Exception ex)
