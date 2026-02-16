@@ -50,22 +50,42 @@ namespace Converter.Lemur.Entities
             return Color ?? Baronies.FirstOrDefault()?.GetColor();
         }
 
-        public AzgaarCulture GetDominantCulture(Map map)
+        /// <summary>
+        /// Get the distribution of cultures in this county by cell count, excluding wildlands
+        /// </summary>
+        public Dictionary<int, int> GetCultureDistributionByCells()
         {
-            Dictionary<AzgaarCulture, int> cultureCounts = new Dictionary<AzgaarCulture, int>();
+            var cultureCounts = new Dictionary<int, int>();
             foreach (var barony in Baronies)
             {
-                var dominantCulture = barony.GetDominantCulture(map);
-                if (cultureCounts.ContainsKey(dominantCulture))
+                var baronyCounts = barony.GetCultureDistributionByCells();
+                foreach (var kvp in baronyCounts)
                 {
-                    cultureCounts[dominantCulture]++;
-                }
-                else
-                {
-                    cultureCounts[dominantCulture] = 1;
+                    if (cultureCounts.ContainsKey(kvp.Key))
+                    {
+                        cultureCounts[kvp.Key] += kvp.Value;
+                    }
+                    else
+                    {
+                        cultureCounts[kvp.Key] = kvp.Value;
+                    }
                 }
             }
-            return cultureCounts.OrderByDescending(x => x.Value).First().Key;
+            return cultureCounts;
+        }
+
+        public AzgaarCulture GetDominantCulture(Map map)
+        {
+            var cultureCounts = GetCultureDistributionByCells();
+
+            // If all cells are wildlands, return wildlands culture
+            if (cultureCounts.Count == 0)
+            {
+                return map.JsonMap.pack.cultures[0];
+            }
+
+            var mostCommon = cultureCounts.OrderByDescending(x => x.Value).First().Key;
+            return map.JsonMap.pack.cultures[mostCommon];
         }
 
         public AzgaarReligion GetDominantReligion(Map map)

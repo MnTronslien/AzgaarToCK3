@@ -612,7 +612,8 @@ namespace Converter.Lemur
                 //And depending on if the rule sais to use culture or religion hwne forming empires, add the kingdom to the correct empire
                 if (Settings.Instance.EmpireFromCulture)
                 {
-                    var culture = state.First().GetDominantCulture(map);
+                    // Get the dominant culture across ALL duchies in the kingdom, not just the first duchy
+                    var culture = kingdom.GetDominantCulture(map);
                     var empire = map.Empires!.FirstOrDefault(e => e.Culture == culture);
                     if (empire == null)
                     {
@@ -624,7 +625,8 @@ namespace Converter.Lemur
                 }
                 else
                 {
-                    var religion = state.First().GetDominantReligion(map);
+                    // Get the dominant religion across ALL duchies in the kingdom, not just the first duchy
+                    var religion = kingdom.GetDominantReligion(map);
                     var empire = map.Empires!.FirstOrDefault(e => e.Religion == religion);
                     if (empire == null)
                     {
@@ -805,7 +807,7 @@ namespace Converter.Lemur
             {
                 countyCellsByColour.Add(county.GetColor(), county.GetAllCells());
             }
-            await ImageUtility.DrawCellsWithColourImage(countyCellsByColour, map, "counties", Color.Transparent); //Debugging
+            await ImageUtility.DrawCellsWithColourImage(countyCellsByColour, map, "counties"); // Use default blue ocean
         }
 
         private static async Task ShowDuchies(Map map)
@@ -816,31 +818,32 @@ namespace Converter.Lemur
             {
                 duchyCellsByColour.Add(duchy.GetColor(), duchy.GetAllCells());
             }
-            await ImageUtility.DrawCellsWithColourImage(duchyCellsByColour, map, "duchies", Color.Transparent); //Debugging
+            await ImageUtility.DrawCellsWithColourImage(duchyCellsByColour, map, "duchies"); // Use default blue ocean
         }
         private static async Task ShowKingdoms(Map map)
         {
-            // Liek for Duchies and Counties, but for Kingdoms
+            // Like for Duchies and Counties, but for Kingdoms
             Dictionary<MagickColor, List<Cell>> kingdomCellsByColour = new();
             foreach (var kingdom in map.Kingdoms!)
             {
                 kingdomCellsByColour.Add(kingdom.GetColor(), kingdom.GetAllCells());
             }
-            await ImageUtility.DrawCellsWithColourImage(kingdomCellsByColour, map, "kingdoms", Color.Transparent); //Debugging
+            await ImageUtility.DrawCellsWithColourImage(kingdomCellsByColour, map, "kingdoms"); // Use default blue ocean
         }
 
         private static async Task ShowEmpires(Map map)
         {
             // Like for Duchies, Counties and Kingdoms, but for Empires
+            // NOTE: Orphan kingdoms (no parent empire) will appear as wilderness at this level
             Dictionary<MagickColor, List<Cell>> empireCellsByColour = new();
             foreach (var empire in map.Empires!)
             {
-                //Empires can form from dead culture / religion sho we sanitize this a bit more
+                //Empires can form from dead culture / religion so we sanitize this a bit more
                 var cells = empire.GetAllCells();
                 if (!cells.Any()) continue;
                  empireCellsByColour.Add(empire.GetColor(), cells);
             }
-            await ImageUtility.DrawCellsWithColourImage(empireCellsByColour, map, "empires", Color.Transparent); //Debugging
+            await ImageUtility.DrawCellsWithColourImage(empireCellsByColour, map, "empires"); // Use default blue ocean
         }
 
 

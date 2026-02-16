@@ -4,7 +4,8 @@ namespace ConsoleUI;
 
 internal class Program
 {
-    static async Task Run(string? jsonPath = null, string? geojsonPath = null)
+    static async Task Run(string? jsonPath = null, string? geojsonPath = null, bool? debug = null,
+        bool? empireFromCulture = null, int? minDuchiesPerKingdom = null, int? minKingdomsPerEmpire = null)
     {
         if (!SettingsManager.TryLoad())
         {
@@ -22,6 +23,26 @@ internal class Program
         {
             Settings.Instance.InputGeojsonPath = geojsonPath;
             Console.WriteLine($"Using GeoJSON path from argument: {geojsonPath}");
+        }
+        if (debug.HasValue)
+        {
+            Settings.Instance.Debug = debug.Value;
+            Console.WriteLine($"Debug mode: {debug.Value}");
+        }
+        if (empireFromCulture.HasValue)
+        {
+            Settings.Instance.EmpireFromCulture = empireFromCulture.Value;
+            Console.WriteLine($"Empire formation from culture: {empireFromCulture.Value}");
+        }
+        if (minDuchiesPerKingdom.HasValue)
+        {
+            Settings.Instance.MinimumDuchiesPerKingdom = minDuchiesPerKingdom.Value;
+            Console.WriteLine($"Minimum duchies per kingdom: {minDuchiesPerKingdom.Value}");
+        }
+        if (minKingdomsPerEmpire.HasValue)
+        {
+            Settings.Instance.MinimumKingdomsPerEmpire = minKingdomsPerEmpire.Value;
+            Console.WriteLine($"Minimum kingdoms per empire: {minKingdomsPerEmpire.Value}");
         }
 
         // Print settings
@@ -98,6 +119,10 @@ internal class Program
         {
             string? jsonPath = null;
             string? geojsonPath = null;
+            bool? debug = null;
+            bool? empireFromCulture = null;
+            int? minDuchiesPerKingdom = null;
+            int? minKingdomsPerEmpire = null;
 
             // Parse command-line arguments
             for (int i = 0; i < args.Length; i++)
@@ -110,6 +135,26 @@ internal class Program
                 else if ((args[i] == "--geojson" || args[i] == "-g") && i + 1 < args.Length)
                 {
                     geojsonPath = args[i + 1];
+                    i++; // Skip the next argument
+                }
+                else if ((args[i] == "--debug" || args[i] == "-d") && i + 1 < args.Length)
+                {
+                    debug = bool.Parse(args[i + 1]);
+                    i++; // Skip the next argument
+                }
+                else if (args[i] == "--empire-from-culture" && i + 1 < args.Length)
+                {
+                    empireFromCulture = bool.Parse(args[i + 1]);
+                    i++; // Skip the next argument
+                }
+                else if (args[i] == "--min-duchies-per-kingdom" && i + 1 < args.Length)
+                {
+                    minDuchiesPerKingdom = int.Parse(args[i + 1]);
+                    i++; // Skip the next argument
+                }
+                else if (args[i] == "--min-kingdoms-per-empire" && i + 1 < args.Length)
+                {
+                    minKingdomsPerEmpire = int.Parse(args[i + 1]);
                     i++; // Skip the next argument
                 }
                 else if (args[i] == "--help" || args[i] == "-h")
@@ -131,7 +176,7 @@ internal class Program
                 }
             }
 
-            await Run(jsonPath, geojsonPath);
+            await Run(jsonPath, geojsonPath, debug, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire);
         }
         catch (Exception ex)
         {

@@ -49,23 +49,42 @@ namespace Converter.Lemur.Entities
             return Color ?? Duchies.FirstOrDefault()?.GetColor();
         }
 
-        public AzgaarCulture GetDominantCulture(Map map)
+        /// <summary>
+        /// Get the distribution of cultures in this kingdom by cell count, excluding wildlands
+        /// </summary>
+        public Dictionary<int, int> GetCultureDistributionByCells()
         {
-            //Get the most common culture among the duchies in this kingdom
-            Dictionary<AzgaarCulture, int> cultureCounts = new Dictionary<AzgaarCulture, int>();
+            var cultureCounts = new Dictionary<int, int>();
             foreach (var duchy in Duchies)
             {
-                var dominantCulture = duchy.GetDominantCulture(map);
-                if (cultureCounts.ContainsKey(dominantCulture))
+                var duchyCounts = duchy.GetCultureDistributionByCells();
+                foreach (var kvp in duchyCounts)
                 {
-                    cultureCounts[dominantCulture]++;
-                }
-                else
-                {
-                    cultureCounts[dominantCulture] = 1;
+                    if (cultureCounts.ContainsKey(kvp.Key))
+                    {
+                        cultureCounts[kvp.Key] += kvp.Value;
+                    }
+                    else
+                    {
+                        cultureCounts[kvp.Key] = kvp.Value;
+                    }
                 }
             }
-            return cultureCounts.OrderByDescending(x => x.Value).First().Key;
+            return cultureCounts;
+        }
+
+        public AzgaarCulture GetDominantCulture(Map map)
+        {
+            var cultureCounts = GetCultureDistributionByCells();
+
+            // If all cells are wildlands, return wildlands culture
+            if (cultureCounts.Count == 0)
+            {
+                return map.JsonMap.pack.cultures[0];
+            }
+
+            var mostCommon = cultureCounts.OrderByDescending(x => x.Value).First().Key;
+            return map.JsonMap.pack.cultures[mostCommon];
         }
 
         public AzgaarReligion GetDominantReligion(Map map)
