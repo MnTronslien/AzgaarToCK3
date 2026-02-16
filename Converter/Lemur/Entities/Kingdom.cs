@@ -103,7 +103,14 @@ namespace Converter.Lemur.Entities
                     }
 
                     // The neighbour is from another kingdom, so we update the count
-                    var kingdom = neighbour.Parent; // Assuming each duchy has a parent kingdom
+                    var kingdom = neighbour.Parent; // Can be null in edge cases
+
+                    // Skip orphan duchies (no parent kingdom)
+                    if (kingdom == null)
+                    {
+                        continue;
+                    }
+
                     if (!neighbouringKingdoms.ContainsKey(kingdom))
                     {
                         neighbouringKingdoms[kingdom] = localNeighbours[neighbour];

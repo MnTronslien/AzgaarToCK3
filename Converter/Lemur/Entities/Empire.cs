@@ -105,9 +105,16 @@ namespace Converter.Lemur.Entities
                     {
                         continue;
                     }
-        
+
                     // The neighbour is from another empire, so we update the count
-                    var empire = neighbour.Parent; // Assuming each kingdom has a parent empire
+                    var empire = neighbour.Parent; // Can be null for orphan kingdoms
+
+                    // Skip orphan kingdoms (no parent empire)
+                    if (empire == null)
+                    {
+                        continue;
+                    }
+
                     if (!neighbouringEmpires.ContainsKey(empire))
                     {
                         neighbouringEmpires[empire] = localNeighbours[neighbour];
