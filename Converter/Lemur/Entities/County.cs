@@ -1,4 +1,5 @@
 using ImageMagick;
+using Converter.Lemur.Deserialization;
 
 namespace Converter.Lemur.Entities
 {
@@ -49,9 +50,9 @@ namespace Converter.Lemur.Entities
             return Color ?? Baronies.FirstOrDefault()?.GetColor();
         }
 
-        public Culture GetDominantCulture(Map map)
+        public AzgaarCulture GetDominantCulture(Map map)
         {
-            Dictionary<Culture, int> cultureCounts = new Dictionary<Culture, int>();
+            Dictionary<AzgaarCulture, int> cultureCounts = new Dictionary<AzgaarCulture, int>();
             foreach (var barony in Baronies)
             {
                 var dominantCulture = barony.GetDominantCulture(map);
@@ -67,9 +68,9 @@ namespace Converter.Lemur.Entities
             return cultureCounts.OrderByDescending(x => x.Value).First().Key;
         }
 
-        public Religion GetDominantReligion(Map map)
+        public AzgaarReligion GetDominantReligion(Map map)
         {
-            Dictionary<Religion, int> religionCounts = new Dictionary<Religion, int>();
+            Dictionary<AzgaarReligion, int> religionCounts = new Dictionary<AzgaarReligion, int>();
             foreach (var barony in Baronies)
             {
                 var dominantReligion = barony.GetDominantReligion(map);

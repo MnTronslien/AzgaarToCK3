@@ -1,4 +1,5 @@
 using ImageMagick;
+using Converter.Lemur.Deserialization;
 
 namespace Converter.Lemur.Entities
 {
@@ -48,10 +49,10 @@ namespace Converter.Lemur.Entities
             return Color ?? Duchies.FirstOrDefault()?.GetColor();
         }
 
-        public Culture GetDominantCulture(Map map)
+        public AzgaarCulture GetDominantCulture(Map map)
         {
             //Get the most common culture among the duchies in this kingdom
-            Dictionary<Culture, int> cultureCounts = new Dictionary<Culture, int>();
+            Dictionary<AzgaarCulture, int> cultureCounts = new Dictionary<AzgaarCulture, int>();
             foreach (var duchy in Duchies)
             {
                 var dominantCulture = duchy.GetDominantCulture(map);
@@ -67,10 +68,10 @@ namespace Converter.Lemur.Entities
             return cultureCounts.OrderByDescending(x => x.Value).First().Key;
         }
 
-        public Religion GetDominantReligion(Map map)
+        public AzgaarReligion GetDominantReligion(Map map)
         {
             //Get the most common religion among the duchies in this kingdom
-            Dictionary<Religion, int> religionCounts = new Dictionary<Religion, int>();
+            Dictionary<AzgaarReligion, int> religionCounts = new Dictionary<AzgaarReligion, int>();
             foreach (var duchy in Duchies)
             {
                 var dominantReligion = duchy.GetDominantReligion(map);

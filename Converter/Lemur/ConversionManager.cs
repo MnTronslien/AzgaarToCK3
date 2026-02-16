@@ -4,6 +4,7 @@ namespace Converter.Lemur
     using System.Drawing;
     using System.Security.Cryptography.X509Certificates;
     using Converter.Lemur.Entities;
+    using Converter.Lemur.Deserialization;
     using Converter.Lemur.Graphs;
     using ImageMagick;
     using static Converter.Lemur.Entities.Cell;
@@ -17,13 +18,10 @@ namespace Converter.Lemur
         public async static Task Run()
         {
             var map = await InitializeMapWithAzgaarData();
-            //print the response to the console
             Console.WriteLine($"{map} has been loaded.");
 
-            // Repack the data from the json and geojson files into a dictionary of cells
-            RepackCellsFromDataAsDictionary(map);
-            RepackBurgs(map);
-
+            // ✅ Visualization checkpoint 1: Raw cells
+            await ImageUtility.DrawCells(map.Cells!.Values.ToList(), map);
 
             LinkCellsToBurgs(map);
 
@@ -37,9 +35,15 @@ namespace Converter.Lemur
             GenerateWastelandProvinces(map);
             AssertEveryLandCellIsAssignedToABurg(map);
 
+            // ✅ Visualization checkpoint 2: Baronies
+            AssignUniqueColorsToBaronies(map);
+            await ShowBaronies(map);
 
             GenerateBaronyAdjacency(map);
             GenerateCounties(map);
+
+            // ✅ Visualization checkpoint 3: Counties
+            await ShowCounties(map);
 
             GenerateEmpires(map);
             GenerateKingdoms(map);
@@ -47,17 +51,10 @@ namespace Converter.Lemur
             MergeTinyKingdoms(map); //Adjust Kingdoms
             MergeTinyEmpires(map); //Adjust Empires
 
-
-
-            //Debugging
-            AssignUniqueColorsToBaronies(map); 
-            // await ImageUtility.DrawProvincesImage(map); 
-            // await ShowCounties(map);
-            // await ShowDuchies(map);
-            // await ShowKingdoms(map);
+            // ✅ Visualization checkpoint 4: Final hierarchy
+            await ShowDuchies(map);
+            await ShowKingdoms(map);
             await ShowEmpires(map);
-
-
 
             Console.WriteLine("Finished conversion!");
         }
@@ -262,10 +259,11 @@ namespace Converter.Lemur
 
         private static async Task<Map> InitializeMapWithAzgaarData()
         {
-            // Load the source data
-            var geoMap = await MapManager.LoadGeojson();
-            var jsonMap = await MapManager.LoadJson();
+            Helper.PrintSectionHeader("Loading Azgaar data");
 
+            // Load directly into Lemur DTOs (no upstream types!)
+            var jsonMap = await AzgaarLoader.LoadJsonAsync(Settings.Instance.InputJsonPath);
+            var geoMap = await AzgaarLoader.LoadGeoJsonAsync(Settings.Instance.InputGeojsonPath);
 
             var map = new Map
             {
@@ -274,68 +272,13 @@ namespace Converter.Lemur
                 Settings = Settings.Instance
             };
 
+            // Build cells and burgs immediately
+            map.Cells = AzgaarLoader.BuildCells(geoMap, jsonMap);
+            map.Burgs = AzgaarLoader.BuildBurgs(jsonMap, map.Cells);
 
             return map;
         }
 
-        /// <summary>
-        /// Repack data from json and geojson into a dictionary of cells
-        /// </summary>
-        /// <param name="map"></param>
-        /// <returns></returns>
-        /// <exception cref="Exception"></exception>
-        private static void RepackCellsFromDataAsDictionary(Map map)
-        {
-            Dictionary<int, Cell> cells = [];
-
-            var cellData = map.GeoMap.features; //Each feature is the representation for a single cell
-                                                // Each cell has a list of properties and a list for geometry
-                                                // The list of properties contains the id, heigh, neighbours e.c.t
-
-            foreach (var cell in cellData)
-            {
-                if (!Enum.TryParse(cell.properties.type, true, out FeatureType type))
-                {
-                    // Throw an exception if the type is not recognized
-                    throw new Exception($"Unrecognized feature type: {cell.properties.type}");
-                }
-
-
-                cells.Add(cell.properties.id, new Cell()
-                {
-                    Id = cell.properties.id,
-                    Height = cell.properties.height,
-                    Culture = cell.properties.culture,
-                    Religion = cell.properties.religion,
-                    State = cell.properties.state,
-                    AzProvince = cell.properties.province,
-                    // Neighbour is an array of cell ids
-                    Neighbors = cell.properties.neighbors,
-                    Type = type,
-                    GeoDataCoordinates = cell.geometry.coordinates[0],
-
-                    // TODO: BIOME
-
-                    //Province = map.Provinces.First(p => p.Id == cell.properties.province),
-
-                    //TODO: Json data has much of the same data - but also some details that are unique, like information about roads. 
-                    //Right now there is no need for that data as far as I can see, but it might be useful later
-
-                });
-
-            }
-
-            Console.WriteLine($"Repacked {cells.Count} cells from data");
-            map.Cells = cells;
-        }
-        private static void RepackBurgs(Map map)
-        {
-            // Repack the burgs as a dictionary with the burg.id as the key for easy lookup
-            var burgs = map.JsonMap.pack.burgs.ToDictionary(
-                burg => burg.i,
-                burg => new Burg(burg));
-            map.Burgs = burgs;
-        }
 
         /// <summary>
         /// Generate a list of baronies with the bare minimum of information
@@ -423,7 +366,7 @@ namespace Converter.Lemur
                 if (province.Key == 0)
                 {
                     // Handle the wastelands province, it might actually contain cells assigned to states
-                    provinceData = new PackProvince(i: 0, name: "Wastelands", burg: 0, state: 0);
+                    provinceData = new AzgaarProvince(i: 0, name: "Wastelands", burg: 0, state: 0);
                     var WastelandCellsByState = province.GroupBy(c => c.Value.State).OrderBy(g => g.Key).OrderBy(g => g.Key);
                     //now for each state in the wastelands province, generate a duchy
 
@@ -649,22 +592,45 @@ namespace Converter.Lemur
 
             foreach (var state in duchiesByState)
             {
+                // Skip state 0 (wastelands)
+                if (state.Key == 0)
+                {
+                    Console.WriteLine($"Skipping state 0 (Wastelands) for kingdom generation");
+                    continue;
+                }
+
                 // Get the state data from the json data
-                var stateData = map.JsonMap.pack.states.First(s => s.i == state.Key);
+                var stateData = map.JsonMap.pack.states.FirstOrDefault(s => s.i == state.Key);
+                if (stateData == null)
+                {
+                    Console.WriteLine($"Warning: Could not find state data for state {state.Key}, skipping");
+                    continue;
+                }
+
                 var kingdom = new Kingdom(stateData.i, stateData.name, null, state.ToList());
                 kingdoms.Add(kingdom);
                 //And depending on if the rule sais to use culture or religion hwne forming empires, add the kingdom to the correct empire
                 if (Settings.Instance.EmpireFromCulture)
                 {
                     var culture = state.First().GetDominantCulture(map);
-                    var empire = map.Empires!.First(e => e.Culture == culture);
+                    var empire = map.Empires!.FirstOrDefault(e => e.Culture == culture);
+                    if (empire == null)
+                    {
+                        Console.WriteLine($"Warning: No empire found for culture {culture.name}, creating orphan kingdom {kingdom.Name}");
+                        continue;
+                    }
                     empire.Kingdoms.Add(kingdom);
                     kingdom.Parent = empire;
                 }
                 else
                 {
                     var religion = state.First().GetDominantReligion(map);
-                    var empire = map.Empires!.First(e => e.Religion == religion);
+                    var empire = map.Empires!.FirstOrDefault(e => e.Religion == religion);
+                    if (empire == null)
+                    {
+                        Console.WriteLine($"Warning: No empire found for religion {religion.name}, creating orphan kingdom {kingdom.Name}");
+                        continue;
+                    }
                     empire.Kingdoms.Add(kingdom);
                     kingdom.Parent = empire;
                 }
@@ -816,6 +782,15 @@ namespace Converter.Lemur
         {
             public Node Node { get; } = node;
             public Barony Barony { get; } = barony;
+        }
+
+        /// <summary>
+        /// Debugging method to show the baronies on the map
+        /// </summary>
+        private static async Task ShowBaronies(Map map)
+        {
+            Helper.PrintSectionHeader("Visualizing Baronies");
+            await ImageUtility.DrawProvincesImage(map);
         }
 
         /// <summary>

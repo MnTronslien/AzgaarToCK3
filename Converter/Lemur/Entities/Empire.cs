@@ -1,4 +1,5 @@
 using ImageMagick;
+using Converter.Lemur.Deserialization;
 
 namespace Converter.Lemur.Entities
 {
@@ -18,8 +19,8 @@ namespace Converter.Lemur.Entities
         public MagickColor? Color { get; set; }
         public List<Cell> Cells { get; set; } = new List<Cell>();
         public List<Kingdom> Kingdoms { get; set; } = new List<Kingdom>();
-        public Culture Culture { get; set; }
-        public Religion Religion { get; set; }
+        public AzgaarCulture Culture { get; set; }
+        public AzgaarReligion Religion { get; set; }
 
         public ITitle? Parent { get; set; }
 
@@ -47,10 +48,10 @@ namespace Converter.Lemur.Entities
             return Color ?? Kingdoms.FirstOrDefault()?.GetColor();
         }
 
-        public Culture GetDominantCulture(Map map)
+        public AzgaarCulture GetDominantCulture(Map map)
         {
             //Accoring to the kingdoms in this empire, what is the most common culture?
-            Dictionary<Culture, int> cultureCounts = new Dictionary<Culture, int>();
+            Dictionary<AzgaarCulture, int> cultureCounts = new Dictionary<AzgaarCulture, int>();
             foreach (var kingdom in Kingdoms)
             {
                 var dominantCulture = kingdom.GetDominantCulture(map);
@@ -67,10 +68,10 @@ namespace Converter.Lemur.Entities
 
         }
 
-        public Religion GetDominantReligion(Map map)
+        public AzgaarReligion GetDominantReligion(Map map)
         {
             //According to the kingdoms in this empire, what is the most common religion?
-            Dictionary<Religion, int> religionCounts = new Dictionary<Religion, int>();
+            Dictionary<AzgaarReligion, int> religionCounts = new Dictionary<AzgaarReligion, int>();
             foreach (var kingdom in Kingdoms)
             {
                 var dominantReligion = kingdom.GetDominantReligion(map);

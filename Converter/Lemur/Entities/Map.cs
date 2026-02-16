@@ -1,4 +1,6 @@
-﻿namespace Converter.Lemur.Entities
+﻿using Converter.Lemur.Deserialization;
+
+namespace Converter.Lemur.Entities
 {
     public record Map
     {
@@ -8,10 +10,12 @@
         public float YOffset => JsonMap.mapCoordinates.latS;
         public float XRatio => MapWidth / JsonMap.mapCoordinates.lonT;
         public float YRatio => MapHeight / JsonMap.mapCoordinates.latT;
-        public required GeoMap GeoMap { get; set; }
+
+        // Now using Azgaar DTOs instead of upstream types
+        public AzgaarGeoMap? GeoMap { get; set; }
 
         //TODO: Rivers public GeoMapRivers Rivers { get; set; }
-        public required JsonMap JsonMap { get; set; }
+        public required AzgaarJsonMap JsonMap { get; set; }
         public required Settings Settings { get; set; }
 
         public Dictionary<int, Cell>? Cells { get; set; }

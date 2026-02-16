@@ -1,4 +1,5 @@
 using ImageMagick;
+using Converter.Lemur.Deserialization;
 
 namespace Converter.Lemur.Entities
 {
@@ -51,7 +52,7 @@ namespace Converter.Lemur.Entities
             return Color;
         }
         //Get the dominant culture of the barony by counting the number of cells with each culture and returning the most common
-        public Culture GetDominantCulture(Map map)
+        public AzgaarCulture GetDominantCulture(Map map)
         {
             var cultureCounts = new Dictionary<int, int>();
             foreach (var cell in Cells)
@@ -69,7 +70,7 @@ namespace Converter.Lemur.Entities
             return map.JsonMap.pack.cultures[mostCommon];
         }
 
-        public Religion GetDominantReligion(Map map)
+        public AzgaarReligion GetDominantReligion(Map map)
         {
             var religionCounts = new Dictionary<int, int>();
             foreach (var cell in Cells)
