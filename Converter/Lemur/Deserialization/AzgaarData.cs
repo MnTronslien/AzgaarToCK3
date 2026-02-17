@@ -42,6 +42,22 @@ namespace Converter.Lemur.Deserialization
 
     public record AzgaarReligion(int i, string name);
 
+    public record AzgaarRiver(
+        int i,              // River ID
+        int source,         // Source cell ID
+        int mouth,          // Mouth cell ID
+        float discharge,    // Flow volume (key metric)
+        float length,       // Total river length
+        float width,        // Width at mouth
+        float sourceWidth,  // Width at source
+        float widthFactor,  // Width interpolation factor
+        int parent,         // Parent river ID (0 if main river)
+        int[] cells,        // Ordered list of cell IDs river passes through
+        int basin,          // Watershed/basin ID
+        string name,        // River name
+        string type         // "River" or "Fork" (tributary)
+    );
+
     public record AzgaarMapCoordinates(
         float latT,  // Total latitude range
         float latN,  // Northern latitude
@@ -131,6 +147,8 @@ namespace Converter.Lemur.Deserialization
         public AzgaarCulture[] cultures { get; set; } = Array.Empty<AzgaarCulture>();
 
         public AzgaarReligion[] religions { get; set; } = Array.Empty<AzgaarReligion>();
+
+        public AzgaarRiver[] rivers { get; set; } = Array.Empty<AzgaarRiver>();
     }
 
     /// <summary>
@@ -171,5 +189,39 @@ namespace Converter.Lemur.Deserialization
     /// </summary>
     public record AzgaarGeoMap(
         GeoJsonFeature[] features
+    );
+
+    // ========== River GeoJSON DTOs ==========
+
+    public record RiverGeometry(
+        string type,        // "LineString"
+        float[][] coordinates  // Array of [x, y] coordinate pairs
+    );
+
+    public record RiverFeatureProperties(
+        int id,
+        int source,
+        int mouth,
+        int parent,
+        int basin,
+        float widthFactor,
+        float sourceWidth,
+        float discharge,
+        string name,
+        string type  // "River" or "Fork"
+    );
+
+    public record RiverFeature(
+        string type,  // "Feature"
+        RiverGeometry geometry,
+        RiverFeatureProperties properties
+    );
+
+    /// <summary>
+    /// Top-level structure for rivers GeoJSON export from Azgaar
+    /// </summary>
+    public record RiverGeoJson(
+        string type,  // "FeatureCollection"
+        RiverFeature[] features
     );
 }
