@@ -7,6 +7,16 @@ namespace Converter.Lemur.Rivers;
 /// Handles the case where a tributary's A* path fails because its endpoint is on the
 /// wrong side of the parent river. Uses BFS to find the nearest valid connection point
 /// on the parent river's edge, then A* to reach it.
+///
+/// CK3 river marker colour contract (for reference):
+///   Blue  (0,0,180)   — river body; drawn for every pixel of the path
+///   Green (0,255,0)   — source marker; placed at the upstream START of every river
+///   Red   (255,0,0)   — tributary junction; placed where a tributary meets its parent
+///   Yellow(255,252,0) — delta split (unimplemented, reserved for future expansion)
+///
+/// Placement of green and red markers is the responsibility of the drawing pipeline
+/// (RiverImageGenerator_New), NOT this class.  This class only finds the connection
+/// point pixel — the caller draws the path and then places the red marker there.
 /// </summary>
 public static class RiverTributaryConnector
 {
@@ -17,6 +27,8 @@ public static class RiverTributaryConnector
     /// <summary>
     /// When A* fails for a tributary segment, search for a valid connection point on the
     /// parent river's edge via BFS, then path to it.
+    /// The returned path ends at the white pixel where the red junction marker should be
+    /// placed by the caller after drawing.
     /// </summary>
     /// <param name="lastValidPixel">Last successfully pathed pixel before the failure</param>
     /// <param name="intendedDestination">The original intended destination (used for logging)</param>
@@ -107,9 +119,11 @@ public static class RiverTributaryConnector
 
     /// <summary>
     /// A valid connection point is a passable (white/magenta) pixel adjacent to exactly
-    /// 1 blue pixel (the parent river body edge).  This is the pixel where the green
-    /// source marker for the current tributary will be spawned — it sits on the border
-    /// of the parent river's blue body without replacing any existing pixel.
+    /// 1 blue pixel (the parent river body edge).  This is the pixel where the red
+    /// tributary-junction marker will be spawned once the tributary path is drawn —
+    /// it sits on the border of the parent river's blue body without replacing any
+    /// existing pixel.
+    /// NOTE: placement of the red pixel is handled by the caller after path drawing.
     /// </summary>
     private static bool IsValidConnectionPoint(Point p, MagickImage image)
     {
