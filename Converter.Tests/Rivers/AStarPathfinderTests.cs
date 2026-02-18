@@ -8,19 +8,26 @@ namespace Converter.Tests.Rivers;
 /// <summary>
 /// Tests for AStarPathfinder using manually-constructed pixel images as the passability source.
 ///
-/// Image conventions used in tests:
-///   White (255,255,255) = passable land
-///   Blue  (0,0,180)     = existing river pixel (impassable)
+/// Image conventions match the CK3 river map specification:
+///   White   (255,255,255) = passable land
+///   Blue    (0,0,180)     = river body (impassable, triggers Pass 2 adjacency exclusion)
+///   Green   (0,255,0)     = river source marker (impassable, does NOT trigger Pass 2)
+///   Red     (255,0,0)     = tributary junction marker (impassable, does NOT trigger Pass 2)
+///
+/// Only blue triggers the Pass 2 adjacency exclusion zone.  Red and green are
+/// endpoint markers — it must remain possible to path UP TO them.
 ///
 /// Each test documents its image layout as an ASCII grid for easy reading.
 /// </summary>
 public class AStarPathfinderTests
 {
     // ─────────────────────────────────────────────────────────────────────────────
-    // Shared colour constants
+    // Shared colour constants  (match CK3 river map spec)
     // ─────────────────────────────────────────────────────────────────────────────
 
-    private static readonly MagickColor Blue = new(0, 0, 180);
+    private static readonly MagickColor Blue  = new(0,   0,   180);  // river body
+    private static readonly MagickColor Green = new(0,   255, 0);    // source pixel
+    private static readonly MagickColor Red   = new(255, 0,   0);    // tributary junction
 
     // ─────────────────────────────────────────────────────────────────────────────
     // Image helpers
@@ -32,20 +39,32 @@ public class AStarPathfinderTests
     /// </summary>
     private static MagickImage CreateImage(int width, int height, params (int x, int y)[] blueAt)
     {
+        var colored = blueAt.Select(p => (p.x, p.y, Blue)).ToArray();
+        return CreateImageWithColors(width, height, colored);
+    }
+
+    /// <summary>
+    /// Creates a white (all-passable) test image and paints each specified pixel with
+    /// the given colour.  Use Blue, Red, or Green to represent river map pixels.
+    /// Call Dispose() on the returned image when the test is done.
+    /// </summary>
+    private static MagickImage CreateImageWithColors(int width, int height,
+        params (int x, int y, MagickColor color)[] paintAt)
+    {
         var settings = new MagickReadSettings { Width = width, Height = height };
         var image = new MagickImage("xc:white", settings);
 
-        if (blueAt.Length > 0)
+        if (paintAt.Length > 0)
         {
             using var pixels = image.GetPixels();
-            foreach (var (x, y) in blueAt)
+            foreach (var (x, y, color) in paintAt)
             {
                 var pixel = pixels.GetPixel(x, y);
                 if (pixel != null)
                 {
-                    pixel.SetChannel(0, Blue.R);
-                    pixel.SetChannel(1, Blue.G);
-                    pixel.SetChannel(2, Blue.B);
+                    pixel.SetChannel(0, color.R);
+                    pixel.SetChannel(1, color.G);
+                    pixel.SetChannel(2, color.B);
                 }
             }
         }
@@ -54,8 +73,9 @@ public class AStarPathfinderTests
     }
 
     /// <summary>
-    /// Builds the IsPassable delegate used by A*: blue pixels are impassable.
-    /// Start and end points always bypass the colour check (same as production code).
+    /// Builds the IsPassable delegate used by A*.
+    /// Matches production code: blue, red, AND green pixels are all impassable.
+    /// Start and end points always bypass the colour check.
     /// </summary>
     private static Func<Point, bool> MakeIsPassable(MagickImage image, Point start, Point end) =>
         p =>
@@ -66,7 +86,12 @@ public class AStarPathfinderTests
             var pixel = pixels.GetPixel(p.X, p.Y);
             var color = pixel?.ToColor();
             if (color == null) return false;
-            return !(color.R == Blue.R && color.G == Blue.G && color.B == Blue.B);
+
+            // All three CK3 river colours are impassable (matches RiverPathGenerator)
+            bool isBlue  = color.R == Blue.R  && color.G == Blue.G  && color.B == Blue.B;
+            bool isGreen = color.R == Green.R && color.G == Green.G && color.B == Green.B;
+            bool isRed   = color.R == Red.R   && color.G == Red.G   && color.B == Red.B;
+            return !(isBlue || isGreen || isRed);
         };
 
     /// <summary>
@@ -339,5 +364,143 @@ public class AStarPathfinderTests
         Assert.NotNull(path);
         Assert.Single(path!);
         Assert.Equal(point, path[0]);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Tests 7–10 – Red (tributary junction) and Green (source) pixel behaviour
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Layout (7×3, red pixel at (3,1)):
+    ///
+    ///   S . . . . . .   y=0
+    ///   . . . R . . .   y=1  ← red (tributary junction) at (3,1)
+    ///   . . . . . . G   y=2  ← goal (6,2)
+    ///
+    /// Red is a CK3 tributary-junction marker.  It is impassable — A* must route
+    /// around it via y=0 rather than through it.
+    /// The returned path must not contain the red pixel.
+    /// </summary>
+    [Fact]
+    public void Pass1_RedTributaryJunction_IsImpassable()
+    {
+        var start = new Point(0, 0);
+        var goal  = new Point(6, 2);
+
+        using var image = CreateImageWithColors(7, 3, (3, 1, Red));
+
+        var pathfinder = new AStarPathfinder(7, 3, MakeIsPassable(image, start, goal));
+        var path = pathfinder.FindPath(start, goal);
+
+        Assert.NotNull(path);
+        Assert.Equal(start, path![0]);
+        Assert.Equal(goal,  path[^1]);
+
+        // Red pixel must not appear in the path
+        Assert.DoesNotContain(new Point(3, 1), path);
+    }
+
+    /// <summary>
+    /// Layout (7×3, green pixel at (3,1)):
+    ///
+    ///   S . . . . . .   y=0
+    ///   . . . G . . .   y=1  ← green (river source) at (3,1)
+    ///   . . . . . . E   y=2  ← goal (6,2)
+    ///
+    /// Green is a CK3 river-source marker.  It is impassable — A* must route
+    /// around it.  The returned path must not contain the green pixel.
+    /// </summary>
+    [Fact]
+    public void Pass1_GreenSource_IsImpassable()
+    {
+        var start = new Point(0, 0);
+        var goal  = new Point(6, 2);
+
+        using var image = CreateImageWithColors(7, 3, (3, 1, Green));
+
+        var pathfinder = new AStarPathfinder(7, 3, MakeIsPassable(image, start, goal));
+        var path = pathfinder.FindPath(start, goal);
+
+        Assert.NotNull(path);
+        Assert.Equal(start, path![0]);
+        Assert.Equal(goal,  path[^1]);
+
+        Assert.DoesNotContain(new Point(3, 1), path);
+    }
+
+    /// <summary>
+    /// Layout (7×3, red pixel at (3,1)):
+    ///
+    ///   S . . . . . .   y=0
+    ///   . . . R . . .   y=1  ← red at (3,1)
+    ///   . . . . . . G   y=2  ← goal (6,2)
+    ///
+    /// Pass 2 adjacency exclusion must apply ONLY to blue pixels.
+    /// Pixels adjacent to red (e.g. (3,0), (3,2), (2,1), (4,1)) must NOT be
+    /// excluded from A* — if they were, a tributary could never path to a red
+    /// junction point, which is the whole purpose of the red marker.
+    ///
+    /// Verified by enabling Pass 2 and checking that a valid path is still found
+    /// and that its length is the same as without Pass 2.
+    /// </summary>
+    [Fact]
+    public void Pass2_AdjacentToRed_IsNotExcluded()
+    {
+        var start = new Point(0, 1);
+        var goal  = new Point(6, 1);
+
+        using var image = CreateImageWithColors(7, 3, (3, 1, Red));
+
+        // Without Pass 2
+        var pf1 = new AStarPathfinder(7, 3, MakeIsPassable(image, start, goal));
+        var pathNoPass2 = pf1.FindPath(start, goal);
+
+        // With Pass 2 (blue-only adjacency check)
+        var pf2 = new AStarPathfinder(7, 3, MakeIsPassable(image, start, goal),
+            countAdjacentBlue: MakeCountAdjacentBlue(image));
+        var pathWithPass2 = pf2.FindPath(start, goal);
+
+        // Both must find a path (red does not block)
+        Assert.NotNull(pathNoPass2);
+        Assert.NotNull(pathWithPass2);
+
+        // Path lengths must be equal: Pass 2 must not add extra detour around red
+        Assert.Equal(pathNoPass2!.Count, pathWithPass2!.Count);
+    }
+
+    /// <summary>
+    /// Layout (7×3, green pixel at (3,1)):
+    ///
+    ///   S . . . . . .   y=0
+    ///   . . . G . . .   y=1  ← green at (3,1)
+    ///   . . . . . . E   y=2  ← goal (6,2)
+    ///
+    /// Same principle as the red test above.  Pass 2 must not create an exclusion
+    /// zone around green source pixels — otherwise a river could never start
+    /// adjacent to another river's source.
+    /// </summary>
+    [Fact]
+    public void Pass2_AdjacentToGreen_IsNotExcluded()
+    {
+        var start = new Point(0, 1);
+        var goal  = new Point(6, 1);
+
+        using var image = CreateImageWithColors(7, 3, (3, 1, Green));
+
+        // Without Pass 2
+        var pf1 = new AStarPathfinder(7, 3, MakeIsPassable(image, start, goal));
+        var pathNoPass2 = pf1.FindPath(start, goal);
+
+        // With Pass 2 (blue-only adjacency check)
+        var pf2 = new AStarPathfinder(7, 3, MakeIsPassable(image, start, goal),
+            countAdjacentBlue: MakeCountAdjacentBlue(image));
+        var pathWithPass2 = pf2.FindPath(start, goal);
+
+        // Both must find a path
+        Assert.NotNull(pathNoPass2);
+        Assert.NotNull(pathWithPass2);
+
+        // Path lengths must be equal: Pass 2 must not add extra detour around green
+        Assert.Equal(pathNoPass2!.Count, pathWithPass2!.Count);
     }
 }
