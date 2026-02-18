@@ -17,7 +17,8 @@ public static class RiverPathGenerator
     public static List<Point> GenerateCompletePath(
         List<PointD> controlPoints,
         MagickImage image,
-        string riverName)
+        string riverName,
+        bool isTributary = false)
     {
         if (controlPoints.Count < 2)
             return new List<Point>();
@@ -56,18 +57,36 @@ public static class RiverPathGenerator
             }
             else
             {
-                // A* failed - add destination directly and hope for the best
-                // This creates a gap that will be caught by validation
+                // A* failed - try tributary fallback if this is a tributary
+                if (isTributary)
+                {
+                    var fallbackPath = RiverTributaryConnector.FindTributaryConnection(
+                        completePath[^1],
+                        to,
+                        image,
+                        riverName);
+
+                    if (fallbackPath != null && fallbackPath.Count > 0)
+                    {
+                        Console.WriteLine($"  Tributary fallback succeeded for {riverName} segment {i}");
+                        int startIdx = (fallbackPath[0] == completePath[^1]) ? 1 : 0;
+                        for (int j = startIdx; j < fallbackPath.Count; j++)
+                        {
+                            completePath.Add(fallbackPath[j]);
+                        }
+                        successfulSegments++;
+                        continue;
+                    }
+                }
+
+                // Fallback failed or not a tributary - add destination and log
                 if (to != completePath[^1])
                 {
                     completePath.Add(to);
                 }
                 failedSegments++;
 
-                if (Settings.Instance.Debug)
-                {
-                    Console.WriteLine($"  WARNING: A* failed for {riverName} segment {i}: ({from.X},{from.Y}) → ({to.X},{to.Y})");
-                }
+                Console.WriteLine($"  WARNING: A* failed for {riverName} segment {i}: ({from.X},{from.Y}) → ({to.X},{to.Y})");
             }
         }
 
@@ -90,9 +109,11 @@ public static class RiverPathGenerator
     }
 
     /// <summary>
-    /// Find orthogonal path between two points using A*, avoiding existing river pixels.
+    /// Find orthogonal path between two points using A*, avoiding existing river pixels
+    /// and pixels adjacent to existing blue (river) pixels (Pass 2 adjacency filtering).
+    /// The destination pixel always bypasses the adjacency check to allow tributary connections.
     /// </summary>
-    private static List<Point>? FindOrthogonalPath(Point from, Point to, MagickImage image)
+    internal static List<Point>? FindOrthogonalPath(Point from, Point to, MagickImage image)
     {
         // If points are the same, return empty
         if (from == to)
@@ -136,12 +157,18 @@ public static class RiverPathGenerator
             }
         }
 
-        // Create pathfinder with orthogonal-only movement
+        // Pass 2: adjacency-to-blue checker
+        // Returns how many blue pixels are orthogonally adjacent to the given point.
+        // A* uses this to discard candidates that would create parallel/touching rivers.
+        int CountAdjacent(Point p) => CountAdjacentBluePixels(p, image);
+
+        // Create pathfinder with orthogonal-only movement and two-pass filtering
         var pathfinder = new AStarPathfinder(
             (int)image.Width,
             (int)image.Height,
             IsPassable,
-            allowDiagonal: false
+            allowDiagonal: false,
+            countAdjacentBlue: CountAdjacent
         );
 
         // Calculate max iterations based on distance
@@ -149,6 +176,47 @@ public static class RiverPathGenerator
         int maxIterations = Math.Max(20000, distance * 4);
 
         return pathfinder.FindPath(from, to, maxIterations);
+    }
+
+    /// <summary>
+    /// Count how many orthogonally adjacent pixels are blue (existing river pixels).
+    /// Used for Pass 2 adjacency filtering in A* to prevent parallel/touching rivers.
+    /// </summary>
+    internal static int CountAdjacentBluePixels(Point p, MagickImage image)
+    {
+        var blueColor = new MagickColor(0, 0, 180);
+        int count = 0;
+
+        Point[] neighbors = {
+            new Point(p.X, p.Y - 1),  // Up
+            new Point(p.X, p.Y + 1),  // Down
+            new Point(p.X - 1, p.Y),  // Left
+            new Point(p.X + 1, p.Y)   // Right
+        };
+
+        using var pixels = image.GetPixels();
+        foreach (var neighbor in neighbors)
+        {
+            if (neighbor.X < 0 || neighbor.X >= image.Width ||
+                neighbor.Y < 0 || neighbor.Y >= image.Height)
+                continue;
+
+            try
+            {
+                var pixel = pixels.GetPixel(neighbor.X, neighbor.Y);
+                if (pixel == null) continue;
+
+                var color = pixel.ToColor();
+                if (color != null && ColorsMatch(color, blueColor))
+                    count++;
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        return count;
     }
 
     private static bool ColorsMatch(IMagickColor<byte> a, IMagickColor<byte> b)

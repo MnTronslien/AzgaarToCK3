@@ -22,6 +22,21 @@ namespace Converter.Lemur.Entities
         public List<float[]>? ControlPoints { get; set; }
 
         /// <summary>
+        /// Parent river ID. 0 if this is a main river, otherwise the ID of the river this flows into.
+        /// </summary>
+        public int ParentId { get; set; }
+
+        /// <summary>
+        /// River type: "River" for main rivers, "Fork" for tributaries.
+        /// </summary>
+        public string Type { get; set; } = string.Empty;
+
+        /// <summary>
+        /// True if this river is a tributary (flows into another river).
+        /// </summary>
+        public bool IsTributary => ParentId != 0;
+
+        /// <summary>
         /// Determines if this river is a major navigable river based on discharge threshold.
         /// </summary>
         public bool IsMajor(float threshold) => Discharge >= threshold;
@@ -41,7 +56,9 @@ namespace Converter.Lemur.Entities
                 SourceWidth = azRiver.sourceWidth,
                 CellIds = azRiver.cells.ToList(),
                 SourceCellId = azRiver.source,
-                MouthCellId = azRiver.mouth
+                MouthCellId = azRiver.mouth,
+                ParentId = azRiver.parent,
+                Type = azRiver.type
             };
         }
     }

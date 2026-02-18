@@ -14,8 +14,12 @@ namespace Converter.Lemur.Rivers
         {
             Helper.PrintSectionHeader("Drawing Rivers Image - Pure A* Approach");
 
-            var minorRivers = allRivers.Where(r => !r.IsMajor(majorThreshold)).ToList();
-            Console.WriteLine($"Drawing {minorRivers.Count} minor rivers using pure A* pathfinding");
+            var minorRivers = allRivers
+                .Where(r => !r.IsMajor(majorThreshold))
+                .OrderBy(r => r.ParentId)   // Draw parent rivers first, then tributaries
+                .ThenBy(r => r.Id)          // Deterministic secondary sort
+                .ToList();
+            Console.WriteLine($"Drawing {minorRivers.Count} minor rivers using pure A* pathfinding (parent rivers first)");
             Console.WriteLine($"No line drawing - exact pixel control with manual SetPixel");
             Console.WriteLine();
 
@@ -75,7 +79,7 @@ namespace Converter.Lemur.Rivers
 
                 // Generate complete orthogonal path using ONLY A*
                 // No gap filling, cleaning, or fixing - A* creates the perfect path
-                var riverPath = RiverPathGenerator.GenerateCompletePath(controlPoints, riversImage, river.Name);
+                var riverPath = RiverPathGenerator.GenerateCompletePath(controlPoints, riversImage, river.Name, river.IsTributary);
 
                 if (riverPath.Count < 2)
                 {
