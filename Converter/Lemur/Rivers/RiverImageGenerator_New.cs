@@ -49,6 +49,8 @@ namespace Converter.Lemur.Rivers
             int skippedCount = 0;
 
             var riverColor = new MagickColor(0, 0, 180);  // Deep dark blue RGB(0, 0, 180)
+            var sourceColor = new MagickColor(0, 255, 0); // Green  – source marker (start of every river)
+            var junctionColor = new MagickColor(255, 0, 0); // Red – tributary junction (end of tributaries)
 
             // Store actual drawn pixels for validation (not intended paths!)
             var riverActualPixels = new List<(River river, List<Point> actualPixels)>();
@@ -78,23 +80,44 @@ namespace Converter.Lemur.Rivers
                 }
 
                 // Generate complete orthogonal path using ONLY A*
-                // No gap filling, cleaning, or fixing - A* creates the perfect path
-                var riverPath = RiverPathGenerator.GenerateCompletePath(controlPoints, riversImage, river.Name, river.IsTributary);
+                // Each segment is drawn to the image immediately via the callback so that
+                // subsequent segments (and rivers) see it as an obstacle.
+                var allActualPixels = new List<Point>();
+                RiverPathGenerator.GenerateCompletePath(
+                    controlPoints,
+                    riversImage,
+                    river.Name,
+                    river.IsTributary,
+                    afterSegment: segmentPixels =>
+                    {
+                        var drawn = RiverPixelDrawer.DrawRiverPath(riversImage, segmentPixels, riverColor);
+                        allActualPixels.AddRange(drawn);
+                    });
 
-                if (riverPath.Count < 2)
+                if (allActualPixels.Count < 2)
                 {
-                    Console.WriteLine($"SKIPPED: River {river.Id} '{river.Name}' - A* path generation resulted in {riverPath.Count} pixel(s)");
+                    Console.WriteLine($"SKIPPED: River {river.Id} '{river.Name}' - A* path generation resulted in {allActualPixels.Count} pixel(s)");
                     skippedCount++;
                     continue;
                 }
 
-                // Manually draw each pixel (exact control, no Polyline!)
-                var actualPixelsDrawn = RiverPixelDrawer.DrawRiverPath(riversImage, riverPath, riverColor);
+                // Place CK3 marker pixels (overwrite the relevant blue pixels):
+                // Green at the upstream source (first pixel of every river)
+                // Red   at the tributary junction (last pixel, tributaries only)
+                var sourcePixel = allActualPixels[0];
+                RiverPixelDrawer.SetPixel(riversImage, sourcePixel.X, sourcePixel.Y, sourceColor);
 
-                Console.WriteLine($"DREW: River {river.Id} '{river.Name}' with {actualPixelsDrawn.Count} pixels");
+                if (river.IsTributary && allActualPixels.Count > 1)
+                {
+                    var junctionPixel = allActualPixels[^1];
+                    RiverPixelDrawer.SetPixel(riversImage, junctionPixel.X, junctionPixel.Y, junctionColor);
+                }
+
+                Console.WriteLine($"DREW: River {river.Id} '{river.Name}' with {allActualPixels.Count} pixels" +
+                    (river.IsTributary ? " [tributary — red junction placed]" : " [green source placed]"));
 
                 // Store ACTUAL pixels for validation
-                riverActualPixels.Add((river, actualPixelsDrawn));
+                riverActualPixels.Add((river, allActualPixels));
                 drawnCount++;
             }
 

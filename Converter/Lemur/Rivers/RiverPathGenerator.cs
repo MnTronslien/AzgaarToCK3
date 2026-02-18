@@ -13,12 +13,17 @@ public static class RiverPathGenerator
     /// <summary>
     /// Generate a complete orthogonal river path by A* pathfinding between control points.
     /// This is the ONLY way we create river pixels - no line drawing, pure A* control.
+    ///
+    /// Each segment is reported via <paramref name="afterSegment"/> immediately after it is
+    /// computed so the caller can draw it to the image before the next segment's A* runs.
+    /// This ensures every segment sees previously-drawn segments of the same river as obstacles.
     /// </summary>
     public static List<Point> GenerateCompletePath(
         List<PointD> controlPoints,
         MagickImage image,
         string riverName,
-        bool isTributary = false)
+        bool isTributary = false,
+        Action<List<Point>>? afterSegment = null)
     {
         if (controlPoints.Count < 2)
             return new List<Point>();
@@ -40,20 +45,27 @@ public static class RiverPathGenerator
             var from = new Point((int)fromPoint.X, (int)fromPoint.Y);
             var to = new Point((int)toPoint.X, (int)toPoint.Y);
 
-            // Use A* to find orthogonal path
-            var segment = FindOrthogonalPath(from, to, image);
+            // Exclude `from` from Pass 2 adjacency counts — when this is not the first segment,
+            // `from` was just drawn blue by the previous segment's callback and would otherwise
+            // cause all four of its neighbours to be blocked by Pass 2.
+            var segment = FindOrthogonalPath(from, to, image, excludeFromPass2: from);
 
             if (segment != null && segment.Count > 0)
             {
-                // Add segment (skip first point if it's the same as our current point)
+                // Collect only NEW pixels (skip duplicate leading point)
                 int startIdx = (segment[0] == completePath[^1]) ? 1 : 0;
-
+                var newPixels = new List<Point>();
                 for (int j = startIdx; j < segment.Count; j++)
                 {
                     completePath.Add(segment[j]);
+                    newPixels.Add(segment[j]);
                 }
 
                 successfulSegments++;
+
+                // Draw this segment immediately so subsequent A* calls see it as an obstacle
+                if (newPixels.Count > 0)
+                    afterSegment?.Invoke(newPixels);
             }
             else
             {
@@ -70,12 +82,21 @@ public static class RiverPathGenerator
                     {
                         Console.WriteLine($"  Tributary fallback succeeded for {riverName} segment {i}");
                         int startIdx = (fallbackPath[0] == completePath[^1]) ? 1 : 0;
+                        var newPixels = new List<Point>();
                         for (int j = startIdx; j < fallbackPath.Count; j++)
                         {
                             completePath.Add(fallbackPath[j]);
+                            newPixels.Add(fallbackPath[j]);
                         }
+
                         successfulSegments++;
-                        continue;
+
+                        if (newPixels.Count > 0)
+                            afterSegment?.Invoke(newPixels);
+
+                        // River has merged into parent — discard remaining segments
+                        Console.WriteLine($"  {riverName}: connected to parent, discarding remaining segments");
+                        break;
                     }
                 }
 
@@ -110,10 +131,14 @@ public static class RiverPathGenerator
 
     /// <summary>
     /// Find orthogonal path between two points using A*, avoiding existing river pixels
-    /// and pixels adjacent to existing blue (river) pixels (Pass 2 adjacency filtering).
+    /// and pixels adjacent to existing river pixels (Pass 2 adjacency filtering).
     /// The destination pixel always bypasses the adjacency check to allow tributary connections.
     /// </summary>
-    internal static List<Point>? FindOrthogonalPath(Point from, Point to, MagickImage image)
+    /// <param name="excludeFromPass2">
+    /// A pixel to exclude from Pass 2 adjacency counts. Pass the segment's <c>from</c> pixel
+    /// here so that A* can still leave the (now-blue) segment start without all neighbours blocked.
+    /// </param>
+    internal static List<Point>? FindOrthogonalPath(Point from, Point to, MagickImage image, Point? excludeFromPass2 = null)
     {
         // If points are the same, return empty
         if (from == to)
@@ -162,7 +187,9 @@ public static class RiverPathGenerator
         // (blue = river body, red = tributary junction, green = river source).
         // Red and green markers already in the image were placed by previously-drawn
         // rivers, so a new river must not run alongside them either.
-        int CountAdjacent(Point p) => CountAdjacentRiverPixels(p, image);
+        // Excludes `excludeFromPass2` so the segment-start pixel (now blue from the
+        // previous segment's draw) does not block all four of its own neighbours.
+        int CountAdjacent(Point p) => CountAdjacentRiverPixels(p, image, excludeFromPass2);
 
         // Create pathfinder with orthogonal-only movement and two-pass filtering
         var pathfinder = new AStarPathfinder(
@@ -186,9 +213,10 @@ public static class RiverPathGenerator
     /// Used for Pass 2 adjacency filtering in A* — a new river must not run
     /// alongside any previously-drawn river marker of any colour.
     /// </summary>
-    internal static int CountAdjacentRiverPixels(Point p, MagickImage image)
+    /// <param name="exclude">A neighbour pixel to skip when counting (e.g. the segment's <c>from</c> pixel).</param>
+    internal static int CountAdjacentRiverPixels(Point p, MagickImage image, Point? exclude = null)
     {
-        return CountAdjacentMatchingPixels(p, image,
+        return CountAdjacentMatchingPixels(p, image, exclude,
             new MagickColor(0, 0, 180),    // blue  – river body
             new MagickColor(255, 0, 0),    // red   – tributary junction
             new MagickColor(0, 255, 0));   // green – river source
@@ -201,11 +229,11 @@ public static class RiverPathGenerator
     /// </summary>
     internal static int CountAdjacentBluePixels(Point p, MagickImage image)
     {
-        return CountAdjacentMatchingPixels(p, image, new MagickColor(0, 0, 180));
+        return CountAdjacentMatchingPixels(p, image, null, new MagickColor(0, 0, 180));
     }
 
     private static int CountAdjacentMatchingPixels(Point p, MagickImage image,
-        params MagickColor[] matchColors)
+        Point? exclude, params MagickColor[] matchColors)
     {
         int count = 0;
 
@@ -221,6 +249,10 @@ public static class RiverPathGenerator
         {
             if (neighbor.X < 0 || neighbor.X >= image.Width ||
                 neighbor.Y < 0 || neighbor.Y >= image.Height)
+                continue;
+
+            // Skip the excluded pixel (e.g. the segment's 'from' that was just drawn blue)
+            if (exclude.HasValue && neighbor == exclude.Value)
                 continue;
 
             try
