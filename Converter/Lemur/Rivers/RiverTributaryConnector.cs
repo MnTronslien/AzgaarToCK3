@@ -106,8 +106,10 @@ public static class RiverTributaryConnector
     }
 
     /// <summary>
-    /// A valid connection point is a passable (non-river) pixel adjacent to exactly 1 blue pixel.
-    /// This represents a pixel on the edge of the parent river — the correct place to join.
+    /// A valid connection point is a passable (white/magenta) pixel adjacent to exactly
+    /// 1 blue pixel (the parent river body edge).  This is the pixel where the green
+    /// source marker for the current tributary will be spawned — it sits on the border
+    /// of the parent river's blue body without replacing any existing pixel.
     /// </summary>
     private static bool IsValidConnectionPoint(Point p, MagickImage image)
     {

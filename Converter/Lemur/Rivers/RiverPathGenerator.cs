@@ -157,10 +157,12 @@ public static class RiverPathGenerator
             }
         }
 
-        // Pass 2: adjacency-to-blue checker
-        // Returns how many blue pixels are orthogonally adjacent to the given point.
-        // A* uses this to discard candidates that would create parallel/touching rivers.
-        int CountAdjacent(Point p) => CountAdjacentBluePixels(p, image);
+        // Pass 2: adjacency-to-river checker.
+        // Counts any orthogonally adjacent pixel that belongs to an EXISTING river
+        // (blue = river body, red = tributary junction, green = river source).
+        // Red and green markers already in the image were placed by previously-drawn
+        // rivers, so a new river must not run alongside them either.
+        int CountAdjacent(Point p) => CountAdjacentRiverPixels(p, image);
 
         // Create pathfinder with orthogonal-only movement and two-pass filtering
         var pathfinder = new AStarPathfinder(
@@ -179,19 +181,39 @@ public static class RiverPathGenerator
     }
 
     /// <summary>
-    /// Count how many orthogonally adjacent pixels are blue (existing river pixels).
-    /// Used for Pass 2 adjacency filtering in A* to prevent parallel/touching rivers.
+    /// Count how many orthogonally adjacent pixels belong to any existing river
+    /// (blue = river body, red = tributary junction, green = river source).
+    /// Used for Pass 2 adjacency filtering in A* — a new river must not run
+    /// alongside any previously-drawn river marker of any colour.
+    /// </summary>
+    internal static int CountAdjacentRiverPixels(Point p, MagickImage image)
+    {
+        return CountAdjacentMatchingPixels(p, image,
+            new MagickColor(0, 0, 180),    // blue  – river body
+            new MagickColor(255, 0, 0),    // red   – tributary junction
+            new MagickColor(0, 255, 0));   // green – river source
+    }
+
+    /// <summary>
+    /// Count how many orthogonally adjacent pixels are blue (river body only).
+    /// Used by the tributary connection-point search, which looks specifically for
+    /// the edge of the parent river's body.
     /// </summary>
     internal static int CountAdjacentBluePixels(Point p, MagickImage image)
     {
-        var blueColor = new MagickColor(0, 0, 180);
+        return CountAdjacentMatchingPixels(p, image, new MagickColor(0, 0, 180));
+    }
+
+    private static int CountAdjacentMatchingPixels(Point p, MagickImage image,
+        params MagickColor[] matchColors)
+    {
         int count = 0;
 
         Point[] neighbors = {
-            new Point(p.X, p.Y - 1),  // Up
-            new Point(p.X, p.Y + 1),  // Down
-            new Point(p.X - 1, p.Y),  // Left
-            new Point(p.X + 1, p.Y)   // Right
+            new Point(p.X, p.Y - 1),
+            new Point(p.X, p.Y + 1),
+            new Point(p.X - 1, p.Y),
+            new Point(p.X + 1, p.Y)
         };
 
         using var pixels = image.GetPixels();
@@ -207,8 +229,16 @@ public static class RiverPathGenerator
                 if (pixel == null) continue;
 
                 var color = pixel.ToColor();
-                if (color != null && ColorsMatch(color, blueColor))
-                    count++;
+                if (color == null) continue;
+
+                foreach (var match in matchColors)
+                {
+                    if (ColorsMatch(color, match))
+                    {
+                        count++;
+                        break;
+                    }
+                }
             }
             catch
             {

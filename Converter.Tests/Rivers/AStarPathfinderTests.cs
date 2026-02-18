@@ -95,10 +95,11 @@ public class AStarPathfinderTests
         };
 
     /// <summary>
-    /// Builds the CountAdjacentBlue delegate for Pass 2 filtering.
-    /// Returns the number of orthogonally adjacent blue pixels around a point.
+    /// Builds the Pass 2 adjacency delegate: counts orthogonally adjacent pixels that
+    /// belong to any existing river colour (blue, red, or green).  Matches production
+    /// behaviour — all three markers belong to pre-existing rivers.
     /// </summary>
-    private static Func<Point, int> MakeCountAdjacentBlue(MagickImage image) =>
+    private static Func<Point, int> MakeCountAdjacentRiver(MagickImage image) =>
         p =>
         {
             int count = 0;
@@ -110,17 +111,23 @@ public class AStarPathfinderTests
                 if (n.X < 0 || n.X >= (int)image.Width || n.Y < 0 || n.Y >= (int)image.Height) continue;
                 var pixel = pixels.GetPixel(n.X, n.Y);
                 var color = pixel?.ToColor();
-                if (color != null && color.R == Blue.R && color.G == Blue.G && color.B == Blue.B)
-                    count++;
+                if (color == null) continue;
+
+                bool isRiverPixel =
+                    (color.R == Blue.R  && color.G == Blue.G  && color.B == Blue.B)  ||
+                    (color.R == Red.R   && color.G == Red.G   && color.B == Red.B)   ||
+                    (color.R == Green.R && color.G == Green.G && color.B == Green.B);
+
+                if (isRiverPixel) count++;
             }
 
             return count;
         };
 
-    /// <summary>Returns true if any orthogonal neighbor of p is blue.</summary>
-    private static bool IsAdjacentToBlue(Point p, MagickImage image)
+    /// <summary>Returns true if any orthogonal neighbor of p is a river pixel (blue, red, or green).</summary>
+    private static bool IsAdjacentToRiver(Point p, MagickImage image)
     {
-        return MakeCountAdjacentBlue(image)(p) > 0;
+        return MakeCountAdjacentRiver(image)(p) > 0;
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -238,14 +245,14 @@ public class AStarPathfinderTests
         // Without Pass2 the direct route has length 8 (Manhattan + 1)
         Assert.Equal(8, pathNoPass2.Count);
         // And some pixel in that direct path IS adjacent to blue (proving Pass2 is needed)
-        bool anyAdjacentToBlue = pathNoPass2.Any(p => p != goal && IsAdjacentToBlue(p, image));
+        bool anyAdjacentToBlue = pathNoPass2.Any(p => p != goal && IsAdjacentToRiver(p, image));
         Assert.True(anyAdjacentToBlue, "Without Pass2 the direct path should have pixels adjacent to blue");
 
         // ── With Pass 2 ──────────────────────────────────────────────────────
         var pathfinderWithPass2 = new AStarPathfinder(
             8, 5,
             MakeIsPassable(image, start, goal),
-            countAdjacentBlue: MakeCountAdjacentBlue(image));
+            countAdjacentBlue: MakeCountAdjacentRiver(image));
         var pathWithPass2 = pathfinderWithPass2.FindPath(start, goal);
 
         Assert.NotNull(pathWithPass2);
@@ -260,7 +267,7 @@ public class AStarPathfinderTests
         foreach (var p in pathWithPass2)
         {
             if (p == start || p == goal) continue;  // endpoints are exempt
-            Assert.False(IsAdjacentToBlue(p, image),
+            Assert.False(IsAdjacentToRiver(p, image),
                 $"Pass2 path contains pixel ({p.X},{p.Y}) that is adjacent to blue — violation!");
         }
     }
@@ -296,7 +303,7 @@ public class AStarPathfinderTests
         var pathfinder = new AStarPathfinder(
             7, 5,
             MakeIsPassable(image, start, goal),
-            countAdjacentBlue: MakeCountAdjacentBlue(image));
+            countAdjacentBlue: MakeCountAdjacentRiver(image));
 
         var path = pathfinder.FindPath(start, goal);
 
@@ -305,14 +312,14 @@ public class AStarPathfinderTests
         Assert.Equal(goal,  path[^1]);
 
         // Confirm the goal IS adjacent to blue (so the bypass was actually exercised)
-        Assert.True(IsAdjacentToBlue(goal, image),
+        Assert.True(IsAdjacentToRiver(goal, image),
             "Test setup error: goal should be adjacent to blue to exercise the bypass");
 
         // All intermediate pixels must NOT be adjacent to blue
         foreach (var p in path)
         {
             if (p == start || p == goal) continue;
-            Assert.False(IsAdjacentToBlue(p, image),
+            Assert.False(IsAdjacentToRiver(p, image),
                 $"Intermediate pixel ({p.X},{p.Y}) is adjacent to blue — Pass2 violation");
         }
     }
@@ -429,78 +436,100 @@ public class AStarPathfinderTests
     }
 
     /// <summary>
-    /// Layout (7×3, red pixel at (3,1)):
+    /// Layout (8×5, single red pixel at (2,1)):
     ///
-    ///   S . . . . . .   y=0
-    ///   . . . R . . .   y=1  ← red at (3,1)
-    ///   . . . . . . G   y=2  ← goal (6,2)
+    ///   S . . . . . . G   y=0  (start (0,0), goal (7,0))
+    ///   . . R . . . . .   y=1  (red = tributary junction from a previously-drawn river)
+    ///   . . . . . . . .   y=2
+    ///   . . . . . . . .   y=3
+    ///   . . . . . . . .   y=4
     ///
-    /// Pass 2 adjacency exclusion must apply ONLY to blue pixels.
-    /// Pixels adjacent to red (e.g. (3,0), (3,2), (2,1), (4,1)) must NOT be
-    /// excluded from A* — if they were, a tributary could never path to a red
-    /// junction point, which is the whole purpose of the red marker.
-    ///
-    /// Verified by enabling Pass 2 and checking that a valid path is still found
-    /// and that its length is the same as without Pass 2.
+    /// A red pixel in the image is a marker placed by a PREVIOUSLY-DRAWN river.
+    /// Pass 2 must treat it identically to blue: pixels adjacent to red are excluded.
+    /// Without Pass 2 the direct path goes through (2,0) which is adjacent to red.
+    /// With Pass 2 the path must detour — same behaviour as with a blue pixel.
     /// </summary>
     [Fact]
-    public void Pass2_AdjacentToRed_IsNotExcluded()
+    public void Pass2_AdjacentToRed_IsExcluded()
     {
-        var start = new Point(0, 1);
-        var goal  = new Point(6, 1);
+        var start = new Point(0, 0);
+        var goal  = new Point(7, 0);
 
-        using var image = CreateImageWithColors(7, 3, (3, 1, Red));
+        using var image = CreateImageWithColors(8, 5, (2, 1, Red));
 
-        // Without Pass 2
-        var pf1 = new AStarPathfinder(7, 3, MakeIsPassable(image, start, goal));
-        var pathNoPass2 = pf1.FindPath(start, goal);
+        // Without Pass 2: direct path of length 8 passes through pixels adjacent to red
+        var pfNoPass2 = new AStarPathfinder(8, 5, MakeIsPassable(image, start, goal));
+        var pathNoPass2 = pfNoPass2.FindPath(start, goal);
 
-        // With Pass 2 (blue-only adjacency check)
-        var pf2 = new AStarPathfinder(7, 3, MakeIsPassable(image, start, goal),
-            countAdjacentBlue: MakeCountAdjacentBlue(image));
-        var pathWithPass2 = pf2.FindPath(start, goal);
-
-        // Both must find a path (red does not block)
         Assert.NotNull(pathNoPass2);
-        Assert.NotNull(pathWithPass2);
+        Assert.Equal(8, pathNoPass2!.Count);
+        Assert.True(pathNoPass2.Any(p => p != goal && IsAdjacentToRiver(p, image)),
+            "Without Pass2 the direct path should have pixels adjacent to red");
 
-        // Path lengths must be equal: Pass 2 must not add extra detour around red
-        Assert.Equal(pathNoPass2!.Count, pathWithPass2!.Count);
+        // With Pass 2: path detours to avoid the exclusion zone around red
+        var pfWithPass2 = new AStarPathfinder(8, 5, MakeIsPassable(image, start, goal),
+            countAdjacentBlue: MakeCountAdjacentRiver(image));
+        var pathWithPass2 = pfWithPass2.FindPath(start, goal);
+
+        Assert.NotNull(pathWithPass2);
+        Assert.Equal(start, pathWithPass2![0]);
+        Assert.Equal(goal,  pathWithPass2[^1]);
+        Assert.True(pathWithPass2.Count > 8,
+            $"Pass2 path should detour around red but has length {pathWithPass2.Count}");
+
+        foreach (var p in pathWithPass2)
+        {
+            if (p == start || p == goal) continue;
+            Assert.False(IsAdjacentToRiver(p, image),
+                $"Pass2 path contains pixel ({p.X},{p.Y}) adjacent to red — violation");
+        }
     }
 
     /// <summary>
-    /// Layout (7×3, green pixel at (3,1)):
+    /// Layout (8×5, single green pixel at (2,1)):
     ///
-    ///   S . . . . . .   y=0
-    ///   . . . G . . .   y=1  ← green at (3,1)
-    ///   . . . . . . E   y=2  ← goal (6,2)
+    ///   S . . . . . . G   y=0  (start (0,0), goal (7,0))
+    ///   . . G . . . . .   y=1  (green = source marker from a previously-drawn river)
+    ///   . . . . . . . .   y=2
+    ///   . . . . . . . .   y=3
+    ///   . . . . . . . .   y=4
     ///
-    /// Same principle as the red test above.  Pass 2 must not create an exclusion
-    /// zone around green source pixels — otherwise a river could never start
-    /// adjacent to another river's source.
+    /// A green pixel in the image was placed by a previously-drawn river as its
+    /// source marker.  Pass 2 must exclude pixels adjacent to it — same as blue or red.
     /// </summary>
     [Fact]
-    public void Pass2_AdjacentToGreen_IsNotExcluded()
+    public void Pass2_AdjacentToGreen_IsExcluded()
     {
-        var start = new Point(0, 1);
-        var goal  = new Point(6, 1);
+        var start = new Point(0, 0);
+        var goal  = new Point(7, 0);
 
-        using var image = CreateImageWithColors(7, 3, (3, 1, Green));
+        using var image = CreateImageWithColors(8, 5, (2, 1, Green));
 
-        // Without Pass 2
-        var pf1 = new AStarPathfinder(7, 3, MakeIsPassable(image, start, goal));
-        var pathNoPass2 = pf1.FindPath(start, goal);
+        // Without Pass 2: direct path of length 8
+        var pfNoPass2 = new AStarPathfinder(8, 5, MakeIsPassable(image, start, goal));
+        var pathNoPass2 = pfNoPass2.FindPath(start, goal);
 
-        // With Pass 2 (blue-only adjacency check)
-        var pf2 = new AStarPathfinder(7, 3, MakeIsPassable(image, start, goal),
-            countAdjacentBlue: MakeCountAdjacentBlue(image));
-        var pathWithPass2 = pf2.FindPath(start, goal);
-
-        // Both must find a path
         Assert.NotNull(pathNoPass2);
-        Assert.NotNull(pathWithPass2);
+        Assert.Equal(8, pathNoPass2!.Count);
+        Assert.True(pathNoPass2.Any(p => p != goal && IsAdjacentToRiver(p, image)),
+            "Without Pass2 the direct path should have pixels adjacent to green");
 
-        // Path lengths must be equal: Pass 2 must not add extra detour around green
-        Assert.Equal(pathNoPass2!.Count, pathWithPass2!.Count);
+        // With Pass 2: path detours to avoid the exclusion zone around green
+        var pfWithPass2 = new AStarPathfinder(8, 5, MakeIsPassable(image, start, goal),
+            countAdjacentBlue: MakeCountAdjacentRiver(image));
+        var pathWithPass2 = pfWithPass2.FindPath(start, goal);
+
+        Assert.NotNull(pathWithPass2);
+        Assert.Equal(start, pathWithPass2![0]);
+        Assert.Equal(goal,  pathWithPass2[^1]);
+        Assert.True(pathWithPass2.Count > 8,
+            $"Pass2 path should detour around green but has length {pathWithPass2.Count}");
+
+        foreach (var p in pathWithPass2)
+        {
+            if (p == start || p == goal) continue;
+            Assert.False(IsAdjacentToRiver(p, image),
+                $"Pass2 path contains pixel ({p.X},{p.Y}) adjacent to green — violation");
+        }
     }
 }
