@@ -175,6 +175,13 @@ public static class RiverPathGenerator
 
         bool IsPassable(Point p)
         {
+            // Permissive mode: allow ALL pixels — A* pathfinder handles bounds.
+            // This lets the path cross rivers, enabling "as the crow flies" routing
+            // so FindFirstPass2Violation can identify exactly where the path enters
+            // or runs alongside an existing river.
+            if (permissive)
+                return true;
+
             // Allow the start and end points
             if (p == from || p == to)
                 return true;
