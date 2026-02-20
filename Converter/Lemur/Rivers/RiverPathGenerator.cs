@@ -87,6 +87,8 @@ public static class RiverPathGenerator
             }
             else
             {
+                Console.WriteLine($"  {riverName}: strict A* FAILED for segment {i}: ({from.X},{from.Y}) → ({to.X},{to.Y}), trying tributary fallback");
+
                 // A* failed - try tributary fallback if this is a tributary
                 if (isTributary)
                 {
