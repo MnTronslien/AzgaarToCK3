@@ -42,31 +42,102 @@ public static class RiverTributaryConnector
         string riverName,
         HashSet<Point>? tributaryPixels = null)
     {
-        // BFS to find nearest valid connection point on the parent river's edge.
-        // Scale the search radius to at least cover the Manhattan distance to the intended
-        // destination, so that a far-away parent body is still reachable.
-        // Pass tributaryPixels so the BFS ignores blue pixels belonging to THIS tributary
-        // (which may already be drawn) and only counts parent-body blue pixels.
         int manhattanToTarget = Math.Abs(intendedDestination.X - lastValidPixel.X)
                               + Math.Abs(intendedDestination.Y - lastValidPixel.Y);
+
+        // ── New algorithm: permissive A* → find first violation → trim → local BFS → strict A* ──
+        //
+        // Instead of BFS from lastValidPixel (which may be hundreds of pixels away), run a
+        // permissive A* (no Pass 2) first to get as close as possible to the destination.
+        // Walk the permissive path to find the first pixel adjacent to the parent body (violation).
+        // Trim 3 pixels back from that violation point → intermediatePoint.
+        // BFS from intermediatePoint (much closer to parent) to find the valid connection pixel.
+        // Strict A* from intermediatePoint to the connection pixel.
+        // Return trimmedPermissivePath + strictPath as one combined path.
+
+        var permissivePath = RiverPathGenerator.FindOrthogonalPath(
+            lastValidPixel,
+            intendedDestination,
+            image,
+            excludeFromPass2: lastValidPixel,
+            permissive: true);
+
+        if (permissivePath != null && permissivePath.Count >= 2)
+        {
+            int vIdx = FindFirstPass2Violation(permissivePath, image, tributaryPixels);
+
+            if (vIdx == -1)
+            {
+                // No violations at all — the permissive path would pass strict rules too.
+                // Return it directly; the connection already touches the parent body.
+                Console.WriteLine($"  Tributary fallback (permissive): path has no violations for {riverName}");
+                return permissivePath;
+            }
+
+            if (vIdx >= 4)
+            {
+                // Enough clear pixels exist before the violation to trim back 3 and get a clean
+                // intermediate anchor closer to the parent body.
+                var trimmedPath = permissivePath.Take(vIdx - 3).ToList();
+                var intermediatePoint = trimmedPath[^1];
+
+                Console.WriteLine($"  Tributary fallback: permissive A* reached ({intermediatePoint.X},{intermediatePoint.Y}), first violation at index {vIdx}");
+
+                // BFS from intermediatePoint — much closer to the parent body, so we need a
+                // smaller search radius and get a geometrically nicer connection point.
+                var intermediateSet = tributaryPixels != null
+                    ? new HashSet<Point>(tributaryPixels.Concat(trimmedPath))
+                    : new HashSet<Point>(trimmedPath);
+                int localRadius = Math.Max(60, manhattanToTarget / 3 + 20);
+                var connectionPoint = BFSSearchForConnectionPoint(intermediatePoint, image, localRadius, intermediateSet);
+
+                if (connectionPoint != null)
+                {
+                    Console.WriteLine($"  Tributary fallback: Found connection point at ({connectionPoint.Value.X},{connectionPoint.Value.Y}) for {riverName}");
+
+                    // Strict A* from intermediatePoint (white pixel) to the connection point.
+                    var strictPath = RiverPathGenerator.FindOrthogonalPath(
+                        intermediatePoint,
+                        connectionPoint.Value,
+                        image);
+
+                    if (strictPath != null && strictPath.Count > 0)
+                    {
+                        // Combine trimmed permissive part + strict connection part.
+                        var combined = new List<Point>(trimmedPath);
+                        int startIdx = strictPath[0] == intermediatePoint ? 1 : 0;
+                        combined.AddRange(strictPath.Skip(startIdx));
+                        Console.WriteLine($"  Tributary fallback succeeded (permissive+strict) for {riverName}, {combined.Count} pixels");
+                        return combined;
+                    }
+                }
+
+                // BFS or strict A* from intermediate failed — fall through to original approach.
+                Console.WriteLine($"  Tributary fallback: intermediate approach failed for {riverName}, trying original BFS");
+            }
+        }
+
+        // ── Original algorithm: BFS from lastValidPixel ──
+        // Scale the search radius to at least cover the Manhattan distance to the intended
+        // destination, so that a far-away parent body is still reachable.
         int searchRadius = Math.Max(150, manhattanToTarget + 50);
-        var connectionPoint = BFSSearchForConnectionPoint(lastValidPixel, image, searchRadius,
+        var origConnectionPoint = BFSSearchForConnectionPoint(lastValidPixel, image, searchRadius,
             tributaryPixels: tributaryPixels);
 
-        if (connectionPoint == null)
+        if (origConnectionPoint == null)
         {
-            Console.WriteLine($"  Tributary fallback FAILED: No valid connection point found for {riverName} (searched 100px radius from ({lastValidPixel.X},{lastValidPixel.Y}))");
+            Console.WriteLine($"  Tributary fallback FAILED: No valid connection point found for {riverName} (searched {searchRadius}px radius from ({lastValidPixel.X},{lastValidPixel.Y}))");
             return null;
         }
 
-        Console.WriteLine($"  Tributary fallback: Found connection point at ({connectionPoint.Value.X},{connectionPoint.Value.Y}) for {riverName}");
+        Console.WriteLine($"  Tributary fallback: Found connection point at ({origConnectionPoint.Value.X},{origConnectionPoint.Value.Y}) for {riverName}");
 
         // A* from last valid pixel to the connection point.
         // Pass excludeFromPass2: lastValidPixel so A* can leave the (now-blue) tributary
         // endpoint without every neighbour being blocked by Pass 2.
         var pathToConnection = RiverPathGenerator.FindOrthogonalPath(
             lastValidPixel,
-            connectionPoint.Value,
+            origConnectionPoint.Value,
             image,
             excludeFromPass2: lastValidPixel);
 
@@ -77,6 +148,23 @@ public static class RiverTributaryConnector
         }
 
         return pathToConnection;
+    }
+
+    /// <summary>
+    /// Walk <paramref name="path"/> starting at index 1 (skipping the blue start pixel) and
+    /// return the index of the first pixel that is adjacent to one or more parent-body blue
+    /// pixels (i.e. would be rejected by Pass 2 in strict A*).
+    /// Returns -1 if the entire path is clean.
+    /// </summary>
+    private static int FindFirstPass2Violation(List<Point> path, MagickImage image,
+        HashSet<Point>? tributaryPixels)
+    {
+        for (int i = 1; i < path.Count; i++)
+        {
+            if (CountAdjacentParentBlue(path[i], image, tributaryPixels) > 0)
+                return i;
+        }
+        return -1;
     }
 
     /// <summary>

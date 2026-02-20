@@ -44,6 +44,8 @@ public static class RiverPathGenerator
         // A* pathfind from each control point to the next
         for (int i = 0; i < controlPoints.Count - 1; i++)
         {
+            bool isLastSegment = (i == controlPoints.Count - 2);
+
             var fromPoint = controlPoints[i];
             var toPoint = controlPoints[i + 1];
 
@@ -61,10 +63,21 @@ public static class RiverPathGenerator
                 int startIdx = (segment[0] == completePath[^1]) ? 1 : 0;
                 var newPixels = new List<Point>();
                 for (int j = startIdx; j < segment.Count; j++)
-                {
-                    completePath.Add(segment[j]);
                     newPixels.Add(segment[j]);
+
+                // Last segment only: trim so at most 3 pixels run offshore into ocean (magenta).
+                // Restricted to the last segment to avoid falsely trimming a river that naturally
+                // passes through a lake (also magenta) mid-route.
+                if (isLastSegment && newPixels.Count > 0)
+                {
+                    int before = newPixels.Count;
+                    newPixels = TrimAtOceanEdge(newPixels, image, maxOffshorePixels: 3);
+                    if (newPixels.Count < before)
+                        Console.WriteLine($"  {riverName}: trimmed last segment {before}→{newPixels.Count} pixels at ocean edge");
                 }
+
+                foreach (var p in newPixels)
+                    completePath.Add(p);
 
                 successfulSegments++;
 
@@ -147,7 +160,7 @@ public static class RiverPathGenerator
     /// A pixel to exclude from Pass 2 adjacency counts. Pass the segment's <c>from</c> pixel
     /// here so that A* can still leave the (now-blue) segment start without all neighbours blocked.
     /// </param>
-    internal static List<Point>? FindOrthogonalPath(Point from, Point to, MagickImage image, Point? excludeFromPass2 = null)
+    internal static List<Point>? FindOrthogonalPath(Point from, Point to, MagickImage image, Point? excludeFromPass2 = null, bool permissive = false)
     {
         // If points are the same, return empty
         if (from == to)
@@ -200,13 +213,14 @@ public static class RiverPathGenerator
         // previous segment's draw) does not block all four of its own neighbours.
         int CountAdjacent(Point p) => CountAdjacentRiverPixels(p, image, excludeFromPass2);
 
-        // Create pathfinder with orthogonal-only movement and two-pass filtering
+        // Create pathfinder with orthogonal-only movement and two-pass filtering.
+        // permissive mode disables Pass 2 (adjacency check) so A* can run alongside rivers.
         var pathfinder = new AStarPathfinder(
             (int)image.Width,
             (int)image.Height,
             IsPassable,
             allowDiagonal: false,
-            countAdjacentBlue: CountAdjacent
+            countAdjacentBlue: permissive ? null : CountAdjacent
         );
 
         // Calculate max iterations based on distance
@@ -292,6 +306,40 @@ public static class RiverPathGenerator
         }
 
         return count;
+    }
+
+    /// <summary>
+    /// Scans <paramref name="pixels"/> for ocean (magenta 255,0,255) pixels and trims the list
+    /// so that at most <paramref name="maxOffshorePixels"/> ocean pixels remain at the end.
+    /// All pixels before the first ocean pixel are always kept.
+    /// If the path never enters ocean, the original list is returned unchanged.
+    /// </summary>
+    private static List<Point> TrimAtOceanEdge(List<Point> pixels, MagickImage image, int maxOffshorePixels)
+    {
+        using var px = image.GetPixels();
+        int offshoreCount = 0;
+
+        for (int k = 0; k < pixels.Count; k++)
+        {
+            var p = pixels[k];
+            if (p.X < 0 || p.X >= image.Width || p.Y < 0 || p.Y >= image.Height)
+                continue;
+
+            try
+            {
+                var color = px.GetPixel(p.X, p.Y)?.ToColor();
+                // Ocean = magenta (255, 0, 255)
+                if (color != null && color.R == 255 && color.G == 0 && color.B == 255)
+                {
+                    offshoreCount++;
+                    if (offshoreCount >= maxOffshorePixels)
+                        return pixels.Take(k + 1).ToList(); // keep up to and including this pixel
+                }
+            }
+            catch { /* ignore */ }
+        }
+
+        return pixels; // fewer than maxOffshorePixels ocean pixels — no trimming needed
     }
 
     private static bool ColorsMatch(IMagickColor<byte> a, IMagickColor<byte> b)
