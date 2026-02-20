@@ -39,10 +39,19 @@ public static class RiverTributaryConnector
         Point lastValidPixel,
         Point intendedDestination,
         MagickImage image,
-        string riverName)
+        string riverName,
+        HashSet<Point>? tributaryPixels = null)
     {
-        // BFS to find nearest valid connection point on the parent river's edge
-        var connectionPoint = BFSSearchForConnectionPoint(lastValidPixel, image, maxRadius: 100);
+        // BFS to find nearest valid connection point on the parent river's edge.
+        // Scale the search radius to at least cover the Manhattan distance to the intended
+        // destination, so that a far-away parent body is still reachable.
+        // Pass tributaryPixels so the BFS ignores blue pixels belonging to THIS tributary
+        // (which may already be drawn) and only counts parent-body blue pixels.
+        int manhattanToTarget = Math.Abs(intendedDestination.X - lastValidPixel.X)
+                              + Math.Abs(intendedDestination.Y - lastValidPixel.Y);
+        int searchRadius = Math.Max(150, manhattanToTarget + 50);
+        var connectionPoint = BFSSearchForConnectionPoint(lastValidPixel, image, searchRadius,
+            tributaryPixels: tributaryPixels);
 
         if (connectionPoint == null)
         {
@@ -52,12 +61,14 @@ public static class RiverTributaryConnector
 
         Console.WriteLine($"  Tributary fallback: Found connection point at ({connectionPoint.Value.X},{connectionPoint.Value.Y}) for {riverName}");
 
-        // A* from last valid pixel to the connection point
-        // Same two-pass filtering applies; destination bypass allows reaching the river edge
+        // A* from last valid pixel to the connection point.
+        // Pass excludeFromPass2: lastValidPixel so A* can leave the (now-blue) tributary
+        // endpoint without every neighbour being blocked by Pass 2.
         var pathToConnection = RiverPathGenerator.FindOrthogonalPath(
             lastValidPixel,
             connectionPoint.Value,
-            image);
+            image,
+            excludeFromPass2: lastValidPixel);
 
         if (pathToConnection == null || pathToConnection.Count == 0)
         {
@@ -70,9 +81,15 @@ public static class RiverTributaryConnector
 
     /// <summary>
     /// BFS flood-fill from start to find the nearest pixel that qualifies as a valid
-    /// tributary connection point: a non-river pixel adjacent to exactly 1 blue pixel.
+    /// tributary connection point: a non-river pixel adjacent to exactly 1 blue pixel
+    /// that does NOT belong to the tributary itself (i.e. is a parent-body pixel).
     /// </summary>
-    private static Point? BFSSearchForConnectionPoint(Point start, MagickImage image, int maxRadius)
+    /// <param name="tributaryPixels">
+    /// All pixels already drawn for this tributary.  The BFS ignores these when counting
+    /// blue neighbours so it only counts parent-river blue pixels.
+    /// </param>
+    private static Point? BFSSearchForConnectionPoint(Point start, MagickImage image, int maxRadius,
+        HashSet<Point>? tributaryPixels = null)
     {
         var queue = new Queue<(Point pixel, int distance)>();
         var visited = new HashSet<Point>();
@@ -88,7 +105,7 @@ public static class RiverTributaryConnector
                 continue;
 
             // Check if this pixel qualifies as a connection point
-            if (IsValidConnectionPoint(current, image))
+            if (IsValidConnectionPoint(current, image, tributaryPixels))
                 return current;
 
             // Expand orthogonally
@@ -119,21 +136,48 @@ public static class RiverTributaryConnector
 
     /// <summary>
     /// A valid connection point is a passable (white/magenta) pixel adjacent to exactly
-    /// 1 blue pixel (the parent river body edge).  This is the pixel where the red
-    /// tributary-junction marker will be spawned once the tributary path is drawn —
-    /// it sits on the border of the parent river's blue body without replacing any
-    /// existing pixel.
+    /// 1 blue pixel that belongs to the PARENT river (not this tributary).
+    /// This is the pixel where the red tributary-junction marker will be placed — it sits
+    /// on the border of the parent river's blue body.
     /// NOTE: placement of the red pixel is handled by the caller after path drawing.
     /// </summary>
-    private static bool IsValidConnectionPoint(Point p, MagickImage image)
+    private static bool IsValidConnectionPoint(Point p, MagickImage image,
+        HashSet<Point>? tributaryPixels = null)
     {
         var color = GetPixelColor(p, image);
         if (color == null) return false;
 
         if (!IsPassableColor(color)) return false;
 
-        int blueNeighbors = RiverPathGenerator.CountAdjacentBluePixels(p, image);
-        return blueNeighbors == 1;
+        int parentBlueNeighbors = CountAdjacentParentBlue(p, image, tributaryPixels);
+        return parentBlueNeighbors == 1;
+    }
+
+    /// <summary>
+    /// Count orthogonal neighbours of <paramref name="p"/> that are blue AND do not belong
+    /// to the current tributary (i.e. are parent-body pixels).
+    /// </summary>
+    private static int CountAdjacentParentBlue(Point p, MagickImage image,
+        HashSet<Point>? tributaryPixels)
+    {
+        int count = 0;
+        Point[] neighbors = {
+            new Point(p.X, p.Y - 1),
+            new Point(p.X, p.Y + 1),
+            new Point(p.X - 1, p.Y),
+            new Point(p.X + 1, p.Y)
+        };
+
+        foreach (var n in neighbors)
+        {
+            if (!IsInBounds(n, image)) continue;
+            // Skip pixels that belong to this tributary
+            if (tributaryPixels != null && tributaryPixels.Contains(n)) continue;
+            var c = GetPixelColor(n, image);
+            if (c != null && ColorsMatch(c, BlueColor))
+                count++;
+        }
+        return count;
     }
 
     private static bool IsInBounds(Point p, MagickImage image)

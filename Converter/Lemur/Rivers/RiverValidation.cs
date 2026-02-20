@@ -39,6 +39,13 @@ public class RiverValidation
     public List<Point> DuplicatePixels { get; set; } = new();
 
     /// <summary>
+    /// Red (junction) pixels that are not orthogonally adjacent to exactly 2 blue pixels.
+    /// A valid junction sits between exactly one tributary pixel (blue) and one parent-river
+    /// pixel (blue). Any other count indicates a malformed connection.
+    /// </summary>
+    public List<PixelViolation> RedPixelViolations { get; set; } = new();
+
+    /// <summary>
     /// Maximum gap distance found in this river.
     /// </summary>
     public int MaxGapDistance { get; set; }
@@ -72,6 +79,7 @@ public class RiverValidation
         !NonOrthogonalJumps.Any() &&
         !LargeGaps.Any() &&
         !DuplicatePixels.Any() &&
+        !RedPixelViolations.Any() &&
         ExcessiveOffshorePixels == 0 &&
         !MidstreamOceanPixels.Any();
 
@@ -84,6 +92,7 @@ public class RiverValidation
         NonOrthogonalJumps.Count +
         LargeGaps.Count +
         DuplicatePixels.Count +
+        RedPixelViolations.Count +
         (ExcessiveOffshorePixels > 0 ? 1 : 0) +
         MidstreamOceanPixels.Count;
 
@@ -98,7 +107,8 @@ public class RiverValidation
             $"Endpoints:{EndpointViolations.Count}",
             $"NonOrthogonal:{NonOrthogonalJumps.Count}",
             $"LargeGaps:{LargeGaps.Count}",
-            $"Duplicates:{DuplicatePixels.Count}"
+            $"Duplicates:{DuplicatePixels.Count}",
+            $"RedPixel:{RedPixelViolations.Count}"
         };
 
         if (ExcessiveOffshorePixels > 0)

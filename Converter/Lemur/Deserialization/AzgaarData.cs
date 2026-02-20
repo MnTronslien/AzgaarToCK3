@@ -4,6 +4,24 @@ using System.Text.Json.Serialization;
 namespace Converter.Lemur.Deserialization
 {
     /// <summary>
+    /// Reads a JSON value that may be either a boolean (true/false) or an integer (0/1)
+    /// and converts it to int. Azgaar exports changed some fields from 0/1 to true/false
+    /// between versions.
+    /// </summary>
+    public class BoolOrIntConverter : JsonConverter<int>
+    {
+        public override int Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.True) return 1;
+            if (reader.TokenType == JsonTokenType.False) return 0;
+            return reader.GetInt32();
+        }
+
+        public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options)
+            => writer.WriteNumberValue(value);
+    }
+
+    /// <summary>
     /// Clean DTOs for Azgaar JSON structure - no upstream dependencies
     /// These records match the Azgaar data model directly for deserialization
     /// </summary>
@@ -22,7 +40,8 @@ namespace Converter.Lemur.Deserialization
         int feature,        // Burg feature ID (ID of a landmass)
         float population,   // Burg population in population points
         string type,        // Burg type
-        int capital,        // 1 if burg is a capital, 0 if not
+        [property: JsonConverter(typeof(BoolOrIntConverter))]
+        int capital,        // 1 if burg is a capital, 0 if not (newer Azgaar exports use true/false)
         int port,           // If burg is not a port, then 0, otherwise feature ID of the water body
         int citadel,        // 1 if burg has a castle, 0 if not
         int plaza,          // 1 if burg has a marketplace, 0 if not

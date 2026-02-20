@@ -36,6 +36,11 @@ public static class RiverPathGenerator
         var currentPoint = new Point((int)controlPoints[0].X, (int)controlPoints[0].Y);
         completePath.Add(currentPoint);
 
+        // Draw the source pixel immediately — it is never part of any segment's newPixels
+        // (segments skip their leading `from` point since it's already in completePath).
+        // Without this the source pixel would never be drawn or included in allActualPixels.
+        afterSegment?.Invoke(new List<Point> { currentPoint });
+
         // A* pathfind from each control point to the next
         for (int i = 0; i < controlPoints.Count - 1; i++)
         {
@@ -72,11 +77,15 @@ public static class RiverPathGenerator
                 // A* failed - try tributary fallback if this is a tributary
                 if (isTributary)
                 {
+                    // Pass the full tributary pixel set so the BFS treats only
+                    // parent-body blue pixels as valid connection targets.
+                    var tributarySet = new HashSet<Point>(completePath);
                     var fallbackPath = RiverTributaryConnector.FindTributaryConnection(
                         completePath[^1],
                         to,
                         image,
-                        riverName);
+                        riverName,
+                        tributaryPixels: tributarySet);
 
                     if (fallbackPath != null && fallbackPath.Count > 0)
                     {
@@ -227,9 +236,13 @@ public static class RiverPathGenerator
     /// Used by the tributary connection-point search, which looks specifically for
     /// the edge of the parent river's body.
     /// </summary>
-    internal static int CountAdjacentBluePixels(Point p, MagickImage image)
+    /// <param name="exclude">
+    /// A neighbour pixel to skip when counting — pass the tributary's own last pixel so that
+    /// the BFS doesn't count the (already-blue) tributary endpoint as a "parent body" pixel.
+    /// </param>
+    internal static int CountAdjacentBluePixels(Point p, MagickImage image, Point? exclude = null)
     {
-        return CountAdjacentMatchingPixels(p, image, null, new MagickColor(0, 0, 180));
+        return CountAdjacentMatchingPixels(p, image, exclude, new MagickColor(0, 0, 180));
     }
 
     private static int CountAdjacentMatchingPixels(Point p, MagickImage image,
