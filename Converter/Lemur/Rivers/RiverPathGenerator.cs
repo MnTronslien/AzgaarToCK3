@@ -18,17 +18,20 @@ public static class RiverPathGenerator
     /// computed so the caller can draw it to the image before the next segment's A* runs.
     /// This ensures every segment sees previously-drawn segments of the same river as obstacles.
     /// </summary>
-    public static List<Point> GenerateCompletePath(
+    public static (List<Point> path, bool connectedAsTributary) GenerateCompletePath(
         List<PointD> controlPoints,
         MagickImage image,
         string riverName,
         bool isTributary = false,
+        Func<int, int, bool>? terminalCellCheck = null,
+        int maxOffshorePixels = 3,
         Action<List<Point>>? afterSegment = null)
     {
         if (controlPoints.Count < 2)
-            return new List<Point>();
+            return (new List<Point>(), false);
 
         var completePath = new List<Point>();
+        bool connectedAsTributary = false;
         int successfulSegments = 0;
         int failedSegments = 0;
 
@@ -44,18 +47,22 @@ public static class RiverPathGenerator
         // A* pathfind from each control point to the next
         for (int i = 0; i < controlPoints.Count - 1; i++)
         {
-            bool isLastSegment = (i == controlPoints.Count - 2);
-
             var fromPoint = controlPoints[i];
             var toPoint = controlPoints[i + 1];
 
             var from = new Point((int)fromPoint.X, (int)fromPoint.Y);
             var to = new Point((int)toPoint.X, (int)toPoint.Y);
 
-            // Exclude `from` from Pass 2 adjacency counts — when this is not the first segment,
-            // `from` was just drawn blue by the previous segment's callback and would otherwise
-            // cause all four of its neighbours to be blocked by Pass 2.
-            var segment = FindOrthogonalPath(from, to, image, excludeFromPass2: from);
+            // Pre-check: if `to` is inside the terminal cell, skip strict A* entirely.
+            // The failure branch below handles it via permissive A* + trim.
+            List<Point>? segment = null;
+            if (terminalCellCheck == null || !terminalCellCheck(to.X, to.Y))
+            {
+                // Exclude `from` from Pass 2 adjacency counts — when this is not the first segment,
+                // `from` was just drawn blue by the previous segment's callback and would otherwise
+                // cause all four of its neighbours to be blocked by Pass 2.
+                segment = FindOrthogonalPath(from, to, image, excludeFromPass2: from);
+            }
 
             if (segment != null && segment.Count > 0)
             {
@@ -64,17 +71,6 @@ public static class RiverPathGenerator
                 var newPixels = new List<Point>();
                 for (int j = startIdx; j < segment.Count; j++)
                     newPixels.Add(segment[j]);
-
-                // Last segment only: trim so at most 3 pixels run offshore into ocean (magenta).
-                // Restricted to the last segment to avoid falsely trimming a river that naturally
-                // passes through a lake (also magenta) mid-route.
-                if (isLastSegment && newPixels.Count > 0)
-                {
-                    int before = newPixels.Count;
-                    newPixels = TrimAtOceanEdge(newPixels, image, maxOffshorePixels: 3);
-                    if (newPixels.Count < before)
-                        Console.WriteLine($"  {riverName}: trimmed last segment {before}→{newPixels.Count} pixels at ocean edge");
-                }
 
                 foreach (var p in newPixels)
                     completePath.Add(p);
@@ -87,9 +83,48 @@ public static class RiverPathGenerator
             }
             else
             {
-                Console.WriteLine($"  {riverName}: strict A* FAILED for segment {i}: ({from.X},{from.Y}) → ({to.X},{to.Y}), trying tributary fallback");
+                Console.WriteLine($"  {riverName}: strict A* FAILED for segment {i}: ({from.X},{from.Y}) → ({to.X},{to.Y}), trying terminal cell / tributary fallback");
 
-                // A* failed - try tributary fallback if this is a tributary
+                // NEW: Terminal-cell interceptor — fires for any river (tributary or not)
+                // when `to` is inside the terminal cell (pre-skipped or genuinely failed).
+                if (terminalCellCheck != null && terminalCellCheck(to.X, to.Y))
+                {
+                    // Run permissive A* — all pixels passable, no Pass 2 (existing mechanism).
+                    var permPath = FindOrthogonalPath(
+                        completePath[^1], to, image,
+                        excludeFromPass2: completePath[^1], permissive: true);
+
+                    if (permPath != null && permPath.Count > 1)
+                    {
+                        // Find the Nth pixel inside the terminal cell (N = maxOffshorePixels).
+                        // Trim everything after — no pixels are ever erased.
+                        int terminalCount = 0, trimIdx = permPath.Count - 1;
+                        for (int k = 1; k < permPath.Count; k++)
+                        {
+                            if (terminalCellCheck(permPath[k].X, permPath[k].Y))
+                            {
+                                terminalCount++;
+                                if (terminalCount == maxOffshorePixels) { trimIdx = k; break; }
+                            }
+                        }
+
+                        var trimmedPermPath = permPath.Take(trimIdx + 1).ToList();
+                        int startIdx = trimmedPermPath[0] == completePath[^1] ? 1 : 0;
+                        var newPixels = trimmedPermPath.Skip(startIdx).ToList();
+
+                        foreach (var p in newPixels) completePath.Add(p);
+                        successfulSegments++;
+                        if (newPixels.Count > 0) afterSegment?.Invoke(newPixels);
+
+                        Console.WriteLine(
+                            $"  {riverName}: terminal-cell cutoff seg {i}, " +
+                            $"{newPixels.Count} px ({terminalCount} inside terminal cell)");
+
+                        break; // River terminates here — discard remaining segments
+                    }
+                }
+
+                // A* failed — try tributary fallback if this is a tributary
                 if (isTributary)
                 {
                     // Pass the full tributary pixel set so the BFS treats only
@@ -104,7 +139,7 @@ public static class RiverPathGenerator
 
                     if (fallbackPath != null && fallbackPath.Count > 0)
                     {
-                        Console.WriteLine($"  Tributary fallback succeeded for {riverName} segment {i}");
+                        Console.WriteLine($"  {riverName}: tributary join succeeded on segment {i}");
                         int startIdx = (fallbackPath[0] == completePath[^1]) ? 1 : 0;
                         var newPixels = new List<Point>();
                         for (int j = startIdx; j < fallbackPath.Count; j++)
@@ -119,7 +154,8 @@ public static class RiverPathGenerator
                             afterSegment?.Invoke(newPixels);
 
                         // River has merged into parent — discard remaining segments
-                        Console.WriteLine($"  {riverName}: connected to parent, discarding remaining segments");
+                        connectedAsTributary = true;
+                        Console.WriteLine($"  {riverName}: joined another river as tributary, discarding remaining segments");
                         break;
                     }
                 }
@@ -150,7 +186,7 @@ public static class RiverPathGenerator
             Console.WriteLine($"  Path generation for {riverName}: {successfulSegments} segments OK, {failedSegments} failed, {deduped.Count} total pixels");
         }
 
-        return deduped;
+        return (deduped, connectedAsTributary);
     }
 
     /// <summary>
@@ -169,7 +205,7 @@ public static class RiverPathGenerator
             return new List<Point> { from };
 
         // Create passability function that avoids existing river pixels
-        var blueColor = new MagickColor(0, 0, 180);
+        var blueColor = new MagickColor(0, 225, 255);
         var greenColor = new MagickColor(0, 255, 0);
         var redColor = new MagickColor(255, 0, 0);
 
@@ -249,7 +285,7 @@ public static class RiverPathGenerator
     internal static int CountAdjacentRiverPixels(Point p, MagickImage image, Point? exclude = null)
     {
         return CountAdjacentMatchingPixels(p, image, exclude,
-            new MagickColor(0, 0, 180),    // blue  – river body
+            new MagickColor(0, 225, 255),  // blue  – river body (#00e1ff)
             new MagickColor(255, 0, 0),    // red   – tributary junction
             new MagickColor(0, 255, 0));   // green – river source
     }
@@ -265,7 +301,7 @@ public static class RiverPathGenerator
     /// </param>
     internal static int CountAdjacentBluePixels(Point p, MagickImage image, Point? exclude = null)
     {
-        return CountAdjacentMatchingPixels(p, image, exclude, new MagickColor(0, 0, 180));
+        return CountAdjacentMatchingPixels(p, image, exclude, new MagickColor(0, 225, 255));
     }
 
     private static int CountAdjacentMatchingPixels(Point p, MagickImage image,
@@ -315,40 +351,6 @@ public static class RiverPathGenerator
         }
 
         return count;
-    }
-
-    /// <summary>
-    /// Scans <paramref name="pixels"/> for ocean (magenta 255,0,255) pixels and trims the list
-    /// so that at most <paramref name="maxOffshorePixels"/> ocean pixels remain at the end.
-    /// All pixels before the first ocean pixel are always kept.
-    /// If the path never enters ocean, the original list is returned unchanged.
-    /// </summary>
-    private static List<Point> TrimAtOceanEdge(List<Point> pixels, MagickImage image, int maxOffshorePixels)
-    {
-        using var px = image.GetPixels();
-        int offshoreCount = 0;
-
-        for (int k = 0; k < pixels.Count; k++)
-        {
-            var p = pixels[k];
-            if (p.X < 0 || p.X >= image.Width || p.Y < 0 || p.Y >= image.Height)
-                continue;
-
-            try
-            {
-                var color = px.GetPixel(p.X, p.Y)?.ToColor();
-                // Ocean = magenta (255, 0, 255)
-                if (color != null && color.R == 255 && color.G == 0 && color.B == 255)
-                {
-                    offshoreCount++;
-                    if (offshoreCount >= maxOffshorePixels)
-                        return pixels.Take(k + 1).ToList(); // keep up to and including this pixel
-                }
-            }
-            catch { /* ignore */ }
-        }
-
-        return pixels; // fewer than maxOffshorePixels ocean pixels — no trimming needed
     }
 
     private static bool ColorsMatch(IMagickColor<byte> a, IMagickColor<byte> b)

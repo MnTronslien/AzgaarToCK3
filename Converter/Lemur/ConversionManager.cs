@@ -32,7 +32,7 @@ namespace Converter.Lemur
                 map.Rivers = RiverLoader.LoadRivers(map.JsonMap, Settings.Instance.MajorRiverThreshold);
 
                 // Phase 1: Draw minor rivers to rivers.png using pure A* approach
-                await RiverImageGeneratorNew.DrawRiversImage(
+                await RiverImageGenerator.DrawRiversImage(
                     map.Rivers,
                     Settings.Instance.MajorRiverThreshold,
                     map);
