@@ -8,7 +8,7 @@
 ## Medium Priority
 
 - [ ] Create entity adapter layer: map Lemur entities → format expected by upstream writers (ModManager, TitleManager, etc.)
-- [ ] Implement major river processing (currently stubbed, minor rivers draw to PNG only)
+- [ ] Implement major/navigable river processing (stubbed; minor rivers are done)
 - [ ] Rename `ConsoleUI` project to `AzgaarToCK3.CLI`
 
 ## Low Priority / Future
@@ -16,11 +16,11 @@
 - [ ] Handle edge case: burgs without provinces (in a state but not assigned to any province)
 - [ ] Handle edge case: non-contiguous baronies (a barony's cells may not all be connected)
 - [ ] Add test data covering all edge cases (islands, burgs in wilderness, provinces without states)
-- [ ] Investigate rivers implementation — current approach may need rework
+- [ ] Investigate IsTributary misclassification (rivers with `parent == self` incorrectly flagged; pre-existing bug)
 
 ## Done
 
 - [x] Build succeeds with .NET 8.0 (0 errors)
 - [x] Fix `PackProvinceJsonConverter` — dummy province for leading `0` in array
 - [x] Lemur territory generation pipeline (Cells → Baronies → Counties → Duchies → Kingdoms → Empires)
-- [x] Minor river drawing to PNG
+- [x] Minor river drawing to PNG (CK3-compatible indexed PNG, correct palette, orthogonal A* pathfinding, tributary support, validator)
