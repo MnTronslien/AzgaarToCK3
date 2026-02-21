@@ -1,4 +1,5 @@
 ﻿using Converter;
+using Converter.Lemur.Rivers;
 
 namespace ConsoleUI;
 
@@ -129,6 +130,7 @@ internal class Program
     {
         try
         {
+            string? validateRiversPath = null;
             string? jsonPath = null;
             string? geojsonPath = null;
             string? riversGeojsonPath = null;
@@ -175,6 +177,11 @@ internal class Program
                     minKingdomsPerEmpire = int.Parse(args[i + 1]);
                     i++; // Skip the next argument
                 }
+                else if ((args[i] == "--validate-rivers" || args[i] == "-vr") && i + 1 < args.Length)
+                {
+                    validateRiversPath = args[i + 1];
+                    i++;
+                }
                 else if (args[i] == "--help" || args[i] == "-h")
                 {
                     PrintUsage();
@@ -196,6 +203,29 @@ internal class Program
                         riversGeojsonPath = args[i];
                     }
                 }
+            }
+
+            // --validate-rivers: validate a rivers.png without full conversion
+            if (!string.IsNullOrWhiteSpace(validateRiversPath))
+            {
+                Console.WriteLine($"Validating: {validateRiversPath}");
+                bool ok = RiverImageValidator.ValidateRivers(
+                    validateRiversPath,
+                    out var badPixels,
+                    out var msg);
+
+                if (msg != null)
+                    Console.WriteLine($"  Format: {msg}");
+                if (badPixels != null)
+                {
+                    Console.WriteLine($"  Invalid pixels: {badPixels.Count}");
+                    foreach (var p in badPixels.Take(50))
+                        Console.WriteLine($"    ({p.X},{p.Y})");
+                    if (badPixels.Count > 50)
+                        Console.WriteLine($"  ... and {badPixels.Count - 50} more");
+                }
+                Console.WriteLine(ok ? "✓ Valid" : "✗ Invalid");
+                return;
             }
 
             await Run(jsonPath, geojsonPath, riversGeojsonPath, debug, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire);
@@ -226,6 +256,9 @@ internal class Program
         Console.WriteLine("  --empire-from-culture <bool>     Form empires by culture instead of religion");
         Console.WriteLine("  --min-duchies-per-kingdom <int>  Minimum duchies per kingdom (default: 4)");
         Console.WriteLine("  --min-kingdoms-per-empire <int>  Minimum kingdoms per empire (default: 3)");
+        Console.WriteLine();
+        Console.WriteLine("Validation:");
+        Console.WriteLine("  --validate-rivers, -vr <path>    Validate a rivers.png against CK3 requirements and exit");
         Console.WriteLine();
         Console.WriteLine("Other:");
         Console.WriteLine("  --help, -h                       Show this help message");

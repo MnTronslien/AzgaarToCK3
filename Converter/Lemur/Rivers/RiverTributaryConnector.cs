@@ -9,7 +9,7 @@ namespace Converter.Lemur.Rivers;
 /// on the parent river's edge, then A* to reach it.
 ///
 /// CK3 river marker colour contract (for reference):
-///   Blue  (0,0,180)   — river body; drawn for every pixel of the path
+///   Blue  (0,225,255) — river body (#00e1ff); drawn for every pixel of the path
 ///   Green (0,255,0)   — source marker; placed at the upstream START of every river
 ///   Red   (255,0,0)   — tributary junction; placed where a tributary meets its parent
 ///   Yellow(255,252,0) — delta split (unimplemented, reserved for future expansion)
@@ -20,7 +20,7 @@ namespace Converter.Lemur.Rivers;
 /// </summary>
 public static class RiverTributaryConnector
 {
-    private static readonly MagickColor BlueColor = new MagickColor(0, 0, 180);
+    private static readonly MagickColor BlueColor = new MagickColor(0, 225, 255);  // #00e1ff
     private static readonly MagickColor GreenColor = new MagickColor(0, 255, 0);
     private static readonly MagickColor RedColor = new MagickColor(255, 0, 0);
 

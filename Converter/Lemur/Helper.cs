@@ -35,6 +35,22 @@ public static class Helper
     /// <param name="maxI"></param>
     /// <returns></returns>
     /// <exception cref="FormatException"></exception>
+    public static bool PointInPolygon(PointD[] polygon, int px, int py)
+    {
+        bool inside = false;
+        int j = polygon.Length - 1;
+        for (int i = 0; i < polygon.Length; i++)
+        {
+            double xi = polygon[i].X, yi = polygon[i].Y;
+            double xj = polygon[j].X, yj = polygon[j].Y;
+            if ((yi > py) != (yj > py) &&
+                px < (xj - xi) * (py - yi) / (yj - yi) + xi)
+                inside = !inside;
+            j = i;
+        }
+        return inside;
+    }
+
     public static MagickColor GetColor(int i, int maxI)
     {
         if (maxI >= 16777216)
