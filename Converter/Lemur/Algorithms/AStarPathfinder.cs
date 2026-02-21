@@ -14,6 +14,7 @@ public class AStarPathfinder
     private readonly Func<Point, Point, int> _heuristic;
     private readonly Func<Point, bool> _isPassable;
     private readonly bool _allowDiagonal;
+    private readonly Func<Point, int>? _countAdjacentBlue;
 
     /// <summary>
     /// Create a pathfinder for a 2D grid.
@@ -23,18 +24,21 @@ public class AStarPathfinder
     /// <param name="isPassable">Function that returns true if a point can be traversed</param>
     /// <param name="heuristic">Distance heuristic (default: Manhattan distance for orthogonal)</param>
     /// <param name="allowDiagonal">Allow diagonal movement (default: false for CK3 rivers)</param>
+    /// <param name="countAdjacentBlue">Optional Pass 2 filter: returns the number of blue pixels adjacent to a point. Candidates with count > 0 are discarded (destination always bypasses this check).</param>
     public AStarPathfinder(
         int width,
         int height,
         Func<Point, bool> isPassable,
         Func<Point, Point, int>? heuristic = null,
-        bool allowDiagonal = false)
+        bool allowDiagonal = false,
+        Func<Point, int>? countAdjacentBlue = null)
     {
         _width = width;
         _height = height;
         _isPassable = isPassable;
         _allowDiagonal = allowDiagonal;
         _heuristic = heuristic ?? ManhattanDistance;
+        _countAdjacentBlue = countAdjacentBlue;
     }
 
     /// <summary>
@@ -93,7 +97,7 @@ public class AStarPathfinder
             closedSet.Add(current.Position);
 
             // Explore neighbors
-            foreach (var neighbor in GetNeighbors(current.Position))
+            foreach (var neighbor in GetNeighbors(current.Position, goal))
             {
                 // Skip if already evaluated
                 if (closedSet.Contains(neighbor))
@@ -140,10 +144,12 @@ public class AStarPathfinder
     }
 
     /// <summary>
-    /// Get orthogonally adjacent neighbors (up, down, left, right).
+    /// Get orthogonally adjacent neighbors (up, down, left, right), with two-pass filtering.
+    /// Pass 1: bounds check (goal always included regardless of passability — handled in FindPath).
+    /// Pass 2: if countAdjacentBlue is set, discard candidates adjacent to blue pixels unless they are the goal.
     /// If allowDiagonal is true, also includes diagonal neighbors.
     /// </summary>
-    private IEnumerable<Point> GetNeighbors(Point point)
+    private IEnumerable<Point> GetNeighbors(Point point, Point goal)
     {
         // Orthogonal neighbors (4-connected)
         var orthogonal = new[]
@@ -156,8 +162,16 @@ public class AStarPathfinder
 
         foreach (var neighbor in orthogonal)
         {
-            if (IsInBounds(neighbor))
-                yield return neighbor;
+            if (!IsInBounds(neighbor)) continue;
+
+            // Pass 2: adjacency-to-blue check (destination always bypasses this)
+            if (_countAdjacentBlue != null && neighbor != goal)
+            {
+                if (_countAdjacentBlue(neighbor) > 0)
+                    continue;  // Would create touching rivers — skip
+            }
+
+            yield return neighbor;
         }
 
         // Diagonal neighbors (8-connected) - only if allowed
@@ -173,8 +187,16 @@ public class AStarPathfinder
 
             foreach (var neighbor in diagonal)
             {
-                if (IsInBounds(neighbor))
-                    yield return neighbor;
+                if (!IsInBounds(neighbor)) continue;
+
+                // Pass 2: adjacency-to-blue check (destination always bypasses this)
+                if (_countAdjacentBlue != null && neighbor != goal)
+                {
+                    if (_countAdjacentBlue(neighbor) > 0)
+                        continue;
+                }
+
+                yield return neighbor;
             }
         }
     }

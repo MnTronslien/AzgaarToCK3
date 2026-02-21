@@ -1,1 +1,1187 @@
-{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"LineString","coordinates":[[0.8961,-9.7993],[0.9377,-10.6597],[1.1583,-11.4963],[1.2357,-12.3519],[2.369,-12.4319],[3.5037,-12.3348],[4.6373,-12.3794]]},"properties":{"id":7,"source":508,"mouth":545,"parent":0,"basin":7,"widthFactor":2.136,"sourceWidth":0.08,"discharge":140,"name":"Pemacume","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-6.871,42.6169],[-6.6733,44.0917],[-6.6555,45.5818],[-6.4938,47.0596],[-7.22,47.5459],[-8.0325,47.8774],[-8.7759,48.3327]]},"properties":{"id":9,"source":38,"mouth":22,"parent":0,"basin":9,"widthFactor":2.136,"sourceWidth":0.05,"discharge":108,"name":"Methan","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[21.1948,14.5675],[20.1396,15.8687],[18.9492,17.0502],[17.867,18.3274],[17.186,17.3961],[16.6543,16.3691],[16.0032,15.4186],[15.6586,14.6994],[15.477,13.919],[15.1649,13.1875]]},"properties":{"id":10,"source":340,"mouth":338,"parent":0,"basin":10,"widthFactor":2.136,"sourceWidth":0.05,"discharge":144,"name":"Slofziaxi","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-8.39,36.7089],[-10.1896,37.5766],[-12.0617,38.2788],[-13.8757,39.1134],[-14.2986,38.3806],[-14.561,37.5724],[-14.9518,36.8245],[-14.7073,35.9606],[-14.2995,35.1569],[-14.0224,34.3051]]},"properties":{"id":15,"source":96,"mouth":93,"parent":0,"basin":15,"widthFactor":2.136,"sourceWidth":0.08,"discharge":215,"name":"Horjarkush","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[1.3803,-14.5968],[0.613,-14.0878],[-0.2421,-13.7368],[-1.0269,-13.2594],[-1.1519,-14.2301],[-1.0999,-15.2107],[-1.1895,-16.1834]]},"properties":{"id":18,"source":547,"mouth":543,"parent":0,"basin":18,"widthFactor":2.136,"sourceWidth":0.1,"discharge":181,"name":"Macham","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[27.9646,18.3542],[28.6965,16.9433],[29.5848,15.6228],[30.3479,14.2301],[31.3123,13.9517],[32.3137,13.8466],[33.2855,13.6029],[34.2868,12.1946],[35.4256,10.8926],[36.4544,9.5056]]},"properties":{"id":26,"source":316,"mouth":345,"parent":0,"basin":26,"widthFactor":2.136,"sourceWidth":0.07,"discharge":291,"name":"Moft","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-7.2172,39.6503],[-7.804,39.9511],[-8.4552,40.0832],[-9.0549,40.3504],[-10.2467,41.68],[-11.5658,42.8863],[-12.7831,44.1912],[-13.7236,44.0547],[-14.6265,43.7483],[-15.5595,43.5778],[-16.6568,44.0333],[-17.8105,44.3273],[-18.9191,44.7505]]},"properties":{"id":29,"source":58,"mouth":34,"parent":0,"basin":29,"widthFactor":2.136,"sourceWidth":0.11,"discharge":221,"name":"Srataph","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[31.3799,16.4655],[32.5789,15.962],[33.8385,15.6287],[35.0496,15.1592],[36.2737,14.4356],[37.5804,13.8689],[38.8211,13.1766]]},"properties":{"id":35,"source":343,"mouth":344,"parent":0,"basin":35,"widthFactor":2.136,"sourceWidth":0.06,"discharge":126,"name":"Xurx","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[27.8967,12.8862],[28.516,12.2008],[29.2594,11.6466],[29.9035,10.9874],[29.8485,9.5349],[29.9708,8.0843],[29.9512,6.6321]]},"properties":{"id":36,"source":365,"mouth":367,"parent":0,"basin":36,"widthFactor":2.136,"sourceWidth":0.07,"discharge":117,"name":"Eengai","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-48.3602,-6.5769],[-49.3834,-6.3227],[-50.4381,-6.2464],[-51.4676,-6.0277],[-52.6539,-6.0172],[-53.8313,-6.1836],[-55.0158,-6.2084],[-55.6422,-6.1455],[-56.2666,-6.2567],[-56.8926,-6.2286]]},"properties":{"id":45,"source":460,"mouth":459,"parent":0,"basin":45,"widthFactor":2.136,"sourceWidth":0.1,"discharge":141,"name":"Crossing River B","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-49.7404,31.3479],[-49.3849,31.5368],[-49.1414,31.8675],[-48.8082,32.0848],[-47.2447,31.8026],[-45.6575,31.6961],[-44.0893,31.449]]},"properties":{"id":49,"source":128,"mouth":130,"parent":0,"basin":49,"widthFactor":2.136,"sourceWidth":0.07,"discharge":95,"name":"Szazsezuq","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-50.9025,28.3364],[-49.9728,27.9731],[-48.9897,27.7823],[-48.0494,27.4535],[-46.8769,26.8399],[-45.6306,26.3875],[-44.4434,25.8062]]},"properties":{"id":50,"source":178,"mouth":180,"parent":0,"basin":50,"widthFactor":2.136,"sourceWidth":0.04,"discharge":58,"name":"Keen'saxhi","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[12.7072,0.2083],[11.643,-0.1071],[10.6413,-0.592],[9.5896,-0.9413],[9.1393,-0.4425],[8.5707,-0.0756],[8.0966,0.3968],[7.2089,0.2422],[6.3641,-0.081],[5.485,-0.2693]]},"properties":{"id":78,"source":420,"mouth":417,"parent":0,"basin":78,"widthFactor":2.136,"sourceWidth":0.1,"discharge":222,"name":"Warleigh","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[12.0525,24.0158],[11.3883,24.2517],[10.6815,24.3121],[10.0088,24.5129],[9.308,25.2133],[8.4911,25.7799],[7.7671,26.4535]]},"properties":{"id":79,"source":279,"mouth":242,"parent":0,"basin":79,"widthFactor":2.136,"sourceWidth":0.04,"discharge":49,"name":"Iahzit","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-15.7293,39.2767],[-16.7039,39.4509],[-17.6973,39.4455],[-18.6756,39.5838],[-18.7269,40.6038],[-18.9541,41.6026],[-19.0405,42.6183]]},"properties":{"id":80,"source":55,"mouth":53,"parent":0,"basin":80,"widthFactor":2.136,"sourceWidth":0.07,"discharge":120,"name":"Capjer","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-53.1796,29.2157],[-52.5659,27.8894],[-51.7923,26.6469],[-51.1467,25.3373],[-50.9976,24.5847],[-50.6787,23.8826],[-50.4956,23.1401]]},"properties":{"id":81,"source":177,"mouth":224,"parent":0,"basin":81,"widthFactor":2.136,"sourceWidth":0.05,"discharge":70,"name":"Zhir","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-51.6699,-3.5857],[-51.7205,-4.7502],[-51.5904,-5.9115],[-51.6049,-7.0754],[-52.1937,-7.3546],[-52.6896,-7.7847],[-53.2598,-8.0941],[-54.0926,-8.2535],[-54.8788,-8.5804],[-55.7023,-8.7733],[-56.3241,-8.6856],[-56.9512,-8.769],[-57.574,-8.7155],[-58.1653,-7.9762],[-58.8803,-7.3511],[-59.4963,-6.6347]]},"properties":{"id":91,"source":527,"mouth":571,"parent":0,"basin":91,"widthFactor":2.136,"sourceWidth":0.07,"discharge":120,"name":"Crossing River A","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[38.9801,25.3221],[38.6799,25.9338],[38.2269,26.4492],[37.8961,27.0417],[38.3357,27.9658],[38.6103,28.9549],[39.0169,29.892]]},"properties":{"id":105,"source":256,"mouth":253,"parent":0,"basin":105,"widthFactor":2.136,"sourceWidth":0.07,"discharge":88,"name":"Bhiaxi","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[36.5303,24.7874],[36.2308,25.3991],[35.7785,25.9146],[35.4485,26.507],[36.0122,27.7307],[36.4113,29.02],[36.9422,30.2569]]},"properties":{"id":138,"source":254,"mouth":251,"parent":0,"basin":138,"widthFactor":2.136,"sourceWidth":0.08,"discharge":100,"name":"Drior","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[33.8059,25.2282],[33.5914,26.2947],[33.2025,27.314],[32.9531,28.3711],[32.2754,28.9404],[31.495,29.3653],[30.7967,29.9057]]},"properties":{"id":139,"source":252,"mouth":209,"parent":0,"basin":139,"widthFactor":2.136,"sourceWidth":0.08,"discharge":91,"name":"Hisvil","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-10.2487,45.0944],[-9.692,46.1439],[-9.2998,47.2682],[-8.7759,48.3327]]},"properties":{"id":140,"source":37,"mouth":37,"parent":140,"basin":140,"widthFactor":2.136,"sourceWidth":0.04,"discharge":26,"name":"Hej'te","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-15.6455,41.4269],[-16.7533,41.8922],[-17.9208,42.1871],[-19.0405,42.6183]]},"properties":{"id":141,"source":35,"mouth":35,"parent":141,"basin":141,"widthFactor":2.136,"sourceWidth":0.06,"discharge":43,"name":"Ross'kin","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-11.96,46.4195],[-11.2887,47.5641],[-10.778,48.7914],[-10.1389,49.9526]]},"properties":{"id":142,"source":20,"mouth":20,"parent":142,"basin":142,"widthFactor":2.136,"sourceWidth":0.05,"discharge":37,"name":"Cakkaj'he","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-13.6763,47.7381],[-14.6416,47.7451],[-15.5946,47.572],[-16.5575,47.543]]},"properties":{"id":143,"source":18,"mouth":18,"parent":143,"basin":143,"widthFactor":2.136,"sourceWidth":0.05,"discharge":37,"name":"Slalzan","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-14.6193,45.6608],[-15.215,46.34],[-15.9366,46.8897],[-16.5575,47.543]]},"properties":{"id":144,"source":19,"mouth":19,"parent":144,"basin":144,"widthFactor":2.136,"sourceWidth":0.05,"discharge":37,"name":"Sloz'kash","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-7.0712,36.4647],[-7.5032,35.2173],[-7.7615,33.9202],[-8.1588,32.6628],[-8.3654,32.1201],[-8.3999,31.5349],[-8.5721,30.9837]]},"properties":{"id":145,"source":97,"mouth":147,"parent":145,"basin":145,"widthFactor":2.136,"sourceWidth":0.02,"discharge":114,"name":"Pass'han","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-10.4474,33.3225],[-10.6714,32.2991],[-10.7167,31.2494],[-10.9049,30.2207]]},"properties":{"id":146,"source":146,"mouth":146,"parent":146,"basin":146,"widthFactor":2.136,"sourceWidth":0.06,"discharge":44,"name":"Mithaz","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-13.7601,35.5218],[-13.9182,35.1315],[-13.8997,34.7031],[-14.0224,34.3051]]},"properties":{"id":147,"source":94,"mouth":94,"parent":147,"basin":147,"widthFactor":2.136,"sourceWidth":0.04,"discharge":26,"name":"Slellen","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-12.1045,34.4185],[-12.6747,33.6079],[-13.09,32.7045],[-13.6293,31.8753]]},"properties":{"id":148,"source":95,"mouth":95,"parent":148,"basin":148,"widthFactor":2.136,"sourceWidth":0.04,"discharge":26,"name":"Shaj'ar","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-18.3338,36.904],[-17.9673,36.0025],[-17.439,35.1812],[-17.0402,34.2957]]},"properties":{"id":149,"source":91,"mouth":91,"parent":149,"basin":149,"widthFactor":2.136,"sourceWidth":0.06,"discharge":42,"name":"Narras","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-20.5155,35.6851],[-22.0025,35.4954],[-23.4581,35.1279],[-24.9389,34.9026]]},"properties":{"id":150,"source":90,"mouth":90,"parent":150,"basin":150,"widthFactor":2.136,"sourceWidth":0.06,"discharge":42,"name":"Nargekka","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-19.5984,37.6337],[-20.1952,39.1088],[-20.9562,40.5087],[-21.5857,41.9688]]},"properties":{"id":151,"source":54,"mouth":54,"parent":151,"basin":151,"widthFactor":2.136,"sourceWidth":0.06,"discharge":41,"name":"Gopjargegus","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-2.1037,32.6123],[-2.7915,31.6165],[-3.3249,30.5271],[-3.9818,29.5127]]},"properties":{"id":152,"source":150,"mouth":150,"parent":152,"basin":152,"widthFactor":2.136,"sourceWidth":0.02,"discharge":16,"name":"Esash","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-3.9891,32.3088],[-4.0589,31.3766],[-3.9481,30.4448],[-3.9818,29.5127]]},"properties":{"id":153,"source":149,"mouth":149,"parent":153,"basin":153,"widthFactor":2.136,"sourceWidth":0.03,"discharge":21,"name":"Naler","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-1.4309,35.0543],[-0.4781,34.0647],[0.598,33.207],[1.5754,32.2438]]},"properties":{"id":154,"source":99,"mouth":99,"parent":154,"basin":154,"widthFactor":2.136,"sourceWidth":0.02,"discharge":14,"name":"Rrij'kas","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-0.7631,37.4964],[0.3663,36.128],[1.6302,34.88],[2.7866,33.5356]]},"properties":{"id":155,"source":98,"mouth":98,"parent":155,"basin":155,"widthFactor":2.136,"sourceWidth":0.02,"discharge":14,"name":"Sorkush","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-3.4745,40.2601],[-2.7025,40.949],[-2.0599,41.764],[-1.3138,42.4782],[-0.5039,43.1391],[0.1849,43.9293],[0.9705,44.6161]]},"properties":{"id":156,"source":59,"mouth":39,"parent":156,"basin":156,"widthFactor":2.136,"sourceWidth":0.02,"discharge":71,"name":"Srathan","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-0.7154,40.3793],[0.206,40.731],[1.0508,41.2462],[1.957,41.6307]]},"properties":{"id":157,"source":40,"mouth":40,"parent":157,"basin":157,"widthFactor":2.136,"sourceWidth":0.03,"discharge":19,"name":"Aj'ess","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-0.1142,38.276],[1.2926,38.9299],[2.6157,39.7439],[4.0057,40.4298]]},"properties":{"id":158,"source":100,"mouth":100,"parent":158,"basin":158,"widthFactor":2.136,"sourceWidth":0.03,"discharge":19,"name":"Can'ke","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-3.9023,44.7721],[-3.5114,46.0429],[-3.2957,47.3574],[-2.9398,48.6369]]},"properties":{"id":159,"source":23,"mouth":23,"parent":159,"basin":159,"widthFactor":2.136,"sourceWidth":0.06,"discharge":40,"name":"Manekka","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-8.3684,46.0799],[-8.4331,46.8437],[-8.6756,47.5753],[-8.7759,48.3327]]},"properties":{"id":160,"source":24,"mouth":24,"parent":160,"basin":160,"widthFactor":2.136,"sourceWidth":0.06,"discharge":40,"name":"Skorri","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-51.4806,-6.079],[-52.6616,-6.05],[-53.8361,-6.2014],[-55.0158,-6.2084]]},"properties":{"id":161,"source":460,"mouth":460,"parent":45,"basin":45,"widthFactor":1.78,"sourceWidth":0.06,"discharge":43,"name":"Stotford","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-50.7977,-9.7805],[-50.5174,-10.6992],[-50.0688,-11.5525],[-49.7549,-12.4581],[-49.1701,-13.2192],[-48.4532,-13.8622],[-47.842,-14.5996]]},"properties":{"id":162,"source":490,"mouth":528,"parent":162,"basin":162,"widthFactor":2.136,"sourceWidth":0.02,"discharge":71,"name":"Bodmanchin","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-48.9448,-8.9243],[-48.8981,-9.583],[-48.6737,-10.2092],[-48.5914,-10.8614],[-48.9823,-11.4772],[-49.215,-12.1731],[-49.5742,-12.8049]]},"properties":{"id":163,"source":491,"mouth":529,"parent":163,"basin":163,"widthFactor":2.136,"sourceWidth":0.02,"discharge":86,"name":"Craftfordge","type":"River"}},{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-52.4085,-12.4321],[-51.4535,-12.6256],[-50.4759,-12.64],[-49.5164,-12.7977]]},"properties":{"id":164,"source":527,"mouth":571,"parent":164,"basin":164,"widthFactor":2.136,"sourceWidth":0.03,"discharge":51,"name":"Mitfieldge","type":"River"}}]}
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [0.8961, -9.7993],
+          [0.9377, -10.6597],
+          [1.1583, -11.4963],
+          [1.2357, -12.3519],
+          [2.369, -12.4319],
+          [3.5037, -12.3348],
+          [4.6373, -12.3794]
+        ]
+      },
+      "properties": {
+        "id": 7,
+        "source": 508,
+        "mouth": 545,
+        "parent": 0,
+        "basin": 7,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.08,
+        "discharge": 140,
+        "name": "Pemacume",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-6.871, 42.6169],
+          [-6.6733, 44.0917],
+          [-6.6555, 45.5818],
+          [-6.4938, 47.0596],
+          [-7.22, 47.5459],
+          [-8.0325, 47.8774],
+          [-8.7759, 48.3327]
+        ]
+      },
+      "properties": {
+        "id": 9,
+        "source": 38,
+        "mouth": 22,
+        "parent": 0,
+        "basin": 9,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.05,
+        "discharge": 108,
+        "name": "Methan",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [21.1948, 14.5675],
+          [20.1396, 15.8687],
+          [18.9492, 17.0502],
+          [17.867, 18.3274],
+          [17.186, 17.3961],
+          [16.6543, 16.3691],
+          [16.0032, 15.4186],
+          [15.6586, 14.6994],
+          [15.477, 13.919],
+          [15.1649, 13.1875]
+        ]
+      },
+      "properties": {
+        "id": 10,
+        "source": 340,
+        "mouth": 338,
+        "parent": 0,
+        "basin": 10,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.05,
+        "discharge": 144,
+        "name": "Slofziaxi",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-8.39, 36.7089],
+          [-10.1896, 37.5766],
+          [-12.0617, 38.2788],
+          [-13.8757, 39.1134],
+          [-14.2986, 38.3806],
+          [-14.561, 37.5724],
+          [-14.9518, 36.8245],
+          [-14.7073, 35.9606],
+          [-14.2995, 35.1569],
+          [-14.0224, 34.3051]
+        ]
+      },
+      "properties": {
+        "id": 15,
+        "source": 96,
+        "mouth": 93,
+        "parent": 0,
+        "basin": 15,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.08,
+        "discharge": 215,
+        "name": "Horjarkush",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [1.3803, -14.5968],
+          [0.613, -14.0878],
+          [-0.2421, -13.7368],
+          [-1.0269, -13.2594],
+          [-1.1519, -14.2301],
+          [-1.0999, -15.2107],
+          [-1.1895, -16.1834]
+        ]
+      },
+      "properties": {
+        "id": 18,
+        "source": 547,
+        "mouth": 543,
+        "parent": 0,
+        "basin": 18,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.1,
+        "discharge": 181,
+        "name": "Macham",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [27.9646, 18.3542],
+          [28.6965, 16.9433],
+          [29.5848, 15.6228],
+          [30.3479, 14.2301],
+          [31.3123, 13.9517],
+          [32.3137, 13.8466],
+          [33.2855, 13.6029],
+          [34.2868, 12.1946],
+          [35.4256, 10.8926],
+          [36.4544, 9.5056]
+        ]
+      },
+      "properties": {
+        "id": 26,
+        "source": 316,
+        "mouth": 345,
+        "parent": 0,
+        "basin": 26,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.07,
+        "discharge": 291,
+        "name": "Moft",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-7.2172, 39.6503],
+          [-7.804, 39.9511],
+          [-8.4552, 40.0832],
+          [-9.0549, 40.3504],
+          [-10.2467, 41.68],
+          [-11.5658, 42.8863],
+          [-12.7831, 44.1912],
+          [-13.7236, 44.0547],
+          [-14.6265, 43.7483],
+          [-15.5595, 43.5778],
+          [-16.6568, 44.0333],
+          [-17.8105, 44.3273],
+          [-18.9191, 44.7505]
+        ]
+      },
+      "properties": {
+        "id": 29,
+        "source": 58,
+        "mouth": 34,
+        "parent": 0,
+        "basin": 29,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.11,
+        "discharge": 221,
+        "name": "Srataph",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [31.3799, 16.4655],
+          [32.5789, 15.962],
+          [33.8385, 15.6287],
+          [35.0496, 15.1592],
+          [36.2737, 14.4356],
+          [37.5804, 13.8689],
+          [38.8211, 13.1766]
+        ]
+      },
+      "properties": {
+        "id": 35,
+        "source": 343,
+        "mouth": 344,
+        "parent": 0,
+        "basin": 35,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.06,
+        "discharge": 126,
+        "name": "Xurx",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [27.8967, 12.8862],
+          [28.516, 12.2008],
+          [29.2594, 11.6466],
+          [29.9035, 10.9874],
+          [29.8485, 9.5349],
+          [29.9708, 8.0843],
+          [29.9512, 6.6321]
+        ]
+      },
+      "properties": {
+        "id": 36,
+        "source": 365,
+        "mouth": 367,
+        "parent": 0,
+        "basin": 36,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.07,
+        "discharge": 117,
+        "name": "Eengai",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-48.3602, -6.5769],
+          [-49.3834, -6.3227],
+          [-50.4381, -6.2464],
+          [-51.4676, -6.0277],
+          [-52.6539, -6.0172],
+          [-53.8313, -6.1836],
+          [-55.0158, -6.2084],
+          [-55.6422, -6.1455],
+          [-56.2666, -6.2567],
+          [-56.8926, -6.2286]
+        ]
+      },
+      "properties": {
+        "id": 45,
+        "source": 460,
+        "mouth": 459,
+        "parent": 0,
+        "basin": 45,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.1,
+        "discharge": 141,
+        "name": "Crossing River B",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-49.7404, 31.3479],
+          [-49.3849, 31.5368],
+          [-49.1414, 31.8675],
+          [-48.8082, 32.0848],
+          [-47.2447, 31.8026],
+          [-45.6575, 31.6961],
+          [-44.0893, 31.449]
+        ]
+      },
+      "properties": {
+        "id": 49,
+        "source": 128,
+        "mouth": 130,
+        "parent": 0,
+        "basin": 49,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.07,
+        "discharge": 95,
+        "name": "Szazsezuq",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-50.9025, 28.3364],
+          [-49.9728, 27.9731],
+          [-48.9897, 27.7823],
+          [-48.0494, 27.4535],
+          [-46.8769, 26.8399],
+          [-45.6306, 26.3875],
+          [-44.4434, 25.8062]
+        ]
+      },
+      "properties": {
+        "id": 50,
+        "source": 178,
+        "mouth": 180,
+        "parent": 0,
+        "basin": 50,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.04,
+        "discharge": 58,
+        "name": "Keen'saxhi",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [12.7072, 0.2083],
+          [11.643, -0.1071],
+          [10.6413, -0.592],
+          [9.5896, -0.9413],
+          [9.1393, -0.4425],
+          [8.5707, -0.0756],
+          [8.0966, 0.3968],
+          [7.2089, 0.2422],
+          [6.3641, -0.081],
+          [5.485, -0.2693]
+        ]
+      },
+      "properties": {
+        "id": 78,
+        "source": 420,
+        "mouth": 417,
+        "parent": 0,
+        "basin": 78,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.1,
+        "discharge": 222,
+        "name": "Warleigh",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [12.0525, 24.0158],
+          [11.3883, 24.2517],
+          [10.6815, 24.3121],
+          [10.0088, 24.5129],
+          [9.308, 25.2133],
+          [8.4911, 25.7799],
+          [7.7671, 26.4535]
+        ]
+      },
+      "properties": {
+        "id": 79,
+        "source": 279,
+        "mouth": 242,
+        "parent": 0,
+        "basin": 79,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.04,
+        "discharge": 49,
+        "name": "Iahzit",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-15.7293, 39.2767],
+          [-16.7039, 39.4509],
+          [-17.6973, 39.4455],
+          [-18.6756, 39.5838],
+          [-18.7269, 40.6038],
+          [-18.9541, 41.6026],
+          [-19.0405, 42.6183]
+        ]
+      },
+      "properties": {
+        "id": 80,
+        "source": 55,
+        "mouth": 53,
+        "parent": 0,
+        "basin": 80,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.07,
+        "discharge": 120,
+        "name": "Capjer",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-53.1796, 29.2157],
+          [-52.5659, 27.8894],
+          [-51.7923, 26.6469],
+          [-51.1467, 25.3373],
+          [-50.9976, 24.5847],
+          [-50.6787, 23.8826],
+          [-50.4956, 23.1401]
+        ]
+      },
+      "properties": {
+        "id": 81,
+        "source": 177,
+        "mouth": 224,
+        "parent": 0,
+        "basin": 81,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.05,
+        "discharge": 70,
+        "name": "Zhir",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-51.6699, -3.5857],
+          [-51.7205, -4.7502],
+          [-51.5904, -5.9115],
+          [-51.6049, -7.0754],
+          [-52.1937, -7.3546],
+          [-52.6896, -7.7847],
+          [-53.2598, -8.0941],
+          [-54.0926, -8.2535],
+          [-54.8788, -8.5804],
+          [-55.7023, -8.7733],
+          [-56.3241, -8.6856],
+          [-56.9512, -8.769],
+          [-57.574, -8.7155],
+          [-58.1653, -7.9762],
+          [-58.8803, -7.3511],
+          [-59.4963, -6.6347]
+        ]
+      },
+      "properties": {
+        "id": 91,
+        "source": 527,
+        "mouth": 571,
+        "parent": 0,
+        "basin": 91,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.07,
+        "discharge": 120,
+        "name": "Crossing River A",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [38.9801, 25.3221],
+          [38.6799, 25.9338],
+          [38.2269, 26.4492],
+          [37.8961, 27.0417],
+          [38.3357, 27.9658],
+          [38.6103, 28.9549],
+          [39.0169, 29.892]
+        ]
+      },
+      "properties": {
+        "id": 105,
+        "source": 256,
+        "mouth": 253,
+        "parent": 0,
+        "basin": 105,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.07,
+        "discharge": 88,
+        "name": "Bhiaxi",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [36.5303, 24.7874],
+          [36.2308, 25.3991],
+          [35.7785, 25.9146],
+          [35.4485, 26.507],
+          [36.0122, 27.7307],
+          [36.4113, 29.02],
+          [36.9422, 30.2569]
+        ]
+      },
+      "properties": {
+        "id": 138,
+        "source": 254,
+        "mouth": 251,
+        "parent": 0,
+        "basin": 138,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.08,
+        "discharge": 100,
+        "name": "Drior",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [33.8059, 25.2282],
+          [33.5914, 26.2947],
+          [33.2025, 27.314],
+          [32.9531, 28.3711],
+          [32.2754, 28.9404],
+          [31.495, 29.3653],
+          [30.7967, 29.9057]
+        ]
+      },
+      "properties": {
+        "id": 139,
+        "source": 252,
+        "mouth": 209,
+        "parent": 0,
+        "basin": 139,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.08,
+        "discharge": 91,
+        "name": "Hisvil",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-10.2487, 45.0944],
+          [-9.692, 46.1439],
+          [-9.2998, 47.2682],
+          [-8.7759, 48.3327]
+        ]
+      },
+      "properties": {
+        "id": 140,
+        "source": 37,
+        "mouth": 37,
+        "parent": 140,
+        "basin": 140,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.04,
+        "discharge": 26,
+        "name": "Hej'te",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-15.6455, 41.4269],
+          [-16.7533, 41.8922],
+          [-17.9208, 42.1871],
+          [-19.0405, 42.6183]
+        ]
+      },
+      "properties": {
+        "id": 141,
+        "source": 35,
+        "mouth": 35,
+        "parent": 141,
+        "basin": 141,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.06,
+        "discharge": 43,
+        "name": "Ross'kin",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-11.96, 46.4195],
+          [-11.2887, 47.5641],
+          [-10.778, 48.7914],
+          [-10.1389, 49.9526]
+        ]
+      },
+      "properties": {
+        "id": 142,
+        "source": 20,
+        "mouth": 20,
+        "parent": 142,
+        "basin": 142,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.05,
+        "discharge": 37,
+        "name": "Cakkaj'he",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-13.6763, 47.7381],
+          [-14.6416, 47.7451],
+          [-15.5946, 47.572],
+          [-16.5575, 47.543]
+        ]
+      },
+      "properties": {
+        "id": 143,
+        "source": 18,
+        "mouth": 18,
+        "parent": 143,
+        "basin": 143,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.05,
+        "discharge": 37,
+        "name": "Slalzan",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-14.6193, 45.6608],
+          [-15.215, 46.34],
+          [-15.9366, 46.8897],
+          [-16.5575, 47.543]
+        ]
+      },
+      "properties": {
+        "id": 144,
+        "source": 19,
+        "mouth": 19,
+        "parent": 144,
+        "basin": 144,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.05,
+        "discharge": 37,
+        "name": "Sloz'kash",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-7.0712, 36.4647],
+          [-7.5032, 35.2173],
+          [-7.7615, 33.9202],
+          [-8.1588, 32.6628],
+          [-8.3654, 32.1201],
+          [-8.3999, 31.5349],
+          [-8.5721, 30.9837]
+        ]
+      },
+      "properties": {
+        "id": 145,
+        "source": 97,
+        "mouth": 147,
+        "parent": 145,
+        "basin": 145,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.02,
+        "discharge": 114,
+        "name": "Pass'han",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-10.4474, 33.3225],
+          [-10.6714, 32.2991],
+          [-10.7167, 31.2494],
+          [-10.9049, 30.2207]
+        ]
+      },
+      "properties": {
+        "id": 146,
+        "source": 146,
+        "mouth": 146,
+        "parent": 146,
+        "basin": 146,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.06,
+        "discharge": 44,
+        "name": "Mithaz",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-13.7601, 35.5218],
+          [-13.9182, 35.1315],
+          [-13.8997, 34.7031],
+          [-14.0224, 34.3051]
+        ]
+      },
+      "properties": {
+        "id": 147,
+        "source": 94,
+        "mouth": 94,
+        "parent": 147,
+        "basin": 147,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.04,
+        "discharge": 26,
+        "name": "Slellen",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-12.1045, 34.4185],
+          [-12.6747, 33.6079],
+          [-13.09, 32.7045],
+          [-13.6293, 31.8753]
+        ]
+      },
+      "properties": {
+        "id": 148,
+        "source": 95,
+        "mouth": 95,
+        "parent": 148,
+        "basin": 148,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.04,
+        "discharge": 26,
+        "name": "Shaj'ar",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-18.3338, 36.904],
+          [-17.9673, 36.0025],
+          [-17.439, 35.1812],
+          [-17.0402, 34.2957]
+        ]
+      },
+      "properties": {
+        "id": 149,
+        "source": 91,
+        "mouth": 91,
+        "parent": 149,
+        "basin": 149,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.06,
+        "discharge": 42,
+        "name": "Narras",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-20.5155, 35.6851],
+          [-22.0025, 35.4954],
+          [-23.4581, 35.1279],
+          [-24.9389, 34.9026]
+        ]
+      },
+      "properties": {
+        "id": 150,
+        "source": 90,
+        "mouth": 90,
+        "parent": 150,
+        "basin": 150,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.06,
+        "discharge": 42,
+        "name": "Nargekka",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-19.5984, 37.6337],
+          [-20.1952, 39.1088],
+          [-20.9562, 40.5087],
+          [-21.5857, 41.9688]
+        ]
+      },
+      "properties": {
+        "id": 151,
+        "source": 54,
+        "mouth": 54,
+        "parent": 151,
+        "basin": 151,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.06,
+        "discharge": 41,
+        "name": "Gopjargegus",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-2.1037, 32.6123],
+          [-2.7915, 31.6165],
+          [-3.3249, 30.5271],
+          [-3.9818, 29.5127]
+        ]
+      },
+      "properties": {
+        "id": 152,
+        "source": 150,
+        "mouth": 150,
+        "parent": 152,
+        "basin": 152,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.02,
+        "discharge": 16,
+        "name": "Esash",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-3.9891, 32.3088],
+          [-4.0589, 31.3766],
+          [-3.9481, 30.4448],
+          [-3.9818, 29.5127]
+        ]
+      },
+      "properties": {
+        "id": 153,
+        "source": 149,
+        "mouth": 149,
+        "parent": 153,
+        "basin": 153,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.03,
+        "discharge": 21,
+        "name": "Naler",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-1.4309, 35.0543],
+          [-0.4781, 34.0647],
+          [0.598, 33.207],
+          [1.5754, 32.2438]
+        ]
+      },
+      "properties": {
+        "id": 154,
+        "source": 99,
+        "mouth": 99,
+        "parent": 154,
+        "basin": 154,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.02,
+        "discharge": 14,
+        "name": "Rrij'kas",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-0.7631, 37.4964],
+          [0.3663, 36.128],
+          [1.6302, 34.88],
+          [2.7866, 33.5356]
+        ]
+      },
+      "properties": {
+        "id": 155,
+        "source": 98,
+        "mouth": 98,
+        "parent": 155,
+        "basin": 155,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.02,
+        "discharge": 14,
+        "name": "Sorkush",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-3.4745, 40.2601],
+          [-2.7025, 40.949],
+          [-2.0599, 41.764],
+          [-1.3138, 42.4782],
+          [-0.5039, 43.1391],
+          [0.1849, 43.9293],
+          [0.9705, 44.6161]
+        ]
+      },
+      "properties": {
+        "id": 156,
+        "source": 59,
+        "mouth": 39,
+        "parent": 156,
+        "basin": 156,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.02,
+        "discharge": 71,
+        "name": "Srathan",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-0.7154, 40.3793],
+          [0.206, 40.731],
+          [1.0508, 41.2462],
+          [1.957, 41.6307]
+        ]
+      },
+      "properties": {
+        "id": 157,
+        "source": 40,
+        "mouth": 40,
+        "parent": 157,
+        "basin": 157,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.03,
+        "discharge": 19,
+        "name": "Aj'ess",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-0.1142, 38.276],
+          [1.2926, 38.9299],
+          [2.6157, 39.7439],
+          [4.0057, 40.4298]
+        ]
+      },
+      "properties": {
+        "id": 158,
+        "source": 100,
+        "mouth": 100,
+        "parent": 158,
+        "basin": 158,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.03,
+        "discharge": 19,
+        "name": "Can'ke",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-3.9023, 44.7721],
+          [-3.5114, 46.0429],
+          [-3.2957, 47.3574],
+          [-2.9398, 48.6369]
+        ]
+      },
+      "properties": {
+        "id": 159,
+        "source": 23,
+        "mouth": 23,
+        "parent": 159,
+        "basin": 159,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.06,
+        "discharge": 40,
+        "name": "Manekka",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-8.3684, 46.0799],
+          [-8.4331, 46.8437],
+          [-8.6756, 47.5753],
+          [-8.7759, 48.3327]
+        ]
+      },
+      "properties": {
+        "id": 160,
+        "source": 24,
+        "mouth": 24,
+        "parent": 160,
+        "basin": 160,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.06,
+        "discharge": 40,
+        "name": "Skorri",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-51.4806, -6.079],
+          [-52.6616, -6.05],
+          [-53.8361, -6.2014],
+          [-55.0158, -6.2084]
+        ]
+      },
+      "properties": {
+        "id": 161,
+        "source": 460,
+        "mouth": 460,
+        "parent": 45,
+        "basin": 45,
+        "widthFactor": 1.78,
+        "sourceWidth": 0.06,
+        "discharge": 43,
+        "name": "Stotford",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-50.7977, -9.7805],
+          [-50.5174, -10.6992],
+          [-50.0688, -11.5525],
+          [-49.7549, -12.4581],
+          [-49.1701, -13.2192],
+          [-48.4532, -13.8622],
+          [-47.842, -14.5996]
+        ]
+      },
+      "properties": {
+        "id": 162,
+        "source": 490,
+        "mouth": 528,
+        "parent": 162,
+        "basin": 162,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.02,
+        "discharge": 71,
+        "name": "Bodmanchin",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-48.9448, -8.9243],
+          [-48.8981, -9.583],
+          [-48.6737, -10.2092],
+          [-48.5914, -10.8614],
+          [-48.9823, -11.4772],
+          [-49.215, -12.1731],
+          [-49.5742, -12.8049]
+        ]
+      },
+      "properties": {
+        "id": 163,
+        "source": 491,
+        "mouth": 529,
+        "parent": 163,
+        "basin": 163,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.02,
+        "discharge": 86,
+        "name": "Craftfordge",
+        "type": "River"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-52.4085, -12.4321],
+          [-51.4535, -12.6256],
+          [-50.4759, -12.64],
+          [-49.5164, -12.7977]
+        ]
+      },
+      "properties": {
+        "id": 164,
+        "source": 527,
+        "mouth": 571,
+        "parent": 164,
+        "basin": 164,
+        "widthFactor": 2.136,
+        "sourceWidth": 0.03,
+        "discharge": 51,
+        "name": "Mitfieldge",
+        "type": "River"
+      }
+    }
+  ]
+}
