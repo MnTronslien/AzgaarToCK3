@@ -6,6 +6,7 @@ namespace Converter.Lemur
     using Converter.Lemur.Entities;
     using Converter.Lemur.Deserialization;
     using Converter.Lemur.Graphs;
+    using Converter.Lemur.Rivers;
     using ImageMagick;
     using static Converter.Lemur.Entities.Cell;
 
@@ -24,6 +25,30 @@ namespace Converter.Lemur
             await ImageUtility.DrawCells(map.Cells!.Values.ToList(), map);
 
             LinkCellsToBurgs(map);
+
+            // Load and process rivers
+            if (Settings.Instance.EnableRivers)
+            {
+                map.Rivers = RiverLoader.LoadRivers(map.JsonMap, Settings.Instance.MajorRiverThreshold);
+
+                // Phase 1: Draw minor rivers to rivers.png using pure A* approach
+                await RiverImageGeneratorNew.DrawRiversImage(
+                    map.Rivers,
+                    Settings.Instance.MajorRiverThreshold,
+                    map);
+
+                // Phase 2 (future): Process major rivers (complex, cell splitting)
+                // var majorRivers = map.Rivers.Where(r => r.IsMajor(Settings.Instance.MajorRiverThreshold)).ToList();
+                // await MajorRiverProcessor.ProcessMajorRivers(majorRivers, map);
+
+                // TEMPORARY: Exit early after river generation for testing
+                Console.WriteLine("\n=== STOPPING AFTER RIVER GENERATION (temporary for testing) ===");
+                if (Settings.Instance.Debug)
+                {
+                    ImageUtility.OpenAllImages();
+                }
+                return;
+            }
 
             GenerateDuchies(map);
             GenerateBaronies(map);
