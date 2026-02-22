@@ -85,11 +85,13 @@ namespace Converter.Lemur.Deserialization
                     throw new Exception($"Unrecognized feature type: {feature.properties.type}");
                 }
 
-                // Get biome from JSON pack.cells (if available)
+                // Get biome and area from JSON pack.cells (if available)
                 int biome = 0;
+                int area = 0;
                 if (feature.properties.id < jsonMap.pack.cells.Length)
                 {
                     biome = jsonMap.pack.cells[feature.properties.id].biome;
+                    area = jsonMap.pack.cells[feature.properties.id].area;
                 }
 
                 var cell = new Entities.Cell()
@@ -103,7 +105,8 @@ namespace Converter.Lemur.Deserialization
                     Neighbors = feature.properties.neighbors,
                     Type = featureType,
                     GeoDataCoordinates = feature.geometry.coordinates[0],
-                    Biome = biome
+                    Biome = biome,
+                    Area = area
                 };
 
                 cells.Add(cell.Id, cell);

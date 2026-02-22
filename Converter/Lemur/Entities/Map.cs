@@ -31,6 +31,10 @@ namespace Converter.Lemur.Entities
         // list of wasteland provinces, ths is because provinces with no burgs counts as wasteland. Add 0 by default
         public List<Wasteland>? Wastelands { get; set; } = new();
 
+        public List<SeaZone>? SeaZones { get; set; } = new();
+
+        public List<IProvince>? AllProvinces { get; set; }
+
         public override string ToString()
         {
             // Return the name of the map and the number of cells in the packed map

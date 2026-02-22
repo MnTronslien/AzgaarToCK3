@@ -7,6 +7,7 @@ namespace Converter.Lemur
     using Converter.Lemur.Deserialization;
     using Converter.Lemur.Graphs;
     using Converter.Lemur.Rivers;
+    using Converter.Lemur.Writers;
     using ImageMagick;
     using static Converter.Lemur.Entities.Cell;
 
@@ -41,13 +42,6 @@ namespace Converter.Lemur
                 // var majorRivers = map.Rivers.Where(r => r.IsMajor(Settings.Instance.MajorRiverThreshold)).ToList();
                 // await MajorRiverProcessor.ProcessMajorRivers(majorRivers, map);
 
-                // TEMPORARY: Exit early after river generation for testing
-                Console.WriteLine("\n=== STOPPING AFTER RIVER GENERATION (temporary for testing) ===");
-                if (Settings.Instance.Debug)
-                {
-                    ImageUtility.OpenAllImages();
-                }
-                return;
             }
 
             GenerateDuchies(map);
@@ -60,9 +54,19 @@ namespace Converter.Lemur
             GenerateWastelandProvinces(map);
             AssertEveryLandCellIsAssignedToABurg(map);
 
-            // ✅ Visualization checkpoint 2: Baronies
-            AssignUniqueColorsToBaronies(map);
+            ComputeDistanceToCoast(map);
+            GenerateSeaZones(map);
+            Console.WriteLine($"Generated {map.SeaZones!.Count} sea zones.");
+
+            // ✅ Visualization checkpoint 2: Sea zones + Baronies
+            AssignProvinceColors(map);
+            await ShowSeaZones(map);
             await ShowBaronies(map);
+
+            await DefinitionCsvWriter.Write(map.AllProvinces!, Settings.OutputDirectory);
+
+            var seaZoneIndices = map.SeaZones!.Select(sz => map.AllProvinces!.IndexOf(sz) + 1);
+            await DefaultMapWriter.Write(seaZoneIndices, Settings.OutputDirectory);
 
             GenerateBaronyAdjacency(map);
             GenerateCounties(map);
@@ -95,6 +99,143 @@ namespace Converter.Lemur
         {
             //For each province flagged as not having a burg, generate a wasteland province
 
+        }
+
+        private static void ComputeDistanceToCoast(Map map)
+        {
+            // BFS outward from all land cells.
+            // Sea cells adjacent to a land cell get distance 1, their sea neighbours get 2, etc.
+            var queue = new Queue<Cell>();
+
+            // Seed: all sea cells directly neighbouring a land cell get distance 1
+            foreach (var cell in map.Cells!.Values)
+            {
+                if (Cell.IsDryLand(cell.Type)) continue;
+
+                foreach (var neighborId in cell.Neighbors)
+                {
+                    if (map.Cells.TryGetValue(neighborId, out var neighbor) && Cell.IsDryLand(neighbor.Type))
+                    {
+                        cell.DistanceToCoast = 1;
+                        queue.Enqueue(cell);
+                        break;
+                    }
+                }
+            }
+
+            // BFS expansion
+            while (queue.Count > 0)
+            {
+                var current = queue.Dequeue();
+                foreach (var neighborId in current.Neighbors)
+                {
+                    if (!map.Cells.TryGetValue(neighborId, out var neighbor)) continue;
+                    if (Cell.IsDryLand(neighbor.Type)) continue;
+                    if (neighbor.DistanceToCoast != 0) continue; // already visited
+
+                    neighbor.DistanceToCoast = current.DistanceToCoast + 1;
+                    queue.Enqueue(neighbor);
+                }
+            }
+        }
+
+        private static void GenerateSeaZones(Map map)
+        {
+            var seaCellsById = map.Cells!.Values
+                .Where(c => !Cell.IsDryLand(c.Type))
+                .ToDictionary(c => c.Id);
+
+            var unassigned = new HashSet<int>(seaCellsById.Keys);
+            var seaZones = new List<SeaZone>();
+            int nextId = 1;
+
+            while (unassigned.Count > 0)
+            {
+                int seedId = unassigned.Min();
+                var seed = seaCellsById[seedId];
+
+                var zoneCells = new List<Cell> { seed };
+                seed.Province = null; // will be set by SeaZone constructor
+                unassigned.Remove(seedId);
+                int totalArea = seed.Area;
+                var zoneIds = new HashSet<int> { seedId };
+
+                while (totalArea < Settings.Instance.SeaZoneTargetArea)
+                {
+                    var candidates = zoneCells
+                        .SelectMany(c => c.Neighbors)
+                        .Distinct()
+                        .Where(id => unassigned.Contains(id))
+                        .Select(id => seaCellsById[id])
+                        .ToList();
+
+                    if (candidates.Count == 0) break;
+
+                    // Pick cell with most neighbors already in zone (cohesion-first); distance to seed is tiebreaker
+                    var best = candidates
+                        .OrderByDescending(c => c.Neighbors.Count(n => zoneIds.Contains(n)))
+                        .ThenBy(c => c.DistanceSquared(seed))
+                        .First();
+
+                    zoneCells.Add(best);
+                    zoneIds.Add(best.Id);
+                    unassigned.Remove(best.Id);
+                    totalArea += best.Area;
+                }
+
+                var zone = new SeaZone(nextId++, zoneCells);
+                zone.TotalArea = totalArea;
+                seaZones.Add(zone);
+            }
+
+            // Post-process: merge undersized zones
+            var undersized = seaZones.Where(z => z.TotalArea < Settings.Instance.SeaZoneMinimumArea).ToList();
+            foreach (var zone in undersized)
+            {
+                if (!seaZones.Contains(zone)) continue; // already merged away
+
+                var borderCounts = new Dictionary<SeaZone, int>();
+                foreach (var cell in zone.Cells)
+                {
+                    foreach (var neighborId in cell.Neighbors)
+                    {
+                        if (map.Cells.TryGetValue(neighborId, out var neighbor) &&
+                            neighbor.Province is SeaZone sz && sz != zone)
+                        {
+                            borderCounts.TryGetValue(sz, out int count);
+                            borderCounts[sz] = count + 1;
+                        }
+                    }
+                }
+
+                if (borderCounts.Count > 0)
+                {
+                    var mergeTarget = borderCounts
+                        .OrderByDescending(kv => kv.Value)
+                        .ThenByDescending(kv => kv.Key.TotalArea)
+                        .First().Key;
+
+                    foreach (var cell in zone.Cells)
+                    {
+                        cell.Province = mergeTarget;
+                        mergeTarget.Cells.Add(cell);
+                    }
+                    mergeTarget.TotalArea += zone.TotalArea;
+                    seaZones.Remove(zone);
+                }
+                else
+                {
+                    zone.IsImpassable = true;
+                    if (Settings.Instance.Debug)
+                        Console.WriteLine($"Sea zone {zone.Name} is isolated and marked impassable (area={zone.TotalArea})");
+                }
+            }
+
+            // Assign placeholder names
+            for (int i = 0; i < seaZones.Count; i++)
+                seaZones[i].Name = $"sea_{i + 1}";
+
+            map.SeaZones = seaZones;
         }
         private static void AssertEveryLandCellIsAssignedToABurg(Map map)
         {
@@ -141,13 +282,18 @@ namespace Converter.Lemur
 
         }
 
-        private static void AssignUniqueColorsToBaronies(Map map)
+        private static void AssignProvinceColors(Map map)
         {
-            //We start at 10 because we want to avoid black
-            for (int i = 0; i < map.Baronies!.Count; i++)
-            {
-                map.Baronies[i].Color = Helper.GetColor(i + 10, map.Baronies.Count + 20); //pad it just in case
-            }
+            List<IProvince> allProvinces = new();
+            allProvinces.AddRange(map.Baronies!);
+            allProvinces.AddRange(map.Wastelands!);
+            allProvinces.AddRange(map.SeaZones!);
+
+            // Start at 1: index 0 is black (reserved/undefined in CK3)
+            for (int i = 0; i < allProvinces.Count; i++)
+                allProvinces[i].Color = Helper.GetColor(i + 1, allProvinces.Count + 1);
+
+            map.AllProvinces = allProvinces;
         }
         private static void AssignUniqueColorsToCounties(Map map)
         {
@@ -814,6 +960,12 @@ namespace Converter.Lemur
         {
             public Node Node { get; } = node;
             public Barony Barony { get; } = barony;
+        }
+
+        private static async Task ShowSeaZones(Map map)
+        {
+            Helper.PrintSectionHeader("Visualizing Sea Zones");
+            await ImageUtility.DrawSeaZonesImage(map);
         }
 
         /// <summary>
