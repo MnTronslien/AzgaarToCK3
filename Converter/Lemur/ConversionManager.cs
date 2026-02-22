@@ -68,6 +68,8 @@ namespace Converter.Lemur
             var seaZoneIndices = map.SeaZones!.Select(sz => map.AllProvinces!.IndexOf(sz) + 1);
             await DefaultMapWriter.Write(seaZoneIndices, Settings.OutputDirectory);
 
+            await AdjacenciesCsvWriter.Write(Settings.OutputDirectory);
+
             GenerateBaronyAdjacency(map);
             GenerateCounties(map);
 
