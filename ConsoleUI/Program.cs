@@ -1,4 +1,5 @@
 ﻿using Converter;
+using Converter.Lemur.Provinces;
 using Converter.Lemur.Rivers;
 
 namespace ConsoleUI;
@@ -131,6 +132,8 @@ internal class Program
         try
         {
             string? validateRiversPath = null;
+            string? validateProvincesPath = null;
+            string? definitionCsvPath = null;
             string? jsonPath = null;
             string? geojsonPath = null;
             string? riversGeojsonPath = null;
@@ -182,6 +185,16 @@ internal class Program
                     validateRiversPath = args[i + 1];
                     i++;
                 }
+                else if ((args[i] == "--validate-provinces" || args[i] == "-vp") && i + 1 < args.Length)
+                {
+                    validateProvincesPath = args[i + 1];
+                    i++;
+                }
+                else if ((args[i] == "--definition-csv" || args[i] == "-dc") && i + 1 < args.Length)
+                {
+                    definitionCsvPath = args[i + 1];
+                    i++;
+                }
                 else if (args[i] == "--help" || args[i] == "-h")
                 {
                     PrintUsage();
@@ -203,6 +216,16 @@ internal class Program
                         riversGeojsonPath = args[i];
                     }
                 }
+            }
+
+            // --validate-provinces: validate a provinces.png without full conversion
+            if (!string.IsNullOrWhiteSpace(validateProvincesPath))
+            {
+                bool ok = ProvinceImageValidator.Validate(
+                    validateProvincesPath, definitionCsvPath, out var errors);
+                foreach (var e in errors) Console.WriteLine($"  {e}");
+                Console.WriteLine(ok ? "✓ Valid" : $"✗ Invalid ({errors.Count} errors)");
+                return;
             }
 
             // --validate-rivers: validate a rivers.png without full conversion
@@ -259,6 +282,8 @@ internal class Program
         Console.WriteLine();
         Console.WriteLine("Validation:");
         Console.WriteLine("  --validate-rivers, -vr <path>    Validate a rivers.png against CK3 requirements and exit");
+        Console.WriteLine("  --validate-provinces, -vp <path> Validate a provinces.png against CK3 requirements and exit");
+        Console.WriteLine("  --definition-csv, -dc <path>     Cross-check provinces.png against a definition.csv (use with -vp)");
         Console.WriteLine();
         Console.WriteLine("Other:");
         Console.WriteLine("  --help, -h                       Show this help message");
