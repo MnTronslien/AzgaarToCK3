@@ -9,7 +9,6 @@ public static class DefaultMapWriter
 provinces = ""provinces.png""
 rivers = ""rivers.png""
 topology = ""heightmap.heightmap""
-continent = ""continent.txt""
 adjacencies = ""adjacencies.csv""
 island_region = ""island_region.txt""
 seasons = ""seasons.txt""

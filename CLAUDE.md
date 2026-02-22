@@ -143,24 +143,35 @@ cd ConsoleUI/bin/Debug/net8.0
 `settings.json` in that folder stores all input paths and options. Edit it directly to change test data or settings. Delete it to reset all settings.
 
 ### CLI flags (override settings.json)
+**Always use CLI flags when running a one-off conversion with different input files — never edit settings.json for this.** Run `--help` first to see all available flags.
+
 ```
-dotnet run --project ConsoleUI -- \
+cd ConsoleUI/bin/Debug/net8.0
+./ConsoleUI --help
+./ConsoleUI \
   --json <path-to-full.json> \
   --geojson <path-to-cells.geojson> \
-  --rivers-geojson <path-to-rivers.geojson> \
-  --debug true
+  --rivers-geojson <path-to-rivers.geojson>
 ```
-All three input files are required. Run `--help` for the full flag list.
+
+Example with TestData:
+```
+./ConsoleUI \
+  --json "C:/Users/mattro/Documents/Private/CK3 claude/AzgaarToCK3/TestData/Oncyia Full 2026-02-22-21-38.json" \
+  --geojson "C:/Users/mattro/Documents/Private/CK3 claude/AzgaarToCK3/TestData/Oncyia Cells 2026-02-22-21-38.geojson" \
+  --rivers-geojson "C:/Users/mattro/Documents/Private/CK3 claude/AzgaarToCK3/TestData/Oncyia Rivers 2026-02-22-21-38.geojson"
+```
 
 ### Test data files (TestData/)
 | Name | Files |
 |------|-------|
 | Minimum Rivers Test | `Minimum Rivers Test Full 2026-02-19-16-01.json` + `Cells` + `Rivers` geojson |
+| Oncyia | `Oncyia Full 2026-02-22-21-38.json` + `Cells` + `Rivers` geojson |
 | Handcrafted Edge Cases | `Handcrafted Edge Cases Full 2026-02-17-10-09.json` + `Cells` + `Rivers` geojson |
 | Handcrafted The Second | `Handcrafted The Seccond Full 2026-02-17-13-01.json` + `Cells` + `Rivers` geojson |
 | 10k Touria (large) | `10k-touria.json` + `10k-touria.geojson` (no rivers geojson) |
 
-`settings.json` currently points to **Minimum Rivers Test** — the best test for river logic.
+`settings.json` currently points to **Oncyia** (last used). Use CLI flags to run with a different dataset without touching settings.json.
 
 ### Debug output
 With `"Debug": true` in settings.json, images are saved to:

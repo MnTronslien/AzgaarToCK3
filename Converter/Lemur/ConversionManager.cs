@@ -87,6 +87,13 @@ namespace Converter.Lemur
             await ShowKingdoms(map);
             await ShowEmpires(map);
 
+            // Write CK3 mod files
+            await LandedTitlesWriter.Write(map, Settings.OutputDirectory);
+            await ModDescriptorWriter.Write(Settings.Instance.ModName, Settings.Instance.ModsDirectory, Settings.OutputDirectory);
+            await MapDefinesWriter.Write(Settings.OutputDirectory);
+            await ProvinceTerrainWriter.Write(map, Settings.OutputDirectory);
+            await StaticFilesWriter.Write(Settings.Instance.TotalConversionSandboxPath, Settings.OutputDirectory);
+
             Console.WriteLine("Finished conversion!");
 
             if (Settings.Instance.Debug)
