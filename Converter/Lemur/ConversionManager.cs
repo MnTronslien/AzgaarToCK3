@@ -17,7 +17,7 @@ namespace Converter.Lemur
 
         // Class members and methods go here
 
-        public async static Task Run()
+        public async static Task Run(bool noRivers = false)
         {
             var map = await InitializeMapWithAzgaarData();
             Console.WriteLine($"{map} has been loaded.");
@@ -27,8 +27,14 @@ namespace Converter.Lemur
 
             LinkCellsToBurgs(map);
 
-            // Load and process rivers
-            if (Settings.Instance.EnableRivers)
+            // Load and process rivers — always writes rivers.png (blank if rivers are unavailable)
+            var riversSkipReason = GetRiversSkipReason(noRivers);
+            if (riversSkipReason != null)
+            {
+                Console.WriteLine($"Rivers skipped: {riversSkipReason}");
+                await RiverImageGenerator.DrawBlankRiversImage(map);
+            }
+            else
             {
                 map.Rivers = RiverLoader.LoadRivers(map.JsonMap, Settings.Instance.MajorRiverThreshold);
 
@@ -41,7 +47,6 @@ namespace Converter.Lemur
                 // Phase 2 (future): Process major rivers (complex, cell splitting)
                 // var majorRivers = map.Rivers.Where(r => r.IsMajor(Settings.Instance.MajorRiverThreshold)).ToList();
                 // await MajorRiverProcessor.ProcessMajorRivers(majorRivers, map);
-
             }
 
             GenerateDuchies(map);
@@ -969,6 +974,19 @@ namespace Converter.Lemur
         {
             public Node Node { get; } = node;
             public Barony Barony { get; } = barony;
+        }
+
+        private static string? GetRiversSkipReason(bool noRiversFlag)
+        {
+            if (noRiversFlag)
+                return "the --no-rivers flag was provided.";
+            if (!Settings.Instance.EnableRivers)
+                return "EnableRivers is false in settings.json. Set it to true to enable river drawing.";
+            if (string.IsNullOrEmpty(Settings.Instance.InputRiversGeojsonPath))
+                return "no rivers GeoJSON path is configured. Provide --rivers-geojson <path> or set InputRiversGeojsonPath in settings.json.";
+            if (!File.Exists(Settings.Instance.InputRiversGeojsonPath))
+                return $"rivers GeoJSON file not found at '{Settings.Instance.InputRiversGeojsonPath}'. Check the path in settings or via --rivers-geojson.";
+            return null;
         }
 
         private static async Task ShowSeaZones(Map map)

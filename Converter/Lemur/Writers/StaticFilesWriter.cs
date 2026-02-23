@@ -13,6 +13,8 @@ public static class StaticFilesWriter
 
     private static async Task WriteTextFiles(string mapDataDir)
     {
+        var enc = Helper.Utf8Bom;
+
         // seasons.txt — seasonal date ranges (same as vanilla/TCS)
         await File.WriteAllTextAsync(Helper.GetPath(mapDataDir, "seasons.txt"),
             "spring = {\n" +
@@ -30,19 +32,19 @@ public static class StaticFilesWriter
             "winter = {\n" +
             "\tstart = { month=11 day=15 }\n" +
             "\tend = { month=2 day=15 }\n" +
-            "}\n");
+            "}\n", enc);
 
         // climate.txt — empty winter/summer climate blocks
         await File.WriteAllTextAsync(Helper.GetPath(mapDataDir, "climate.txt"),
             "mild_winter = {\n}\n" +
             "normal_winter = {\n}\n" +
-            "severe_winter = {\n}\n");
+            "severe_winter = {\n}\n", enc);
 
         // island_region.txt — no islands to declare
-        await File.WriteAllTextAsync(Helper.GetPath(mapDataDir, "island_region.txt"), "");
+        await File.WriteAllTextAsync(Helper.GetPath(mapDataDir, "island_region.txt"), "", enc);
 
         // positions.txt — empty (CK3 can derive positions from provinces)
-        await File.WriteAllTextAsync(Helper.GetPath(mapDataDir, "positions.txt"), "");
+        await File.WriteAllTextAsync(Helper.GetPath(mapDataDir, "positions.txt"), "", enc);
 
         // heightmap.heightmap — 9-line text config referencing the binary PNGs
         await File.WriteAllTextAsync(Helper.GetPath(mapDataDir, "heightmap.heightmap"),
@@ -54,7 +56,7 @@ public static class StaticFilesWriter
             "heightmap_max_height=25.5\n" +
             "sea_level=3.8\n" +
             "min_height=-4.0\n" +
-            "max_height=50.0\n");
+            "max_height=50.0\n", enc);
 
         Console.WriteLine("Wrote static map_data text files (seasons, climate, island_region, positions, heightmap.heightmap)");
     }

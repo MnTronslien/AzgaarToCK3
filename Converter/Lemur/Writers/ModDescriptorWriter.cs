@@ -10,12 +10,12 @@ public static class ModDescriptorWriter
         // Write descriptor.mod inside the mod folder
         var descriptorPath = Helper.GetPath(outputDirectory, "descriptor.mod");
         Directory.CreateDirectory(outputDirectory);
-        await File.WriteAllTextAsync(descriptorPath, descriptorContent);
+        await File.WriteAllTextAsync(descriptorPath, descriptorContent, Helper.Utf8Bom);
 
         // Write <modname>.mod in the parent mods directory (launcher reads this)
         var launcherPath = Helper.GetPath(modsDirectory, $"{modName}.mod");
         Directory.CreateDirectory(modsDirectory);
-        await File.WriteAllTextAsync(launcherPath, launcherContent);
+        await File.WriteAllTextAsync(launcherPath, launcherContent, Helper.Utf8Bom);
 
         Console.WriteLine($"Wrote descriptor.mod and {modName}.mod");
     }

@@ -7,7 +7,8 @@ namespace ConsoleUI;
 internal class Program
 {
     static async Task Run(string? jsonPath = null, string? geojsonPath = null, string? riversGeojsonPath = null,
-        bool? debug = null, bool? empireFromCulture = null, int? minDuchiesPerKingdom = null, int? minKingdomsPerEmpire = null)
+        bool? debug = null, bool? empireFromCulture = null, int? minDuchiesPerKingdom = null, int? minKingdomsPerEmpire = null,
+        bool noRivers = false)
     {
         if (!SettingsManager.TryLoad())
         {
@@ -90,13 +91,6 @@ internal class Program
             Console.WriteLine($"Please, place it in '{Settings.Instance.InputGeojsonPath}' or change '{nameof(Settings.Instance.InputGeojsonPath)}' in 'settings.json'.");
             Exit();
         }
-        if (!File.Exists(Settings.Instance.InputRiversGeojsonPath))
-        {
-            Console.WriteLine($"Rivers .geojson file has not been found.");
-            Console.WriteLine($"Please, place it in '{Settings.Instance.InputRiversGeojsonPath}' or change '{nameof(Settings.Instance.InputRiversGeojsonPath)}' in 'settings.json'.");
-            Exit();
-        }
-
         Console.WriteLine("Start conversion?");
         if (YesNo())
         {
@@ -108,7 +102,7 @@ internal class Program
 
             try
             {
-                await Converter.Lemur.ConversionManager.Run();
+                await Converter.Lemur.ConversionManager.Run(noRivers);
             }
             catch (Exception ex)
             {
@@ -138,6 +132,7 @@ internal class Program
             string? geojsonPath = null;
             string? riversGeojsonPath = null;
             bool? debug = null;
+            bool noRivers = false;
             bool? empireFromCulture = null;
             int? minDuchiesPerKingdom = null;
             int? minKingdomsPerEmpire = null;
@@ -159,6 +154,10 @@ internal class Program
                 {
                     riversGeojsonPath = args[i + 1];
                     i++; // Skip the next argument
+                }
+                else if (args[i] == "--no-rivers")
+                {
+                    noRivers = true;
                 }
                 else if ((args[i] == "--debug" || args[i] == "-d") && i + 1 < args.Length)
                 {
@@ -251,7 +250,7 @@ internal class Program
                 return;
             }
 
-            await Run(jsonPath, geojsonPath, riversGeojsonPath, debug, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire);
+            await Run(jsonPath, geojsonPath, riversGeojsonPath, debug, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire, noRivers);
         }
         catch (Exception ex)
         {
@@ -275,6 +274,7 @@ internal class Program
         Console.WriteLine("  --rivers-geojson, -r <path>      Path to the rivers .geojson file (required)");
         Console.WriteLine();
         Console.WriteLine("Conversion Options:");
+        Console.WriteLine("  --no-rivers                      Skip river drawing; write a blank rivers.png (runtime only, not saved)");
         Console.WriteLine("  --debug, -d <true|false>         Enable/disable debug mode (default: true)");
         Console.WriteLine("  --empire-from-culture <bool>     Form empires by culture instead of religion");
         Console.WriteLine("  --min-duchies-per-kingdom <int>  Minimum duchies per kingdom (default: 4)");
@@ -407,38 +407,30 @@ internal class Program
             EnsureInputsExist();
         }
 
-        // Exit if inputs not found
+        // Exit if required inputs not found (rivers are optional — missing rivers → blank rivers.png)
         static void EnsureInputsExist()
         {
             var jsonExists = File.Exists(Settings.Instance.InputJsonPath);
             var geojsonExists = File.Exists(Settings.Instance.InputGeojsonPath);
-            var riversGeojsonExists = File.Exists(Settings.Instance.InputRiversGeojsonPath);
 
             if (!jsonExists)
-            {
                 Console.WriteLine(".json input was not found.");
-            }
             if (!geojsonExists)
-            {
                 Console.WriteLine(".geojson input was not found.");
-            }
-            if (!riversGeojsonExists)
-            {
-                Console.WriteLine("Rivers .geojson input was not found.");
-            }
 
-            if (!jsonExists || !geojsonExists || !riversGeojsonExists)
+            if (!jsonExists || !geojsonExists)
             {
                 Console.WriteLine($"-------------------------------------------------");
-                Console.WriteLine($"Put your exported .json, .geojson, and rivers .geojson files to this app's folder ({SettingsManager.ExecutablePath}).");
+                Console.WriteLine($"Put your exported .json and .geojson files to this app's folder ({SettingsManager.ExecutablePath}).");
                 Console.WriteLine("Make sure they have the latest 'modification date'.");
-                Console.WriteLine("Rivers geojson should have 'rivers' or 'river' in the filename.");
-                Console.WriteLine("If the wrong files are found, delete other exported files from the folder.");
-                Console.WriteLine("If the files cannot be found, open 'settings.json' and modify 'InputJsonPath', 'InputGeojsonPath', and 'InputRiversGeojsonPath' values.");
+                Console.WriteLine("If the files cannot be found, open 'settings.json' and modify 'InputJsonPath' and 'InputGeojsonPath' values.");
                 Console.WriteLine($"-------------------------------------------------");
 
                 Exit();
             }
+
+            if (!File.Exists(Settings.Instance.InputRiversGeojsonPath))
+                Console.WriteLine("Rivers .geojson input was not found — a blank rivers.png will be written.");
         }
     }
 

@@ -1,9 +1,13 @@
+using System.Text;
 using ImageMagick;
 
 namespace Converter.Lemur;
 
 public static class Helper
 {
+    /// <summary>UTF-8 encoding with BOM — required by CK3 for all script/data text files.</summary>
+    public static readonly Encoding Utf8Bom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
+
     public static PointD GeoToPixel(float lon, float lat, Entities.Map map)
     {
         return new PointD((lon - map.XOffset) * map.XRatio, Map.MapHeight - (lat - map.YOffset) * map.YRatio);

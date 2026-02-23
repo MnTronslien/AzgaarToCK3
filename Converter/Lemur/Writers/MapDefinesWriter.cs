@@ -14,7 +14,7 @@ public static class MapDefinesWriter
 
         var path = Helper.GetPath(outputDirectory, "common", "defines", "mapsize_defines.txt");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        await File.WriteAllTextAsync(path, content);
+        await File.WriteAllTextAsync(path, content, Helper.Utf8Bom);
         Console.WriteLine("Wrote mapsize_defines.txt");
     }
 }

@@ -23,7 +23,7 @@ public static class ProvinceTerrainWriter
 
         var path = Helper.GetPath(outputDirectory, "common", "province_terrain", "00_province_terrain.txt");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        await File.WriteAllLinesAsync(path, lines);
+        await File.WriteAllLinesAsync(path, lines, Helper.Utf8Bom);
         Console.WriteLine($"Wrote 00_province_terrain.txt ({baronies.Count + wastelands.Count} land provinces)");
     }
 }

@@ -8,6 +8,91 @@ namespace Converter.Lemur.Rivers
     public static class RiverImageGenerator
     {
         /// <summary>
+        /// Creates the base rivers image: white (land) background with hot-pink ocean polygons.
+        /// Caller is responsible for disposing the returned image.
+        /// </summary>
+        private static MagickImage CreateBaseRiversImage(Entities.Map map)
+        {
+            var settings = new MagickReadSettings
+            {
+                Width = Entities.Map.MapWidth,
+                Height = Entities.Map.MapHeight
+            };
+
+            var image = new MagickImage("xc:white", settings);
+
+            // Draw ocean as hot-pink (CK3 convention: RGB 255, 0, 128 = #ff0080)
+            var oceanColor = new MagickColor(255, 0, 128);
+            var drawables = new Drawables();
+            foreach (var cell in map.Cells!.Values.Where(c => !Entities.Cell.IsDryLand(c.Type)))
+            {
+                drawables
+                    .DisableStrokeAntialias()
+                    .StrokeColor(oceanColor)
+                    .FillColor(oceanColor)
+                    .Polygon(cell.GeoDataCoordinates.Select(n =>
+                        Helper.GeoToPixel(n[0], n[1], map)));
+            }
+            image.Draw(drawables);
+
+            return image;
+        }
+
+        /// <summary>
+        /// Palette-quantizes the image using the CK3 reference file and saves to
+        /// map_data/rivers.png. Also writes a debug copy when Debug is enabled.
+        /// </summary>
+        private static async Task SaveRiversImage(MagickImage riversImage, string debugFileName)
+        {
+            var ck3RiversPath = Path.Combine(
+                Settings.Instance.Ck3Directory, "game", "map_data", "rivers.png");
+            if (File.Exists(ck3RiversPath))
+            {
+                using var paletteRef = new MagickImage(ck3RiversPath);
+                riversImage.Map(paletteRef, new QuantizeSettings { DitherMethod = DitherMethod.No });
+                Console.WriteLine("  Applied CK3 palette from game reference file.");
+            }
+            else
+            {
+                Console.WriteLine($"  WARNING: CK3 rivers.png not found at '{ck3RiversPath}' — auto-quantizing.");
+                riversImage.Quantize(new QuantizeSettings { Colors = 256, DitherMethod = DitherMethod.No });
+            }
+            riversImage.ColorType = ColorType.Palette;
+
+            var outputPath = Helper.GetPath(Settings.OutputDirectory, "map_data", "rivers.png");
+            Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+            await riversImage.WriteAsync(outputPath);
+            Console.WriteLine($"\nRivers image saved to '{outputPath}'");
+
+            if (Settings.Instance.Debug)
+            {
+                var debugRoot = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "AzgaarToCK3",
+                    "debug");
+                var debugPath = Helper.GetPath(
+                    debugRoot,
+                    GetDebugFolderName(),
+                    debugFileName);
+                Directory.CreateDirectory(Path.GetDirectoryName(debugPath)!);
+                await riversImage.WriteAsync(debugPath);
+                ImageUtility.RegisterGeneratedImage(debugPath);
+                Console.WriteLine($"Debug: Saved rivers image to '{debugPath}'");
+            }
+        }
+
+        /// <summary>
+        /// Writes a blank rivers.png (ocean + land colours, no river pixels).
+        /// Used when rivers are skipped for any reason, so CK3 always finds a valid file.
+        /// </summary>
+        public static async Task DrawBlankRiversImage(Entities.Map map)
+        {
+            Helper.PrintSectionHeader("Drawing Blank Rivers Image (no river pixels)");
+            using var riversImage = CreateBaseRiversImage(map);
+            await SaveRiversImage(riversImage, "7_rivers_blank.png");
+        }
+
+        /// <summary>
         /// Draws rivers.png for CK3 using manual pixel control and A* pathfinding.
         /// NO line drawing - we set each pixel individually for exact control.
         /// </summary>
@@ -24,28 +109,7 @@ namespace Converter.Lemur.Rivers
             Console.WriteLine($"No line drawing - exact pixel control with manual SetPixel");
             Console.WriteLine();
 
-            var settings = new MagickReadSettings
-            {
-                Width = Entities.Map.MapWidth,
-                Height = Entities.Map.MapHeight
-            };
-
-            // Start with white background (land)
-            using var riversImage = new MagickImage("xc:white", settings);
-
-            // Draw ocean as hot-pink (CK3 convention: RGB 255, 0, 128  = #ff0080)
-            var oceanColor = new MagickColor(255, 0, 128);
-            var drawables = new Drawables();
-            foreach (var cell in map.Cells!.Values.Where(c => !Entities.Cell.IsDryLand(c.Type)))
-            {
-                drawables
-                    .DisableStrokeAntialias()
-                    .StrokeColor(oceanColor)
-                    .FillColor(oceanColor)
-                    .Polygon(cell.GeoDataCoordinates.Select(n =>
-                        Helper.GeoToPixel(n[0], n[1], map)));
-            }
-            riversImage.Draw(drawables);
+            using var riversImage = CreateBaseRiversImage(map);
 
             int drawnCount = 0;
             int skippedCount = 0;
@@ -277,44 +341,8 @@ namespace Converter.Lemur.Rivers
                 }
             }
 
-            // Convert to 8-bit indexed PNG with the exact CK3 palette (required to avoid CTD)
-            var ck3RiversPath = Path.Combine(
-                Settings.Instance.Ck3Directory, "game", "map_data", "rivers.png");
-            if (File.Exists(ck3RiversPath))
-            {
-                using var paletteRef = new MagickImage(ck3RiversPath);
-                riversImage.Map(paletteRef, new QuantizeSettings { DitherMethod = DitherMethod.No });
-                Console.WriteLine("  Applied CK3 palette from game reference file.");
-            }
-            else
-            {
-                Console.WriteLine($"  WARNING: CK3 rivers.png not found at '{ck3RiversPath}' — auto-quantizing.");
-                riversImage.Quantize(new QuantizeSettings { Colors = 256, DitherMethod = DitherMethod.No });
-            }
-            riversImage.ColorType = ColorType.Palette;
-
-            // Save to mod's map_data folder
-            var outputPath = Helper.GetPath(Settings.OutputDirectory, "map_data", "rivers.png");
-            Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
-            await riversImage.WriteAsync(outputPath);
-            Console.WriteLine($"\nRivers image saved to '{outputPath}'");
-
-            // Debug: Also save numbered copy if debug enabled
-            if (Settings.Instance.Debug)
-            {
-                var debugRoot = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "AzgaarToCK3",
-                    "debug");
-                var debugPath = Helper.GetPath(
-                    debugRoot,
-                    GetDebugFolderName(),
-                    "7_rivers.png");
-                Directory.CreateDirectory(Path.GetDirectoryName(debugPath)!);
-                await riversImage.WriteAsync(debugPath);
-                ImageUtility.RegisterGeneratedImage(debugPath);
-                Console.WriteLine($"Debug: Saved rivers image to '{debugPath}'");
-            }
+            // Convert to 8-bit indexed PNG with the exact CK3 palette and save
+            await SaveRiversImage(riversImage, "7_rivers.png");
         }
 
         private static void SaveLocalRiverView(MagickImage fullImage, List<Point> riverPixels, RiverValidation validation)

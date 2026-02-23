@@ -124,12 +124,7 @@ The recommended approach is **hybrid**:
 
 ## Edge Cases to Handle
 
-1. Islands — disconnected land masses
-2. Islands with burgs
-3. Burgs without provinces (in a state but not assigned to any province)
-4. Burgs in wilderness (province 0 / wasteland)
-5. Provinces without states (become wilderness)
-6. Non-contiguous baronies (a barony's cells may not all be connected)
+- (no known edge cases tracked, please update me)
 
 ---
 
@@ -180,6 +175,13 @@ With `"Debug": true` in settings.json, images are saved to:
 - `7_rivers.png` — final rivers image
 - `rivers_local/` — cropped views of rivers with validation violations
 
+### CK3 error log
+To launch ck3 on user request, find the binary here: "C:\Program Files (x86)\Steam\steamapps\common\Crusader Kings III\binaries\ck3.exe" pass in arguments: -debug_mode and -develop
+When diagnosing CK3 load failures, check:
+```
+C:\Users\mattro\OneDrive - Attensi\Documents\Paradox Interactive\Crusader Kings III\logs\error.log
+```
+
 ### Known issue: IsTributary misclassification
 Rivers with `parent == self` (e.g. Bay A rivers) are incorrectly classified as tributaries because `IsTributary => ParentId != 0`. These show `RedPixel:1` validation violations. Pre-existing bug, not river-pathfinding related.
 
@@ -193,3 +195,5 @@ Rivers with `parent == self` (e.g. Bay A rivers) are incorrectly classified as t
 4. Enable the generated mod in CK3
 
 Set `"OnlyCounts": true` to make all characters start as counts.
+
+
