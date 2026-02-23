@@ -5,8 +5,11 @@ namespace Converter.Lemur;
 
 public static class Helper
 {
-    /// <summary>UTF-8 encoding with BOM — required by CK3 for all script/data text files.</summary>
+    /// <summary>UTF-8 encoding with BOM — used by CK3 for most script/data text files.</summary>
     public static readonly Encoding Utf8Bom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
+
+    /// <summary>UTF-8 encoding without BOM — required by CK3 for map_data/definition.csv.</summary>
+    public static readonly Encoding Utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
     public static PointD GeoToPixel(float lon, float lat, Entities.Map map)
     {

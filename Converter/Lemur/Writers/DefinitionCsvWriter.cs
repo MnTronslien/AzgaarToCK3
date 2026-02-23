@@ -14,7 +14,7 @@ public static class DefinitionCsvWriter
         }
         var path = Helper.GetPath(outputDirectory, "map_data", "definition.csv");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        await File.WriteAllLinesAsync(path, lines, Helper.Utf8Bom);
+        await File.WriteAllLinesAsync(path, lines, Helper.Utf8NoBom);
         Console.WriteLine($"Wrote definition.csv ({lines.Count} entries)");
     }
 }

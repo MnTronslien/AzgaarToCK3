@@ -8,7 +8,9 @@ public static class ProvinceTerrainWriter
     {
         var lines = new List<string>
         {
-            "default=plains"
+            "default_land=plains",
+            "default_sea=sea",
+            "default_coastal_sea=coastal_sea",
         };
 
         // Write terrain for baronies and wastelands (land provinces only — no sea zones)
