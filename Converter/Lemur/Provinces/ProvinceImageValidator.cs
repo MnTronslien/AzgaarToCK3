@@ -58,22 +58,26 @@ public static class ProvinceImageValidator
 
     private static void CrossCheckColors(MagickImage image, string definitionCsvPath, List<string> errors)
     {
-        // Parse definition.csv
-        var definedColors = new HashSet<(byte R, byte G, byte B)>();
-        int definedCount = 0;
+        // Parse definition.csv into (id, name, R, G, B) entries
+        var definedEntries = new List<(int Id, string Name, byte R, byte G, byte B)>();
+        var definedColorSet = new HashSet<(byte R, byte G, byte B)>();
+
         foreach (var line in File.ReadLines(definitionCsvPath))
         {
             var parts = line.Split(';');
-            if (parts.Length < 4) continue;
+            if (parts.Length < 5) continue;
             if (!int.TryParse(parts[0], out int index) || index == 0) continue;
             if (!byte.TryParse(parts[1], out byte r)) continue;
             if (!byte.TryParse(parts[2], out byte g)) continue;
             if (!byte.TryParse(parts[3], out byte b)) continue;
-            definedColors.Add((r, g, b));
-            definedCount++;
+            var name = parts[4];
+            definedEntries.Add((index, name, r, g, b));
+            definedColorSet.Add((r, g, b));
         }
 
-        // Scan every pixel
+        Console.WriteLine($"  definition.csv: {definedEntries.Count} province entries");
+
+        // Scan every pixel — count pixels per color
         var colorCounts = new Dictionary<(byte R, byte G, byte B), int>();
         int w = (int)image.Width;
         int h = (int)image.Height;
@@ -97,23 +101,37 @@ public static class ProvinceImageValidator
             }
         }
 
+        Console.WriteLine($"  provinces.png: {colorCounts.Count} unique non-black colors");
+
         // Report colors in image but not in definition.csv
+        int undefinedColorCount = 0;
         foreach (var kvp in colorCounts)
         {
-            if (!definedColors.Contains(kvp.Key))
+            if (!definedColorSet.Contains(kvp.Key))
             {
                 errors.Add(
-                    $"Found {kvp.Value} pixels with color ({kvp.Key.R},{kvp.Key.G},{kvp.Key.B}) not in definition.csv — likely antialiasing or missing definition");
+                    $"Undefined color in image: ({kvp.Key.R},{kvp.Key.G},{kvp.Key.B}) — {kvp.Value} pixel(s) not mapped to any province in definition.csv");
+                undefinedColorCount++;
+            }
+        }
+        if (undefinedColorCount > 0)
+            Console.WriteLine($"  {undefinedColorCount} color(s) in image not in definition.csv ✗");
+
+        // Report each province in definition.csv missing from image
+        int missingCount = 0;
+        foreach (var entry in definedEntries)
+        {
+            if (!colorCounts.ContainsKey((entry.R, entry.G, entry.B)))
+            {
+                errors.Add(
+                    $"Province {entry.Id} '{entry.Name}' (color {entry.R},{entry.G},{entry.B}) has no pixels in provinces.png");
+                missingCount++;
             }
         }
 
-        // Report provinces in definition.csv missing from image
-        int foundCount = colorCounts.Count;
-        if (foundCount < definedCount)
-        {
-            int missing = definedCount - foundCount;
-            errors.Add(
-                $"definition.csv has {definedCount} entries but only {foundCount} unique colors found in provinces.png — {missing} provinces not painted");
-        }
+        if (missingCount > 0)
+            Console.WriteLine($"  {missingCount} province(s) in definition.csv not found in image ✗");
+        else if (undefinedColorCount == 0)
+            Console.WriteLine($"  All {definedEntries.Count} provinces present in image ✓");
     }
 }
