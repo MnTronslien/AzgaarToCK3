@@ -100,6 +100,7 @@ namespace Converter.Lemur
             await StaticFilesWriter.Write(Settings.Instance.TotalConversionSandboxPath, Settings.OutputDirectory);
             await GeographicalRegionWriter.Write(map, Settings.OutputDirectory);
             await ProvinceHistoryWriter.Write(map, Settings.OutputDirectory);
+            await BookmarkWriter.Write(map, Settings.OutputDirectory);
 
             Console.WriteLine("Finished conversion!");
 
