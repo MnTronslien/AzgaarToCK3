@@ -88,7 +88,7 @@ public static class StaticFilesWriter
 
         if (tcsBase == null)
         {
-            Console.WriteLine("WARNING: TCS mod not found — packed_heightmap.png, indirection_heightmap.png, and geographical_region.txt not copied.");
+            Console.WriteLine("WARNING: TCS mod not found — packed_heightmap.png, indirection_heightmap.png not copied.");
             Console.WriteLine("         CK3 will crash on map load. Copy these manually from any TCS mod installation.");
             return;
         }
@@ -108,22 +108,6 @@ public static class StaticFilesWriter
             {
                 Console.WriteLine($"WARNING: {file} not found in TCS mod at {src}");
             }
-        }
-
-        // geographical_regions/geographical_region.txt — all vanilla region names as empty blocks.
-        // Required: without it CK3 aborts during scripting validation (geographical_region trigger database is empty).
-        var geoSrc = Helper.GetPath(tcsBase, "map_data", "geographical_regions", "geographical_region.txt");
-        var geoDstDir = Helper.GetPath(mapDataDir, "geographical_regions");
-        var geoDst = Helper.GetPath(geoDstDir, "geographical_region.txt");
-        Directory.CreateDirectory(geoDstDir);
-        if (File.Exists(geoSrc))
-        {
-            File.Copy(geoSrc, geoDst, overwrite: true);
-            Console.WriteLine("Copied geographical_regions/geographical_region.txt from TCS mod");
-        }
-        else
-        {
-            Console.WriteLine($"WARNING: geographical_region.txt not found in TCS mod at {geoSrc}");
         }
     }
 }
