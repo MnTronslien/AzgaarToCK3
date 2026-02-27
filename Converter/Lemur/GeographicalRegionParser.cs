@@ -39,6 +39,8 @@ public static class GeographicalRegionParser
                         var name = line[..eqIdx].Trim();
                         if (IsValidIdentifier(name))
                             current = new GeographicalRegion { Name = name };
+                        else
+                            Console.WriteLine($"Warning: GeographicalRegionParser skipped unrecognised identifier '{name}' in {Path.GetFileName(filePath)}");
                     }
                 }
 
