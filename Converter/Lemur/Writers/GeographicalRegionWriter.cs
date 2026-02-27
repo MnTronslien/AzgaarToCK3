@@ -33,6 +33,13 @@ public static class GeographicalRegionWriter
         // 2. Build lemur_land_region and PREPEND to list
         var lemurLandRegion = new GeographicalRegion { Name = "lemur_land_region" };
         lemurLandRegion.DirectMembers = map.Kingdoms.Cast<L.ITitle>().ToList();
+
+        // Kingdoms cover all baronies; wastelands are not part of any kingdom so add them via province IDs
+        var allProvinces = map.AllProvinces!;
+        for (int i = 0; i < allProvinces.Count; i++)
+            if (allProvinces[i] is L.Wasteland)
+                lemurLandRegion.ExtraProvinceIds.Add(i + 1);
+
         vanillaRegions.Insert(0, lemurLandRegion);
 
         // 3a. Find and mutate graphical_western
@@ -91,6 +98,7 @@ public static class GeographicalRegionWriter
         bool isEmpty = !region.Graphical
             && region.Color == null
             && region.DirectMembers.Count == 0
+            && region.ExtraProvinceIds.Count == 0
             && region.SubRegions.Count == 0;
 
         if (isEmpty)
@@ -110,16 +118,16 @@ public static class GeographicalRegionWriter
             yield return $"\tcolor = {{ {r} {g} {b} }}";
         }
 
-        // provinces = { ... } for Barony DirectMembers
+        // provinces = { ... } for Barony DirectMembers + ExtraProvinceIds (e.g. wastelands)
         var baroniesList = region.DirectMembers.OfType<L.Barony>().ToList();
-        if (baroniesList.Count > 0)
-        {
-            var provIds = baroniesList
-                .Select(b => baronIdToProvinceId.TryGetValue(b.Id, out int id) ? id : -1)
-                .Where(id => id > 0)
-                .OrderBy(id => id);
+        var provIds = baroniesList
+            .Select(b => baronIdToProvinceId.TryGetValue(b.Id, out int id) ? id : -1)
+            .Where(id => id > 0)
+            .Concat(region.ExtraProvinceIds)
+            .OrderBy(id => id)
+            .ToList();
+        if (provIds.Count > 0)
             yield return $"\tprovinces = {{ {string.Join(" ", provIds)} }}";
-        }
 
         // kingdoms = { ... }
         var kingdoms = region.DirectMembers.OfType<L.Kingdom>().ToList();
