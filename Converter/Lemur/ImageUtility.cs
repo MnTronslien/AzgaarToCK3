@@ -141,11 +141,21 @@ namespace Converter.Lemur
                     .Where(cell => !namedProvinceCellIds.Contains(cell.Id) && Entities.Cell.IsDryLand(cell.Type))
                     .ToList();
 
-                // Draw any true wilderness cells in black (should be none after AssertEveryLandCellIsAssignedToABurg)
+                // Orphaned land cells: have Province set (assertion passed) but are missing from their
+                // province's Cells list.  Draw them with the province's assigned color so CK3 can
+                // map every pixel → a valid province ID.  Drawing black would produce an undefined
+                // color because CK3 does not use the province-0 entry for pixel lookup.
                 if (wildernessCells.Any())
                 {
-                    Console.WriteLine($"Drawing {wildernessCells.Count} wilderness cells in black");
-                    drawablesList.Add(GenerateCellPolygons(wildernessCells, MagickColors.Black, map));
+                    var withProvince = wildernessCells.GroupBy(c => c.Province).Where(g => g.Key != null);
+                    foreach (var group in withProvince)
+                        drawablesList.Add(GenerateCellPolygons(group, group.Key!.Color, map));
+
+                    var noProvince = wildernessCells.Where(c => c.Province == null).ToList();
+                    if (noProvince.Any())
+                        Console.WriteLine($"WARNING: {noProvince.Count} land cells have no province — pixels will be black (CK3 map error)");
+                    else
+                        Console.WriteLine($"Drew {wildernessCells.Count} orphaned-but-assigned land cells with their province color");
                 }
 
                 // Draw baronies
