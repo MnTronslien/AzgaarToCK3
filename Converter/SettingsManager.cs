@@ -102,6 +102,12 @@ public class Settings
     /// </summary>
     public bool AutoDetectInputs { get; set; } = false;
 
+    /// <summary>
+    /// Number of far sea zone strips drawn behind the map to cover corner pixels.
+    /// These prevent black (undefined) pixels that crash CK3's map generator.
+    /// </summary>
+    public int FarSeaZoneCount { get; set; } = 8;
+
     public override string ToString()
     {
         var lines = new List<string>();

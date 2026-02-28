@@ -79,6 +79,7 @@ public static class ProvinceImageValidator
 
         // Scan every pixel — count pixels per color
         var colorCounts = new Dictionary<(byte R, byte G, byte B), int>();
+        int blackPixelCount = 0;
         int w = (int)image.Width;
         int h = (int)image.Height;
 
@@ -93,12 +94,25 @@ public static class ProvinceImageValidator
                 if (c == null) continue;
 
                 var key = (c.R, c.G, c.B);
-                // Skip black (impassable/background)
-                if (key == (0, 0, 0)) continue;
+                if (key == (0, 0, 0))
+                {
+                    blackPixelCount++;
+                    continue;
+                }
 
                 colorCounts.TryGetValue(key, out int cnt);
                 colorCounts[key] = cnt + 1;
             }
+        }
+
+        if (blackPixelCount > 0)
+        {
+            errors.Add($"Black pixels (0,0,0): {blackPixelCount:N0} — undefined province color will crash CK3 map generator");
+            Console.WriteLine($"  Black pixels: {blackPixelCount:N0} ✗");
+        }
+        else
+        {
+            Console.WriteLine($"  Black pixels: 0 ✓");
         }
 
         Console.WriteLine($"  provinces.png: {colorCounts.Count} unique non-black colors");

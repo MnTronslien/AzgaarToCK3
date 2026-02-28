@@ -6,7 +6,7 @@ public static class DefinitionCsvWriter
 {
     public static async Task Write(List<IProvince> allProvinces, string outputDirectory)
     {
-        var lines = new List<string> { "0;0;0;0;Black - Impassable;x;" };
+        var lines = new List<string> { "0;0;0;0;x;x;" };
         for (int i = 0; i < allProvinces.Count; i++)
         {
             var p = allProvinces[i];

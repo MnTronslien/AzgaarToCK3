@@ -130,6 +130,36 @@ namespace Converter.Lemur
                 };
                 using var cellsMap = new MagickImage("xc:black", settings);
 
+                // Draw far sea zone background tiles in a grid to cover corner pixels.
+                // Grid proportions match the map aspect ratio so cells are roughly square
+                // (e.g. 4 cols × 2 rows for n=8 on a 2:1 canvas → 2048×2048 tiles).
+                if (map.FarSeaZones != null && map.FarSeaZones.Count > 0)
+                {
+                    int n = map.FarSeaZones.Count;
+                    double aspectRatio = (double)Map.MapWidth / Map.MapHeight;
+                    int cols = Math.Max(1, (int)Math.Round(Math.Sqrt(n * aspectRatio)));
+                    int rows = (int)Math.Ceiling((double)n / cols);
+                    int cellW = Map.MapWidth / cols;
+                    int cellH = Map.MapHeight / rows;
+                    var bgDrawables = new Drawables();
+                    for (int i = 0; i < n; i++)
+                    {
+                        int row = i / cols;
+                        int col = i % cols;
+                        int x = col * cellW;
+                        int y = row * cellH;
+                        int w = (col == cols - 1) ? Map.MapWidth - x : cellW;
+                        int h = (row == rows - 1) ? Map.MapHeight - y : cellH;
+                        var color = map.FarSeaZones[i].Color;
+                        bgDrawables
+                            .DisableStrokeAntialias()
+                            .FillColor(color)
+                            .StrokeColor(color)
+                            .Rectangle(x, y, x + w - 1, y + h - 1);
+                    }
+                    cellsMap.Draw(bgDrawables);
+                }
+
                 List<Drawables> drawablesList = new();
 
                 // Calculate true wilderness: land cells not in any named province (barony or wasteland)

@@ -63,6 +63,8 @@ namespace Converter.Lemur
             GenerateSeaZones(map);
             Console.WriteLine($"Generated {map.SeaZones!.Count} sea zones.");
 
+            CreateFarSeaZones(map);
+
             // ✅ Visualization checkpoint 2: Sea zones + Baronies
             AssignProvinceColors(map);
             await ShowSeaZones(map);
@@ -70,7 +72,9 @@ namespace Converter.Lemur
 
             await DefinitionCsvWriter.Write(map.AllProvinces!, Settings.OutputDirectory);
 
-            var seaZoneIndices = map.SeaZones!.Select(sz => map.AllProvinces!.IndexOf(sz) + 1);
+            var seaZoneIndices = map.SeaZones!
+                .Concat(map.FarSeaZones!)
+                .Select(sz => map.AllProvinces!.IndexOf(sz) + 1);
             await DefaultMapWriter.Write(seaZoneIndices, Settings.OutputDirectory);
 
             await AdjacenciesCsvWriter.Write(Settings.OutputDirectory);
@@ -305,12 +309,29 @@ namespace Converter.Lemur
             allProvinces.AddRange(map.Baronies!);
             allProvinces.AddRange(map.Wastelands!);
             allProvinces.AddRange(map.SeaZones!);
+            allProvinces.AddRange(map.FarSeaZones!);
 
             // Start at 1: index 0 is black (reserved/undefined in CK3)
             for (int i = 0; i < allProvinces.Count; i++)
                 allProvinces[i].Color = Helper.GetColor(i + 1, allProvinces.Count + 1);
 
             map.AllProvinces = allProvinces;
+        }
+
+        private static void CreateFarSeaZones(Map map)
+        {
+            int n = Settings.Instance.FarSeaZoneCount;
+            map.FarSeaZones = new List<SeaZone>(n);
+            for (int i = 0; i < n; i++)
+            {
+                var zone = new SeaZone(i + 1, new List<Cell>())
+                {
+                    Name = $"far_sea_{i + 1}",
+                    IsImpassable = true
+                };
+                map.FarSeaZones.Add(zone);
+            }
+            Console.WriteLine($"Created {n} far sea zones to cover corner pixels.");
         }
         private static void AssignUniqueColorsToCounties(Map map)
         {

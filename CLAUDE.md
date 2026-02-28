@@ -5,6 +5,11 @@
 - **At the start of every session**, read `TODO.md` (project root) and suggest the top tasks to the user before doing anything else.
 - **Keep `TODO.md` up to date** throughout the session: mark items done as they are completed, add new items when issues or work are discovered, move completed items to the Done section.
 
+### Git workflow
+- **Commit often** — after each logical unit of working code (bug fix, feature, refactor). Never batch unrelated changes into one commit.
+- **New branch per feature** — create a `feature/<short-name>` branch for each significant piece of work. Merge to `main` when stable.
+- **Commit message format**: imperative subject line, blank line, body explaining *why* not *what*.
+
 ---
 
 ## Project Overview
@@ -130,6 +135,14 @@ The recommended approach is **hybrid**:
 
 ## Running the Converter
 
+### Full run (scorched earth + convert)
+For a clean test run, always scorched earth first:
+```
+bash "C:/Users/mattro/Documents/Private/CK3-claude/scorched-earth.sh"
+cd ConsoleUI/bin/Debug/net8.0 && ./ConsoleUI --no-rivers
+```
+`scorched-earth.sh` wipes the mod output directory and all CK3 logs.
+
 ### Quickest way (uses settings.json)
 ```
 cd ConsoleUI/bin/Debug/net8.0
@@ -152,9 +165,9 @@ cd ConsoleUI/bin/Debug/net8.0
 Example with TestData:
 ```
 ./ConsoleUI \
-  --json "C:/Users/mattro/Documents/Private/CK3 claude/AzgaarToCK3/TestData/Oncyia Full 2026-02-22-21-38.json" \
-  --geojson "C:/Users/mattro/Documents/Private/CK3 claude/AzgaarToCK3/TestData/Oncyia Cells 2026-02-22-21-38.geojson" \
-  --rivers-geojson "C:/Users/mattro/Documents/Private/CK3 claude/AzgaarToCK3/TestData/Oncyia Rivers 2026-02-22-21-38.geojson"
+  --json "C:/Users/mattro/Documents/Private/CK3-claude/AzgaarToCK3/TestData/Oncyia Full 2026-02-22-21-38.json" \
+  --geojson "C:/Users/mattro/Documents/Private/CK3-claude/AzgaarToCK3/TestData/Oncyia Cells 2026-02-22-21-38.geojson" \
+  --rivers-geojson "C:/Users/mattro/Documents/Private/CK3-claude/AzgaarToCK3/TestData/Oncyia Rivers 2026-02-22-21-38.geojson"
 ```
 
 ### Test data files (TestData/)
@@ -175,8 +188,13 @@ With `"Debug": true` in settings.json, images are saved to:
 - `7_rivers.png` — final rivers image
 - `rivers_local/` — cropped views of rivers with validation violations
 
+### Launching CK3
+```
+bash "C:/Users/mattro/Documents/Private/CK3-claude/launch-ck3.sh"
+```
+Takes 5–10 min to reach main menu. Use `timeout: 600000` when waiting for log output.
+
 ### CK3 error log
-To launch ck3 on user request, find the binary here: "C:\Program Files (x86)\Steam\steamapps\common\Crusader Kings III\binaries\ck3.exe" pass in arguments: -debug_mode and -develop
 When diagnosing CK3 load failures, check:
 ```
 C:\Users\mattro\OneDrive - Attensi\Documents\Paradox Interactive\Crusader Kings III\logs\error.log

@@ -33,6 +33,8 @@ namespace Converter.Lemur.Entities
 
         public List<SeaZone>? SeaZones { get; set; } = new();
 
+        public List<SeaZone>? FarSeaZones { get; set; } = new();
+
         public List<IProvince>? AllProvinces { get; set; }
 
         public override string ToString()
