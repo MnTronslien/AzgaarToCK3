@@ -36,8 +36,10 @@ public static class ModDescriptorWriter
             $"replace_path=\"common/defines\"",
             $"replace_path=\"history/titles\"",
             $"replace_path=\"history/characters\"",
-            $"replace_path=\"common/bookmark_portraits\"",
+            $"replace_path=\"history/provinces\"",
             $"replace_path=\"history/province_mappings\"",
+            $"replace_path=\"common/bookmarks\"",
+            $"replace_path=\"common/bookmark_portraits\"",
             $"replace_path=\"gfx/map/map_object_data\"",
         };
 

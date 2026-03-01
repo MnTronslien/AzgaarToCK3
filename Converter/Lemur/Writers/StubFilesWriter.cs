@@ -10,6 +10,7 @@ public static class StubFilesWriter
     private static readonly string[] StubDirectories =
     {
         "history/characters",
+        "history/province_mappings",
         "common/bookmark_portraits",
         "gfx/map/map_object_data",
     };
