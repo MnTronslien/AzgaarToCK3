@@ -34,6 +34,11 @@ public static class ModDescriptorWriter
             $"replace_path=\"common/landed_titles\"",
             $"replace_path=\"common/province_terrain\"",
             $"replace_path=\"common/defines\"",
+            $"replace_path=\"history/titles\"",
+            $"replace_path=\"history/characters\"",
+            $"replace_path=\"common/bookmark_portraits\"",
+            $"replace_path=\"history/province_mappings\"",
+            $"replace_path=\"gfx/map/map_object_data\"",
         };
 
         if (includePath && outputDirectory != null)
