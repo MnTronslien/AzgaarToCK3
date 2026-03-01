@@ -109,6 +109,7 @@ namespace Converter.Lemur
             await GeographicalRegionWriter.Write(map, Settings.OutputDirectory);
             await ProvinceHistoryWriter.Write(map, Settings.OutputDirectory);
             await BookmarkWriter.Write(map, Settings.OutputDirectory);
+            await StubFilesWriter.Write(Settings.OutputDirectory);
 
             Console.WriteLine("Finished conversion!");
 
