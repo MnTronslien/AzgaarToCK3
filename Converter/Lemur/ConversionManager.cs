@@ -75,7 +75,11 @@ namespace Converter.Lemur
             var seaZoneIndices = map.SeaZones!
                 .Concat(map.FarSeaZones!)
                 .Select(sz => map.AllProvinces!.IndexOf(sz) + 1);
-            await DefaultMapWriter.Write(seaZoneIndices, Settings.OutputDirectory);
+            var wastelandIndices = map.Wastelands!
+                .Select(w => map.AllProvinces!.IndexOf(w) + 1);
+            var farSeaZoneIndices = map.FarSeaZones!
+                .Select(fz => map.AllProvinces!.IndexOf(fz) + 1);
+            await DefaultMapWriter.Write(seaZoneIndices, wastelandIndices, farSeaZoneIndices, Settings.OutputDirectory);
 
             await AdjacenciesCsvWriter.Write(Settings.OutputDirectory);
 
