@@ -22,11 +22,11 @@ public static class GeographicalRegionWriter
         {
             vanillaRegions = GeographicalRegionParser.ParseFiles(
                 Directory.EnumerateFiles(ck3GeoDir, "*.txt"));
-            Console.WriteLine($"Parsed {vanillaRegions.Count} vanilla geographical regions.");
+            Logger.Info($"Parsed {vanillaRegions.Count} vanilla geographical regions.");
         }
         else
         {
-            Console.WriteLine($"Warning: vanilla geographical_regions dir not found at {ck3GeoDir} — no stubs written.");
+            Logger.Warning($"Warning: vanilla geographical_regions dir not found at {ck3GeoDir} — no stubs written.");
             vanillaRegions = [];
         }
 
@@ -52,7 +52,7 @@ public static class GeographicalRegionWriter
         }
         else
         {
-            Console.WriteLine("Warning: graphical_western not found in vanilla regions — appending it.");
+            Logger.Warning("Warning: graphical_western not found in vanilla regions — appending it.");
             var gw = new GeographicalRegion { Name = "graphical_western" };
             gw.SubRegions = [lemurLandRegion];
             gw.Graphical = true;
@@ -68,7 +68,7 @@ public static class GeographicalRegionWriter
         }
         else
         {
-            Console.WriteLine("Warning: material_wood_elm not found in vanilla regions — appending it.");
+            Logger.Warning("Warning: material_wood_elm not found in vanilla regions — appending it.");
             var mwe = new GeographicalRegion { Name = "material_wood_elm" };
             mwe.SubRegions = [lemurLandRegion];
             vanillaRegions.Add(mwe);
@@ -90,7 +90,7 @@ public static class GeographicalRegionWriter
         await File.WriteAllLinesAsync(path, lines, Helper.Utf8Bom);
 
         var stubCount = vanillaRegions.Count - 1; // minus lemur_land_region itself
-        Console.WriteLine($"Wrote geographical_region.txt ({baronies.Count} baronies via {map.Kingdoms.Count} kingdoms, ~{stubCount} vanilla stubs)");
+        Logger.Info($"Wrote geographical_region.txt ({baronies.Count} baronies via {map.Kingdoms.Count} kingdoms, ~{stubCount} vanilla stubs)");
     }
 
     private static IEnumerable<string> Serialize(GeographicalRegion region, Dictionary<int, int> baronIdToProvinceId)
@@ -156,7 +156,7 @@ public static class GeographicalRegionWriter
         // Empires — not yet supported
         var empires = region.DirectMembers.OfType<L.Empire>().ToList();
         if (empires.Count > 0)
-            Console.WriteLine($"Warning: GeographicalRegion '{region.Name}' has Empire DirectMembers — not yet supported, skipping.");
+            Logger.Warning($"Warning: GeographicalRegion '{region.Name}' has Empire DirectMembers — not yet supported, skipping.");
 
         // regions = { ... } for sub-regions
         if (region.SubRegions.Count > 0)

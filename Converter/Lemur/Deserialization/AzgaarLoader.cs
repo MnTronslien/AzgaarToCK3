@@ -36,7 +36,7 @@ namespace Converter.Lemur.Deserialization
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Error loading GeoJSON from {path}: {e.Message}");
+                Logger.Info($"Error loading GeoJSON from {path}: {e.Message}");
                 Debugger.Break();
                 throw;
             }
@@ -59,7 +59,7 @@ namespace Converter.Lemur.Deserialization
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Error loading JSON from {path}: {e.Message}");
+                Logger.Info($"Error loading JSON from {path}: {e.Message}");
                 Debugger.Break();
                 throw;
             }
@@ -112,7 +112,7 @@ namespace Converter.Lemur.Deserialization
                 cells.Add(cell.Id, cell);
             }
 
-            Console.WriteLine($"Built {cells.Count} cells from Azgaar data");
+            Logger.Info($"Built {cells.Count} cells from Azgaar data");
             return cells;
         }
 
@@ -175,7 +175,7 @@ namespace Converter.Lemur.Deserialization
                 );
             }
 
-            Console.WriteLine($"Built {burgs.Count} burgs from Azgaar data");
+            Logger.Info($"Built {burgs.Count} burgs from Azgaar data");
             return burgs;
         }
     }

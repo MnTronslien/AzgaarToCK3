@@ -64,17 +64,17 @@ public static class RiverTributaryConnector
 
         if (permissivePath == null)
         {
-            Console.WriteLine($"  {riverName}: permissive A* returned null, falling through to original BFS");
+            Logger.Info($"  {riverName}: permissive A* returned null, falling through to original BFS");
         }
         else if (permissivePath.Count < 2)
         {
-            Console.WriteLine($"  {riverName}: permissive A* path too short ({permissivePath.Count} px), falling through to original BFS");
+            Logger.Info($"  {riverName}: permissive A* path too short ({permissivePath.Count} px), falling through to original BFS");
         }
         else
         {
             int vIdx = FindFirstPass2Violation(permissivePath, image, tributaryPixels);
 
-            Console.WriteLine($"  {riverName}: permissive path {permissivePath.Count} px, first violation at index {(vIdx == -1 ? "none" : $"{vIdx} of {permissivePath.Count - 1}")}");
+            Logger.Info($"  {riverName}: permissive path {permissivePath.Count} px, first violation at index {(vIdx == -1 ? "none" : $"{vIdx} of {permissivePath.Count - 1}")}");
 
             if (vIdx == -1)
             {
@@ -85,7 +85,7 @@ public static class RiverTributaryConnector
 
             if (vIdx < 4)
             {
-                Console.WriteLine($"  {riverName}: violation at index {vIdx} too early to trim, falling through to original BFS");
+                Logger.Info($"  {riverName}: violation at index {vIdx} too early to trim, falling through to original BFS");
             }
             else
             {
@@ -94,7 +94,7 @@ public static class RiverTributaryConnector
                 var trimmedPath = permissivePath.Take(vIdx - 3).ToList();
                 var intermediatePoint = trimmedPath[^1];
 
-                Console.WriteLine($"  {riverName}: trimmed to index {vIdx - 4}, intermediatePoint=({intermediatePoint.X},{intermediatePoint.Y})");
+                Logger.Info($"  {riverName}: trimmed to index {vIdx - 4}, intermediatePoint=({intermediatePoint.X},{intermediatePoint.Y})");
 
                 // BFS from intermediatePoint — much closer to the parent body, so we need a
                 // smaller search radius and get a geometrically nicer connection point.
@@ -106,11 +106,11 @@ public static class RiverTributaryConnector
 
                 if (connectionPoint == null)
                 {
-                    Console.WriteLine($"  {riverName}: BFS from intermediatePoint found no connection (radius={localRadius}), falling through to original BFS");
+                    Logger.Info($"  {riverName}: BFS from intermediatePoint found no connection (radius={localRadius}), falling through to original BFS");
                 }
                 else
                 {
-                    Console.WriteLine($"  {riverName}: connection point at ({connectionPoint.Value.X},{connectionPoint.Value.Y})");
+                    Logger.Info($"  {riverName}: connection point at ({connectionPoint.Value.X},{connectionPoint.Value.Y})");
 
                     // Strict A* from intermediatePoint (white pixel) to the connection point.
                     var strictPath = RiverPathGenerator.FindOrthogonalPath(
@@ -120,7 +120,7 @@ public static class RiverTributaryConnector
 
                     if (strictPath == null || strictPath.Count == 0)
                     {
-                        Console.WriteLine($"  {riverName}: strict A* from intermediatePoint failed, falling through to original BFS");
+                        Logger.Info($"  {riverName}: strict A* from intermediatePoint failed, falling through to original BFS");
                     }
                     else
                     {
@@ -128,7 +128,7 @@ public static class RiverTributaryConnector
                         var combined = new List<Point>(trimmedPath);
                         int startIdx = strictPath[0] == intermediatePoint ? 1 : 0;
                         combined.AddRange(strictPath.Skip(startIdx));
-                        Console.WriteLine($"  {riverName}: fallback succeeded (permissive+strict), {combined.Count} px total");
+                        Logger.Info($"  {riverName}: fallback succeeded (permissive+strict), {combined.Count} px total");
                         return combined;
                     }
                 }
@@ -144,11 +144,11 @@ public static class RiverTributaryConnector
 
         if (origConnectionPoint == null)
         {
-            Console.WriteLine($"  Tributary fallback FAILED: No valid connection point found for {riverName} (searched {searchRadius}px radius from ({lastValidPixel.X},{lastValidPixel.Y}))");
+            Logger.Info($"  Tributary fallback FAILED: No valid connection point found for {riverName} (searched {searchRadius}px radius from ({lastValidPixel.X},{lastValidPixel.Y}))");
             return null;
         }
 
-        Console.WriteLine($"  Tributary fallback: Found connection point at ({origConnectionPoint.Value.X},{origConnectionPoint.Value.Y}) for {riverName}");
+        Logger.Info($"  Tributary fallback: Found connection point at ({origConnectionPoint.Value.X},{origConnectionPoint.Value.Y}) for {riverName}");
 
         // A* from last valid pixel to the connection point.
         // Pass excludeFromPass2: lastValidPixel so A* can leave the (now-blue) tributary
@@ -161,7 +161,7 @@ public static class RiverTributaryConnector
 
         if (pathToConnection == null || pathToConnection.Count == 0)
         {
-            Console.WriteLine($"  Tributary fallback FAILED: A* could not path to connection point for {riverName}");
+            Logger.Info($"  Tributary fallback FAILED: A* could not path to connection point for {riverName}");
             return null;
         }
 

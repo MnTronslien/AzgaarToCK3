@@ -20,7 +20,7 @@ namespace Converter.Lemur
         public async static Task Run(bool noRivers = false)
         {
             var map = await InitializeMapWithAzgaarData();
-            Console.WriteLine($"{map} has been loaded.");
+            Logger.Info($"{map} has been loaded.");
 
             // ✅ Visualization checkpoint 1: Raw cells
             await ImageUtility.DrawCells(map.Cells!.Values.ToList(), map);
@@ -31,7 +31,7 @@ namespace Converter.Lemur
             var riversSkipReason = GetRiversSkipReason(noRivers);
             if (riversSkipReason != null)
             {
-                Console.WriteLine($"Rivers skipped: {riversSkipReason}");
+                Logger.Info($"Rivers skipped: {riversSkipReason}");
                 await RiverImageGenerator.DrawBlankRiversImage(map);
             }
             else
@@ -61,7 +61,7 @@ namespace Converter.Lemur
 
             ComputeDistanceToCoast(map);
             GenerateSeaZones(map);
-            Console.WriteLine($"Generated {map.SeaZones!.Count} sea zones.");
+            Logger.Info($"Generated {map.SeaZones!.Count} sea zones.");
 
             CreateFarSeaZones(map);
 
@@ -111,9 +111,9 @@ namespace Converter.Lemur
             await BookmarkWriter.Write(map, Settings.OutputDirectory);
             await StubFilesWriter.Write(Settings.OutputDirectory);
 
-            Console.WriteLine("Finished conversion!");
+            Logger.Info("Finished conversion!");
 
-            if (Settings.Instance.Debug)
+            if (Settings.Instance.GenerateDebugImages)
             {
                 ImageUtility.OpenAllImages();
             }
@@ -252,8 +252,8 @@ namespace Converter.Lemur
                 else
                 {
                     zone.IsImpassable = true;
-                    if (Settings.Instance.Debug)
-                        Console.WriteLine($"Sea zone {zone.Name} is isolated and marked impassable (area={zone.TotalArea})");
+                    if (Settings.Instance.GenerateDebugImages)
+                        Logger.Info($"Sea zone {zone.Name} is isolated and marked impassable (area={zone.TotalArea})");
                 }
             }
 
@@ -268,10 +268,10 @@ namespace Converter.Lemur
             //Every cell should at this point either be assigned to a barony or be assigned to the wastelands
             var landCells = map.Cells!.Where(c => IsDryLand(c.Value.Type)).ToList();
 
-            if (Settings.Instance.Debug)
+            if (Settings.Instance.GenerateDebugImages)
             {
-                Helper.PrintSectionHeader("Asserting that every land cell is assigned to a barony or wasteland");
-                Console.WriteLine($"There are {landCells.Count} land cells");
+                Logger.Section("Asserting that every land cell is assigned to a barony or wasteland");
+                Logger.Info($"There are {landCells.Count} land cells");
             }
 
             bool listPassable = true;
@@ -292,7 +292,7 @@ namespace Converter.Lemur
                 if (!cellPassable)
                 {
                     listPassable = false;
-                    Console.WriteLine($"Failed: Cell {cell.Value.Id}, AzProvince {cell.Value.AzProvince}, State {cell.Value.State}");
+                    Logger.Info($"Failed: Cell {cell.Value.Id}, AzProvince {cell.Value.AzProvince}, State {cell.Value.State}");
                 }
             }
 
@@ -301,9 +301,9 @@ namespace Converter.Lemur
             {
                 throw new Exception("Not all land cells are assigned to a barony or wasteland");
             }
-            else if (Settings.Instance.Debug)
+            else if (Settings.Instance.GenerateDebugImages)
             {
-                Console.WriteLine("All land cells are assigned to a barony or wasteland");
+                Logger.Info("All land cells are assigned to a barony or wasteland");
             }
 
         }
@@ -336,7 +336,7 @@ namespace Converter.Lemur
                 };
                 map.FarSeaZones.Add(zone);
             }
-            Console.WriteLine($"Created {n} far sea zones to cover corner pixels.");
+            Logger.Info($"Created {n} far sea zones to cover corner pixels.");
         }
         private static void AssignUniqueColorsToCounties(Map map)
         {
@@ -350,11 +350,11 @@ namespace Converter.Lemur
         private static void AssignCellsToBaronies(Map map)
         {
 
-            Helper.PrintSectionHeader("Assigning cells to baronies");
+            Logger.Section("Assigning cells to baronies");
             //We will do this by duchy
             foreach (Duchy duchy in map.Duchies!)
             {
-                Console.WriteLine($"Duchy: {duchy.Name}");
+                Logger.Info($"Duchy: {duchy.Name}");
                 //We start by getting all the baronies in the duchy, we do this by getting all the burgs in the duchy and then getting the baronies from the burgs
                 var baronies = duchy.GetAllCells().Select(c => c.Burg).Where(b => b != null).Select(b => b!.Barony).Distinct();
                 //Sort them on population size decending baroniesInProvince[0].Burg.population
@@ -440,18 +440,18 @@ namespace Converter.Lemur
 
                 // //if not all countryside cells are assigned, print a warning
 
-                if (Settings.Instance.Debug)
+                if (Settings.Instance.GenerateDebugImages)
                 {
                     //list baronies and the number of cells assigned to them
-                    Console.WriteLine($"Duchy {duchy.Name} has {baronies.Count()} baronies");
+                    Logger.Info($"Duchy {duchy.Name} has {baronies.Count()} baronies");
                     foreach (var barony in baronies!)
                     {
-                        Console.WriteLine($"{barony.Name} has {barony.Cells.Count} cells");
+                        Logger.Info($"{barony.Name} has {barony.Cells.Count} cells");
                     }
                 }
 
                 //print the response to the console
-                Console.WriteLine("All cells assigned to baronies");
+                Logger.Info("All cells assigned to baronies");
                 //list baronies and the number of cells assigned to them
 
             }
@@ -459,7 +459,7 @@ namespace Converter.Lemur
 
         private static void LinkCellsToBurgs(Map map)
         {
-            Helper.PrintSectionHeader("Linking cells to burgs");
+            Logger.Section("Linking cells to burgs");
 
             //For each burg (skip 0'eth) find the cell it is referenceing by cell id and assign it to the burg
             foreach (var burg in map.Burgs!.Skip(1))
@@ -472,13 +472,13 @@ namespace Converter.Lemur
                 //and reverse
                 map.Cells![burg.Value.Cell_id].Burg = burg.Value;
 
-                Console.WriteLine($"Burg {burg.Value.Name} <<=>> {burg.Value.Cell_id} Cell");
+                Logger.Info($"Burg {burg.Value.Name} <<=>> {burg.Value.Cell_id} Cell");
             }
         }
 
         private static async Task<Map> InitializeMapWithAzgaarData()
         {
-            Helper.PrintSectionHeader("Loading Azgaar data");
+            Logger.Section("Loading Azgaar data");
 
             // Load directly into Lemur DTOs (no upstream types!)
             var jsonMap = await AzgaarLoader.LoadJsonAsync(Settings.Instance.InputJsonPath);
@@ -506,19 +506,19 @@ namespace Converter.Lemur
         /// <returns>A list of baronies</returns>
         private static void GenerateBaronies(Map map)
         {
-            Helper.PrintSectionHeader("Generating baronies");
+            Logger.Section("Generating baronies");
             // Next we instanciate a list of baronies. Since we know the final size of the list we can pre allocate the memory
             List<Barony> baronies = new(map.Burgs!.Count - 1);
             foreach (var burg in map.Burgs.Skip(1)) //0'eth entry is always empty (See Azgaar data model)
             {
                 if (burg.Value.Removed)
                 {
-                    Console.WriteLine($"Skipping barony {burg.Value.Name} as it has been marked as removed");
+                    Logger.Info($"Skipping barony {burg.Value.Name} as it has been marked as removed");
                     continue;
                 }
                 if (burg.Value.Cell!.AzProvince == 0 && burg.Value.Cell!.State == 0)
                 {
-                    Console.WriteLine($"Skipping barony {burg.Value.Name} as it is in wastelands");
+                    Logger.Info($"Skipping barony {burg.Value.Name} as it is in wastelands");
                     continue;
                 }
 
@@ -531,21 +531,21 @@ namespace Converter.Lemur
             }
             map.Baronies = baronies;
 
-            if (Settings.Instance.Debug)
+            if (Settings.Instance.GenerateDebugImages)
             {
                 foreach (var barony in baronies)
                 {
-                    Console.WriteLine($"Barony {barony.Id} {barony.Name}");
+                    Logger.Info($"Barony {barony.Id} {barony.Name}");
                 }
             }
 
-            Console.WriteLine($"Generated {baronies.Count} baronies");
+            Logger.Info($"Generated {baronies.Count} baronies");
         }
 
         private static void GenerateDuchies(Map map)
         {
             //Duchies are based on Azgaar Provinces. Except in the case of the wastelands where parts of a state can be assigned to the wastelands province (0) and we must generate a new from the state.
-            Helper.PrintSectionHeader("Generating duchies");
+            Logger.Section("Generating duchies");
             //First we group the cells by province
             var cellsByProvince = map.Cells!.GroupBy(c => c.Value.AzProvince).OrderBy(g => g.Key);
 
@@ -566,7 +566,7 @@ namespace Converter.Lemur
                 if (!province.Any())
                 {
                     //log the name of the province skipped
-                    Console.WriteLine($"Skipping province {provinceData.name} as it has no cells");
+                    Logger.Info($"Skipping province {provinceData.name} as it has no cells");
                     continue;
                 }
 
@@ -574,7 +574,7 @@ namespace Converter.Lemur
                 if (!province.Any(c => c.Value.Burg != null))
                 {
                     //log the name of the province skipped
-                    Console.WriteLine($"Skipping province {provinceData.name} as it has no burgs (Wasteland)");
+                    Logger.Info($"Skipping province {provinceData.name} as it has no burgs (Wasteland)");
 
                     //We have also dicovered a wasteland province, so we generate a wasteland province and add it to the wastelands list
                     List<Cell> wastelandCells = province.Select(c => c.Value).ToList();
@@ -604,7 +604,7 @@ namespace Converter.Lemur
                         duchies.Add(d);
 
                     }
-                    Console.WriteLine($"Some cells in the wastelands province are assigned to states, generated {duchies.Count} duchies");
+                    Logger.Info($"Some cells in the wastelands province are assigned to states, generated {duchies.Count} duchies");
                     continue;
                 }
 
@@ -629,19 +629,19 @@ namespace Converter.Lemur
                 }
             }
 
-            if (Settings.Instance.Debug)
+            if (Settings.Instance.GenerateDebugImages)
             {
                 foreach (var duchy in duchies)
                 {
-                    Console.WriteLine($"Duchy {duchy.Id} {duchy.Name} has {duchy.GetAllCells().Count} cells");
+                    Logger.Info($"Duchy {duchy.Id} {duchy.Name} has {duchy.GetAllCells().Count} cells");
                 }
             }
-            Console.WriteLine($"Generated {duchies.Count} duchies");
+            Logger.Info($"Generated {duchies.Count} duchies");
         }
 
         private static void GenerateCounties(Map map)
         {
-            Helper.PrintSectionHeader("Generating counties");
+            Logger.Section("Generating counties");
             //For each duchy, generate a graph of the duchy
             foreach (var duchy in map.Duchies!)
             {
@@ -696,9 +696,9 @@ namespace Converter.Lemur
                     }
 
                     var county = new County(IdManager.Instance.GetNextId(), name, baronies: baroniesInPartition, duchy: duchy, capital: baroniesInPartition.First());
-                    if (Settings.Instance.Debug)
+                    if (Settings.Instance.GenerateDebugImages)
                     {
-                        Console.WriteLine($"County {county.Name} has {baroniesInPartition.Count} baronies");
+                        Logger.Info($"County {county.Name} has {baroniesInPartition.Count} baronies");
                     }
                     counties.Add(county);
                 }
@@ -706,9 +706,9 @@ namespace Converter.Lemur
                 //add the counties to the map's list of counties
                 map.Counties ??= new();
                 map.Counties.AddRange(counties);
-                Console.WriteLine($"Duchy {duchy.Name} has {counties.Count} counties");
+                Logger.Info($"Duchy {duchy.Name} has {counties.Count} counties");
             }
-            Console.WriteLine($"Generated {map.Counties!.Count} counties");
+            Logger.Info($"Generated {map.Counties!.Count} counties");
 
 
         }
@@ -719,7 +719,7 @@ namespace Converter.Lemur
             //Empires will follow culture, unless the option to follow religion is enabled.
             //If the option to follow religion is enabled, the empire will follow religion.
 
-            Helper.PrintSectionHeader("Generating empires");
+            Logger.Section("Generating empires");
             if (Settings.Instance.EmpireFromCulture)
             {
                 map.Empires = ByCulture();
@@ -729,11 +729,11 @@ namespace Converter.Lemur
                 map.Empires = ByReligion();
             }
 
-            if (Settings.Instance.Debug)
+            if (Settings.Instance.GenerateDebugImages)
             {
                 foreach (var empire in map.Empires!)
                 {
-                    Console.WriteLine($"Empire {empire.Id} {empire.Name}");
+                    Logger.Info($"Empire {empire.Id} {empire.Name}");
                 }
             }
 
@@ -745,10 +745,10 @@ namespace Converter.Lemur
                 // Get every culture in the map, they are packed in the json map
                 var cultures = map.JsonMap.pack.cultures.Skip(1).ToArray(); //skip the 0'eth entry, that is wildlands
                                                                             //print each
-                Console.WriteLine($"Empire From Culture: True, there are {cultures.Length} cultures in the map");
+                Logger.Info($"Empire From Culture: True, there are {cultures.Length} cultures in the map");
                 foreach (var culture in cultures)
                 {
-                    Console.WriteLine($"Culture: {culture}");
+                    Logger.Info($"Culture: {culture}");
                 }
 
                 // For each culture, form an empire
@@ -779,10 +779,10 @@ namespace Converter.Lemur
                 // poor candidate for an empire.
 
                 var religions = map.JsonMap.pack.religions.Skip(1).ToArray(); // 0'eth entry is "No religion"
-                Console.WriteLine($"Empire From Culture: False, there are {religions.Length} religions in the map");
+                Logger.Info($"Empire From Culture: False, there are {religions.Length} religions in the map");
                 foreach (var religion in religions)
                 {
-                    Console.WriteLine($"Religion: {religion}");
+                    Logger.Info($"Religion: {religion}");
                 }
 
                 // For each religion, form an empire
@@ -805,7 +805,7 @@ namespace Converter.Lemur
         {
             // Get all the duchies, order them by state, get the state data from the json data and create a kingdom from the state data
             // The kingdom will be named after the state
-            Helper.PrintSectionHeader("Generating kingdoms");
+            Logger.Section("Generating kingdoms");
             var duchiesByState = map.Duchies!.GroupBy(d => d.GetAllCells().First().State).OrderBy(g => g.Key);
             List<Kingdom> kingdoms = new(duchiesByState.Count()); // preallocate memory for the kingdoms
 
@@ -814,7 +814,7 @@ namespace Converter.Lemur
                 // Skip state 0 (wastelands)
                 if (state.Key == 0)
                 {
-                    Console.WriteLine($"Skipping state 0 (Wastelands) for kingdom generation");
+                    Logger.Info($"Skipping state 0 (Wastelands) for kingdom generation");
                     continue;
                 }
 
@@ -822,7 +822,7 @@ namespace Converter.Lemur
                 var stateData = map.JsonMap.pack.states.FirstOrDefault(s => s.i == state.Key);
                 if (stateData == null)
                 {
-                    Console.WriteLine($"Warning: Could not find state data for state {state.Key}, skipping");
+                    Logger.Warning($"Warning: Could not find state data for state {state.Key}, skipping");
                     continue;
                 }
 
@@ -836,7 +836,7 @@ namespace Converter.Lemur
                     var empire = map.Empires!.FirstOrDefault(e => e.Culture == culture);
                     if (empire == null)
                     {
-                        Console.WriteLine($"Warning: No empire found for culture {culture.name}, creating orphan kingdom {kingdom.Name}");
+                        Logger.Warning($"Warning: No empire found for culture {culture.name}, creating orphan kingdom {kingdom.Name}");
                         continue;
                     }
                     empire.Kingdoms.Add(kingdom);
@@ -849,7 +849,7 @@ namespace Converter.Lemur
                     var empire = map.Empires!.FirstOrDefault(e => e.Religion == religion);
                     if (empire == null)
                     {
-                        Console.WriteLine($"Warning: No empire found for religion {religion.name}, creating orphan kingdom {kingdom.Name}");
+                        Logger.Warning($"Warning: No empire found for religion {religion.name}, creating orphan kingdom {kingdom.Name}");
                         continue;
                     }
                     empire.Kingdoms.Add(kingdom);
@@ -858,11 +858,11 @@ namespace Converter.Lemur
 
             }
 
-            if (Settings.Instance.Debug)
+            if (Settings.Instance.GenerateDebugImages)
             {
                 foreach (var kingdom in kingdoms)
                 {
-                    Console.WriteLine($"Kingdom {kingdom.Id} {kingdom.Name} has {kingdom.Duchies.Count} duchies");
+                    Logger.Info($"Kingdom {kingdom.Id} {kingdom.Name} has {kingdom.Duchies.Count} duchies");
                 }
             }
             // Assign the kingdoms to the map
@@ -873,8 +873,8 @@ namespace Converter.Lemur
         private static void MergeTinyKingdoms(Map map)
         {
 
-            Helper.PrintSectionHeader("Merging tiny kingdoms");
-            Console.WriteLine($"Merging kingdoms that are less than {Settings.Instance.MinimumDuchiesPerKingdom} duchies");
+            Logger.Section("Merging tiny kingdoms");
+            Logger.Info($"Merging kingdoms that are less than {Settings.Instance.MinimumDuchiesPerKingdom} duchies");
 
 
             // Add all kingdoms to the dictionary so we can keep track of if they are mergable or not
@@ -934,16 +934,16 @@ namespace Converter.Lemur
                     // Since the merge target changed shape, if it was unmergable before, it might be mergable now
                     unmergableKingdoms[mergeTarget] = false;
                     mergerOccurred = true; // A merger was successful, so set the flag to true
-                    Console.WriteLine($"Merged {TinyKingdom.Name} into {mergeTarget.Name}");
+                    Logger.Info($"Merged {TinyKingdom.Name} into {mergeTarget.Name}");
                 }
             } while (mergerOccurred); // Continue looping as long as a merger occurred in the last iteration
 
-            if (Settings.Instance.Debug)
+            if (Settings.Instance.GenerateDebugImages)
             {
-                Console.WriteLine($"Kingdoms after merging:");
+                Logger.Info($"Kingdoms after merging:");
                 foreach (var kingdom in map.Kingdoms)
                 {
-                    Console.WriteLine($" - {kingdom.Name} has {kingdom.Duchies.Count} duchies");
+                    Logger.Info($" - {kingdom.Name} has {kingdom.Duchies.Count} duchies");
                 }
             }
         }
@@ -954,8 +954,8 @@ namespace Converter.Lemur
             // - We could consider religion and or culture when merging empires, but for now we will just merge them based on shared borders
 
 
-            Helper.PrintSectionHeader("Merging tiny empires");
-            Console.WriteLine($"Merging empires that are less than {Settings.Instance.MinimumKingdomsPerEmpire} kingdoms");
+            Logger.Section("Merging tiny empires");
+            Logger.Info($"Merging empires that are less than {Settings.Instance.MinimumKingdomsPerEmpire} kingdoms");
             var MergeTinyEmpires = map.Empires.Where(e => e.Kingdoms.Count < Settings.Instance.MinimumKingdomsPerEmpire).ToList();
 
             foreach (var empire in MergeTinyEmpires)
@@ -986,15 +986,15 @@ namespace Converter.Lemur
                 // Remove the tiny empire from the map
                 map.Empires.Remove(empire);
 
-                Console.WriteLine($"Merged {empire.Name} into {mergeTarget.Name}");
+                Logger.Info($"Merged {empire.Name} into {mergeTarget.Name}");
             }
 
-            if (Settings.Instance.Debug)
+            if (Settings.Instance.GenerateDebugImages)
             {
-                Console.WriteLine($"Empires after merging:");
+                Logger.Info($"Empires after merging:");
                 foreach (var empire in map.Empires)
                 {
-                    Console.WriteLine($" - {empire.Name} has {empire.Kingdoms.Count} kingdoms");
+                    Logger.Info($" - {empire.Name} has {empire.Kingdoms.Count} kingdoms");
                 }
             }
         }
@@ -1020,7 +1020,7 @@ namespace Converter.Lemur
 
         private static async Task ShowSeaZones(Map map)
         {
-            Helper.PrintSectionHeader("Visualizing Sea Zones");
+            Logger.Section("Visualizing Sea Zones");
             await ImageUtility.DrawSeaZonesImage(map);
         }
 
@@ -1029,7 +1029,7 @@ namespace Converter.Lemur
         /// </summary>
         private static async Task ShowBaronies(Map map)
         {
-            Helper.PrintSectionHeader("Visualizing Baronies");
+            Logger.Section("Visualizing Baronies");
             await ImageUtility.DrawProvincesImage(map);
         }
 
@@ -1087,11 +1087,11 @@ namespace Converter.Lemur
 
         private static void GenerateBaronyAdjacency(Map map)
         {
-            Helper.PrintSectionHeader("Generating barony adjacency");
+            Logger.Section("Generating barony adjacency");
 
             foreach (var barony in map.Baronies!)
             {
-                Console.WriteLine($"Barony {barony.Name}");
+                Logger.Info($"Barony {barony.Name}");
                 //fist get all the cells that the cells in this barony are adjacent to
                 var cells = barony.GetAllCells();
                 var adjacentCells = cells.SelectMany(c => c.Neighbors).Distinct().Select(k => map.Cells![k]).ToList();
@@ -1101,9 +1101,9 @@ namespace Converter.Lemur
                 // Now find all unique baronies that the adjacent cells are in
                 var adjacentBaronies = adjacentCells.Select(c => c.Province as Barony).Where(b => b != null).Distinct().ToList();
 
-                if (Settings.Instance.Debug)
+                if (Settings.Instance.GenerateDebugImages)
                 {
-                    Console.WriteLine($"Barony {barony.Name} has {adjacentBaronies.Count} adjacent baronies");
+                    Logger.Info($"Barony {barony.Name} has {adjacentBaronies.Count} adjacent baronies");
                 }
                 //Add the found baronies to this barony¨s list of adjacent baronies. Can be null if there are no adjacent baronies
                 barony.Neighbors = adjacentBaronies!;

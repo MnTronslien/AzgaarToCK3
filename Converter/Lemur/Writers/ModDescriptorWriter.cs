@@ -17,7 +17,7 @@ public static class ModDescriptorWriter
         Directory.CreateDirectory(modsDirectory);
         await File.WriteAllTextAsync(launcherPath, launcherContent, Helper.Utf8Bom);
 
-        Console.WriteLine($"Wrote descriptor.mod and {modName}.mod");
+        Logger.Info($"Wrote descriptor.mod and {modName}.mod");
     }
 
     private static string BuildDescriptorContent(string modName, bool includePath, string? outputDirectory = null)

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.ExceptionServices;
 using Converter;
+using Converter.Lemur;
 using Converter.Lemur.Graphs;
 
 
@@ -10,24 +11,24 @@ public class GraphTest
     public static void Run()
     {
 
-        Converter.Lemur.Helper.PrintSectionHeader("Uruk Graph Test");
+        Converter.Lemur.Logger.Section("Uruk Graph Test");
 
         Graph urukGraph = UrukGraph();
         DetailedPrint(urukGraph);
 
         //Section header for this part of the code
-        Converter.Lemur.Helper.PrintSectionHeader("Biggest, then lonliest, then smallest node");
+        Converter.Lemur.Logger.Section("Biggest, then lonliest, then smallest node");
         Graph.PartitionGraph(urukGraph);
 
 
         // Section: Bostoten Graph Test
-        Converter.Lemur.Helper.PrintSectionHeader("Bostoten Graph Test");
+        Converter.Lemur.Logger.Section("Bostoten Graph Test");
 
         Graph bostotenGraph = BostotenGraph();
         DetailedPrint(bostotenGraph);
 
         //Section header for this part of the code
-        Converter.Lemur.Helper.PrintSectionHeader("Biggest, then lonliest, then smallest node");
+        Converter.Lemur.Logger.Section("Biggest, then lonliest, then smallest node");
         Graph.PartitionGraph(bostotenGraph);
 
 
@@ -39,11 +40,11 @@ public class GraphTest
         //for each node in the graph, with its name and population and the names of its neighbors
         foreach (var node in graph.adjacencyList)
         {
-            Console.WriteLine($"Node: {node.Key.Name}, Population: {node.Key.Population}");
-            Console.WriteLine("Neighbors:");
+            Logger.Debug($"Node: {node.Key.Name}, Population: {node.Key.Population}");
+            Logger.Debug("Neighbors:");
             foreach (var neighbor in node.Value)
             {
-                Console.WriteLine($"- {neighbor.Name}");
+                Logger.Debug($"- {neighbor.Name}");
             }
         }
     }
@@ -74,10 +75,10 @@ public class GraphTest
         graph.AddEdge(DR, G);
         graph.AddEdge(G, C);
 
-        Console.WriteLine("Uruk graph created successfully!");
+        Logger.Debug("Uruk graph created successfully!");
 
         // Print the graph
-        Console.WriteLine(graph);
+        Logger.Debug(graph.ToString());
 
         return graph;
     }
@@ -109,10 +110,10 @@ public class GraphTest
         graph.AddEdge(Dj, Le);
         graph.AddEdge(Le, Re);
 
-        Console.WriteLine("Bostoten graph created successfully!");
+        Logger.Debug("Bostoten graph created successfully!");
 
         // Print the graph
-        Console.WriteLine(graph);
+        Logger.Debug(graph.ToString());
 
         return graph;
     }

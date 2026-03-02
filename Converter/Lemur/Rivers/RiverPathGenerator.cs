@@ -83,7 +83,7 @@ public static class RiverPathGenerator
             }
             else
             {
-                Console.WriteLine($"  {riverName}: strict A* FAILED for segment {i}: ({from.X},{from.Y}) → ({to.X},{to.Y}), trying terminal cell / tributary fallback");
+                Logger.Debug($"  {riverName}: strict A* FAILED for segment {i}: ({from.X},{from.Y}) → ({to.X},{to.Y}), trying terminal cell / tributary fallback");
 
                 // NEW: Terminal-cell interceptor — fires for any river (tributary or not)
                 // when `to` is inside the terminal cell (pre-skipped or genuinely failed).
@@ -116,7 +116,7 @@ public static class RiverPathGenerator
                         successfulSegments++;
                         if (newPixels.Count > 0) afterSegment?.Invoke(newPixels);
 
-                        Console.WriteLine(
+                        Logger.Debug(
                             $"  {riverName}: terminal-cell cutoff seg {i}, " +
                             $"{newPixels.Count} px ({terminalCount} inside terminal cell)");
 
@@ -139,7 +139,7 @@ public static class RiverPathGenerator
 
                     if (fallbackPath != null && fallbackPath.Count > 0)
                     {
-                        Console.WriteLine($"  {riverName}: tributary join succeeded on segment {i}");
+                        Logger.Debug($"  {riverName}: tributary join succeeded on segment {i}");
                         int startIdx = (fallbackPath[0] == completePath[^1]) ? 1 : 0;
                         var newPixels = new List<Point>();
                         for (int j = startIdx; j < fallbackPath.Count; j++)
@@ -155,7 +155,7 @@ public static class RiverPathGenerator
 
                         // River has merged into parent — discard remaining segments
                         connectedAsTributary = true;
-                        Console.WriteLine($"  {riverName}: joined another river as tributary, discarding remaining segments");
+                        Logger.Debug($"  {riverName}: joined another river as tributary, discarding remaining segments");
                         break;
                     }
                 }
@@ -167,7 +167,7 @@ public static class RiverPathGenerator
                 }
                 failedSegments++;
 
-                Console.WriteLine($"  WARNING: A* failed for {riverName} segment {i}: ({from.X},{from.Y}) → ({to.X},{to.Y})");
+                Logger.Debug($"  WARNING: A* failed for {riverName} segment {i}: ({from.X},{from.Y}) → ({to.X},{to.Y})");
             }
         }
 
@@ -181,10 +181,7 @@ public static class RiverPathGenerator
             }
         }
 
-        if (Settings.Instance.Debug && (successfulSegments > 0 || failedSegments > 0))
-        {
-            Console.WriteLine($"  Path generation for {riverName}: {successfulSegments} segments OK, {failedSegments} failed, {deduped.Count} total pixels");
-        }
+        Logger.Debug($"  Path generation for {riverName}: {successfulSegments} segments OK, {failedSegments} failed, {deduped.Count} total pixels");
 
         return (deduped, connectedAsTributary);
     }

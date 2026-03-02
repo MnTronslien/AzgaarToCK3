@@ -8,17 +8,17 @@ namespace Converter.Lemur.Rivers
     {
         public static List<River> LoadRivers(AzgaarJsonMap jsonMap, float majorThreshold)
         {
-            Helper.PrintSectionHeader("Loading Rivers from Azgaar Data");
+            Logger.Section("Loading Rivers from Azgaar Data");
 
             var azRivers = jsonMap.pack.rivers;
-            Console.WriteLine($"Found {azRivers.Length} rivers in map data");
+            Logger.Info($"Found {azRivers.Length} rivers in map data");
 
             // Convert to River entities
             var rivers = azRivers.Select(River.FromAzgaarRiver).ToList();
 
             if (rivers.Count == 0)
             {
-                Console.WriteLine("No rivers found in map data");
+                Logger.Info("No rivers found in map data");
                 return rivers;
             }
 
@@ -30,21 +30,21 @@ namespace Converter.Lemur.Rivers
             var minDischarge = rivers.Min(r => r.Discharge);
             var avgDischarge = rivers.Average(r => r.Discharge);
 
-            Console.WriteLine($"Discharge range: {minDischarge:F1} - {maxDischarge:F1} (avg: {avgDischarge:F1})");
-            Console.WriteLine($"Total river cells: {rivers.Sum(r => r.CellIds.Count)}");
+            Logger.Info($"Discharge range: {minDischarge:F1} - {maxDischarge:F1} (avg: {avgDischarge:F1})");
+            Logger.Info($"Total river cells: {rivers.Sum(r => r.CellIds.Count)}");
 
             // Classify
             var majorCount = rivers.Count(r => r.IsMajor(majorThreshold));
             var minorCount = rivers.Count - majorCount;
-            Console.WriteLine($"Classification: {minorCount} minor rivers, {majorCount} major rivers (threshold: {majorThreshold})");
+            Logger.Info($"Classification: {minorCount} minor rivers, {majorCount} major rivers (threshold: {majorThreshold})");
 
             // Log control points info
             var riversWithControlPoints = rivers.Count(r => r.ControlPoints != null && r.ControlPoints.Count > 0);
-            Console.WriteLine($"Control points loaded: {riversWithControlPoints} rivers have LineString geometry");
+            Logger.Info($"Control points loaded: {riversWithControlPoints} rivers have LineString geometry");
             if (riversWithControlPoints > 0)
             {
                 var avgControlPoints = rivers.Where(r => r.ControlPoints != null).Average(r => r.ControlPoints!.Count);
-                Console.WriteLine($"Average control points per river: {avgControlPoints:F1}");
+                Logger.Info($"Average control points per river: {avgControlPoints:F1}");
             }
 
             return rivers;
@@ -56,7 +56,7 @@ namespace Converter.Lemur.Rivers
         private static void LoadRiverControlPoints(List<River> rivers)
         {
             var riverGeoJsonPath = Settings.Instance.InputRiversGeojsonPath;
-            Console.WriteLine($"Loading river control points from: {Path.GetFileName(riverGeoJsonPath)}");
+            Logger.Info($"Loading river control points from: {Path.GetFileName(riverGeoJsonPath)}");
 
             var json = File.ReadAllText(riverGeoJsonPath);
             var riverGeoJson = JsonSerializer.Deserialize<RiverGeoJson>(json, new JsonSerializerOptions
@@ -85,7 +85,7 @@ namespace Converter.Lemur.Rivers
                 }
             }
 
-            Console.WriteLine($"Merged control points for {mergedCount} rivers");
+            Logger.Info($"Merged control points for {mergedCount} rivers");
 
             if (mergedCount == 0)
             {

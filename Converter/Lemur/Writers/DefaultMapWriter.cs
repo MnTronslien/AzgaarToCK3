@@ -30,6 +30,6 @@ river_provinces = LIST {{ }}
         var path = Helper.GetPath(outputDirectory, "map_data", "default.map");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         await File.WriteAllTextAsync(path, content, Helper.Utf8Bom);
-        Console.WriteLine($"Wrote default.map ({seaZoneList.Split(' ').Length} sea zones, {wastelandList.Split(' ').Length} impassable_mountains, {farSeaList.Split(' ').Length} impassable_seas)");
+        Logger.Info($"Wrote default.map ({seaZoneList.Split(' ').Length} sea zones, {wastelandList.Split(' ').Length} impassable_mountains, {farSeaList.Split(' ').Length} impassable_seas)");
     }
 }

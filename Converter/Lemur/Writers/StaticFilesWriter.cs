@@ -68,7 +68,7 @@ public static class StaticFilesWriter
             "max_compress_level=4\n" +
             "empty_tile_offset={ 0 0 }\n", enc);
 
-        Console.WriteLine("Wrote static map_data text files (seasons, climate, island_region, positions, heightmap.heightmap)");
+        Logger.Info("Wrote static map_data text files (seasons, climate, island_region, positions, heightmap.heightmap)");
     }
 
     private static void CopyHeightmapBinaries(string tcsSandboxPath, string mapDataDir)
@@ -98,8 +98,8 @@ public static class StaticFilesWriter
 
         if (tcsBase == null)
         {
-            Console.WriteLine("WARNING: TCS mod not found — packed_heightmap.png, indirection_heightmap.png not copied.");
-            Console.WriteLine("         CK3 will crash on map load. Copy these manually from any TCS mod installation.");
+            Logger.Warning("WARNING: TCS mod not found — packed_heightmap.png, indirection_heightmap.png not copied.");
+            Logger.Info("         CK3 will crash on map load. Copy these manually from any TCS mod installation.");
             return;
         }
 
@@ -112,11 +112,11 @@ public static class StaticFilesWriter
             if (File.Exists(src))
             {
                 File.Copy(src, dst, overwrite: true);
-                Console.WriteLine($"Copied {file} from TCS mod");
+                Logger.Info($"Copied {file} from TCS mod");
             }
             else
             {
-                Console.WriteLine($"WARNING: {file} not found in TCS mod at {src}");
+                Logger.Warning($"WARNING: {file} not found in TCS mod at {src}");
             }
         }
     }

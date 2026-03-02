@@ -24,6 +24,6 @@ public static class StubFilesWriter
             await File.WriteAllTextAsync(path, "# placeholder\n");
         }
 
-        Console.WriteLine($"Wrote stub files to {StubDirectories.Length} empty replace_path directories.");
+        Logger.Info($"Wrote stub files to {StubDirectories.Length} empty replace_path directories.");
     }
 }

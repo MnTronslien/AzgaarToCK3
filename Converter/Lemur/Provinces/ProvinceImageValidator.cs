@@ -17,7 +17,7 @@ public static class ProvinceImageValidator
             return false;
         }
 
-        Console.WriteLine("Validating provinces.png...");
+        Logger.Info("Validating provinces.png...");
 
         using var image = new MagickImage(provincesPath);
 
@@ -27,11 +27,11 @@ public static class ProvinceImageValidator
         if (!formatOk)
         {
             errors.Add($"Image has alpha channel ({colorType}). CK3 requires 24-bit RGB or 8-bit palette PNG — alpha will cause a CTD.");
-            Console.WriteLine($"  Format: {colorType} (has alpha) ✗");
+            Logger.Info($"  Format: {colorType} (has alpha) ✗");
         }
         else
         {
-            Console.WriteLine($"  Format: {colorType} ✓");
+            Logger.Info($"  Format: {colorType} ✓");
         }
 
         // Check 2 — Color cross-check (only when definition.csv provided)
@@ -43,15 +43,15 @@ public static class ProvinceImageValidator
             }
             else
             {
-                Console.WriteLine("  Cross-checking with definition.csv...");
+                Logger.Info("  Cross-checking with definition.csv...");
                 CrossCheckColors(image, definitionCsvPath, errors);
             }
         }
 
         if (errors.Count == 0)
-            Console.WriteLine("  ✓ Valid");
+            Logger.Info("  ✓ Valid");
         else
-            Console.WriteLine($"  ✗ Invalid ({errors.Count} error{(errors.Count == 1 ? "" : "s")})");
+            Logger.Info($"  ✗ Invalid ({errors.Count} error{(errors.Count == 1 ? "" : "s")})");
 
         return errors.Count == 0;
     }
@@ -75,7 +75,7 @@ public static class ProvinceImageValidator
             definedColorSet.Add((r, g, b));
         }
 
-        Console.WriteLine($"  definition.csv: {definedEntries.Count} province entries");
+        Logger.Info($"  definition.csv: {definedEntries.Count} province entries");
 
         // Scan every pixel — count pixels per color
         var colorCounts = new Dictionary<(byte R, byte G, byte B), int>();
@@ -108,14 +108,14 @@ public static class ProvinceImageValidator
         if (blackPixelCount > 0)
         {
             errors.Add($"Black pixels (0,0,0): {blackPixelCount:N0} — undefined province color will crash CK3 map generator");
-            Console.WriteLine($"  Black pixels: {blackPixelCount:N0} ✗");
+            Logger.Info($"  Black pixels: {blackPixelCount:N0} ✗");
         }
         else
         {
-            Console.WriteLine($"  Black pixels: 0 ✓");
+            Logger.Info($"  Black pixels: 0 ✓");
         }
 
-        Console.WriteLine($"  provinces.png: {colorCounts.Count} unique non-black colors");
+        Logger.Info($"  provinces.png: {colorCounts.Count} unique non-black colors");
 
         // Report colors in image but not in definition.csv
         int undefinedColorCount = 0;
@@ -129,7 +129,7 @@ public static class ProvinceImageValidator
             }
         }
         if (undefinedColorCount > 0)
-            Console.WriteLine($"  {undefinedColorCount} color(s) in image not in definition.csv ✗");
+            Logger.Info($"  {undefinedColorCount} color(s) in image not in definition.csv ✗");
 
         // Report each province in definition.csv missing from image
         int missingCount = 0;
@@ -144,8 +144,8 @@ public static class ProvinceImageValidator
         }
 
         if (missingCount > 0)
-            Console.WriteLine($"  {missingCount} province(s) in definition.csv not found in image ✗");
+            Logger.Info($"  {missingCount} province(s) in definition.csv not found in image ✗");
         else if (undefinedColorCount == 0)
-            Console.WriteLine($"  All {definedEntries.Count} provinces present in image ✓");
+            Logger.Info($"  All {definedEntries.Count} provinces present in image ✓");
     }
 }

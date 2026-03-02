@@ -37,6 +37,6 @@ public static class ProvinceHistoryWriter
         var path = Helper.GetPath(outputDirectory, "history", "provinces", "00_lemur_provinces.txt");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         await File.WriteAllLinesAsync(path, lines, Helper.Utf8Bom);
-        Console.WriteLine($"Wrote 00_lemur_provinces.txt ({baronies.Count} baronies)");
+        Logger.Info($"Wrote 00_lemur_provinces.txt ({baronies.Count} baronies)");
     }
 }

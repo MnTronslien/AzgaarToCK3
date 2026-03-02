@@ -52,7 +52,7 @@ public static class LandedTitlesWriter
         var path = Helper.GetPath(outputDirectory, "common", "landed_titles", "00_landed_titles.txt");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         await File.WriteAllTextAsync(path, sb.ToString(), Helper.Utf8Bom);
-        Console.WriteLine($"Wrote 00_landed_titles.txt ({baronies.Count} baronies)");
+        Logger.Info($"Wrote 00_landed_titles.txt ({baronies.Count} baronies)");
     }
 
     private static void WriteKingdom(StringBuilder sb, L.Kingdom kingdom, Dictionary<L.Barony, int> baroniesProvId)

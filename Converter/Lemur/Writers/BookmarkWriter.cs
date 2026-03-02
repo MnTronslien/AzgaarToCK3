@@ -58,7 +58,7 @@ public static class BookmarkWriter
         var path = Helper.GetPath(outputDirectory, "history", "characters", "00_lemur_characters.txt");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         await File.WriteAllLinesAsync(path, lines, Helper.Utf8Bom);
-        Console.WriteLine($"Wrote 00_lemur_characters.txt (TCS character {TcsCharacterId} / Guanarigato)");
+        Logger.Info($"Wrote 00_lemur_characters.txt (TCS character {TcsCharacterId} / Guanarigato)");
     }
 
     private static async Task WriteTitleHistory(string outputDirectory, string countyId)
@@ -76,7 +76,7 @@ public static class BookmarkWriter
         var path = Helper.GetPath(outputDirectory, "history", "titles", "00_lemur_titles.txt");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         await File.WriteAllLinesAsync(path, lines, Helper.Utf8Bom);
-        Console.WriteLine($"Wrote 00_lemur_titles.txt ({countyId} → TCS character {TcsCharacterId})");
+        Logger.Info($"Wrote 00_lemur_titles.txt ({countyId} → TCS character {TcsCharacterId})");
     }
 
     private static async Task WriteBookmark(string outputDirectory, string countyId)
@@ -113,6 +113,6 @@ public static class BookmarkWriter
         var path = Helper.GetPath(outputDirectory, "common", "bookmarks", "bookmarks", "z_lemur_bookmarks.txt");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         await File.WriteAllLinesAsync(path, lines, Helper.Utf8Bom);
-        Console.WriteLine($"Wrote z_lemur_bookmarks.txt (overrides bm_1066_canarias → {countyId}, TCS character {TcsCharacterId})");
+        Logger.Info($"Wrote z_lemur_bookmarks.txt (overrides bm_1066_canarias → {countyId}, TCS character {TcsCharacterId})");
     }
 }
