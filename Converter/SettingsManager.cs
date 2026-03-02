@@ -6,6 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace Converter;
 
+public enum LogLevel { Verbose = 0, Debug = 1, Info = 2, Warning = 3, Error = 4 }
+
 public class Settings
 {
     public required string ModsDirectory { get; init; }
@@ -27,7 +29,8 @@ public class Settings
     [JsonIgnore]
     public static string OutputDirectory => Helper.GetPath(Instance.ModsDirectory, Instance.ModName);
 
-    public bool Debug { get; set; } = true;
+    public LogLevel LogLevel { get; set; } = LogLevel.Info;
+    public bool GenerateDebugImages { get; set; } = true;
 
     // This is based on guestimate observations form CK3
     // Sparsley populated areas often have fewer baronies per county than densely populated areas
@@ -121,7 +124,8 @@ public class Settings
 }
 
 [JsonSerializable(typeof(Settings))]
-[JsonSourceGenerationOptions(WriteIndented = true, AllowTrailingCommas = true, PropertyNameCaseInsensitive = true)]
+[JsonSourceGenerationOptions(WriteIndented = true, AllowTrailingCommas = true,
+    PropertyNameCaseInsensitive = true, UseStringEnumConverter = true)]
 public partial class SettingsJsonContext : JsonSerializerContext { }
 
 public static class SettingsManager

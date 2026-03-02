@@ -1,4 +1,5 @@
 ﻿using Converter;
+using Converter.Lemur;
 using Converter.Lemur.Provinces;
 using Converter.Lemur.Rivers;
 
@@ -7,66 +8,67 @@ namespace ConsoleUI;
 internal class Program
 {
     static async Task Run(string? jsonPath = null, string? geojsonPath = null, string? riversGeojsonPath = null,
-        bool? debug = null, bool? empireFromCulture = null, int? minDuchiesPerKingdom = null, int? minKingdomsPerEmpire = null,
+        LogLevel? logLevel = null, bool noImages = false, bool? empireFromCulture = null,
+        int? minDuchiesPerKingdom = null, int? minKingdomsPerEmpire = null,
         bool noRivers = false)
     {
         if (!SettingsManager.TryLoad())
         {
             SettingsManager.CreateDefault();
-            Console.WriteLine("Default Settings file has been created.");
+            Logger.Info("Default Settings file has been created.");
         }
 
         // Override settings with command-line arguments if provided
+        if (logLevel.HasValue)
+            Settings.Instance.LogLevel = logLevel.Value;
+        if (noImages)
+            Settings.Instance.GenerateDebugImages = false;
+
         if (!string.IsNullOrWhiteSpace(jsonPath))
         {
             Settings.Instance.InputJsonPath = jsonPath;
-            Console.WriteLine($"Using JSON path from argument: {jsonPath}");
+            Logger.Info($"Using JSON path from argument: {jsonPath}");
         }
         if (!string.IsNullOrWhiteSpace(geojsonPath))
         {
             Settings.Instance.InputGeojsonPath = geojsonPath;
-            Console.WriteLine($"Using GeoJSON path from argument: {geojsonPath}");
+            Logger.Info($"Using GeoJSON path from argument: {geojsonPath}");
         }
         if (!string.IsNullOrWhiteSpace(riversGeojsonPath))
         {
             Settings.Instance.InputRiversGeojsonPath = riversGeojsonPath;
-            Console.WriteLine($"Using Rivers GeoJSON path from argument: {riversGeojsonPath}");
-        }
-        if (debug.HasValue)
-        {
-            Settings.Instance.Debug = debug.Value;
-            Console.WriteLine($"Debug mode: {debug.Value}");
+            Logger.Info($"Using Rivers GeoJSON path from argument: {riversGeojsonPath}");
         }
         if (empireFromCulture.HasValue)
         {
             Settings.Instance.EmpireFromCulture = empireFromCulture.Value;
-            Console.WriteLine($"Empire formation from culture: {empireFromCulture.Value}");
+            Logger.Info($"Empire formation from culture: {empireFromCulture.Value}");
         }
         if (minDuchiesPerKingdom.HasValue)
         {
             Settings.Instance.MinimumDuchiesPerKingdom = minDuchiesPerKingdom.Value;
-            Console.WriteLine($"Minimum duchies per kingdom: {minDuchiesPerKingdom.Value}");
+            Logger.Info($"Minimum duchies per kingdom: {minDuchiesPerKingdom.Value}");
         }
         if (minKingdomsPerEmpire.HasValue)
         {
             Settings.Instance.MinimumKingdomsPerEmpire = minKingdomsPerEmpire.Value;
-            Console.WriteLine($"Minimum kingdoms per empire: {minKingdomsPerEmpire.Value}");
+            Logger.Info($"Minimum kingdoms per empire: {minKingdomsPerEmpire.Value}");
         }
 
-        // Print settings
-        Console.WriteLine(Settings.Instance);
+        // Print settings (debug level)
+        Logger.Debug(Settings.Instance.ToString());
 
         // Configure NumberDecimalSeparator. Writing files will not work otherwise.
         SettingsManager.Configure();
 
-        Console.WriteLine();
-        Console.WriteLine("The app has been configured. Feel free to change the settings in 'settings.json' file.");
-        Console.WriteLine("Check https://github.com/pryvyd9/AzgaarToCK3 for instructions or feedback.");
-        Console.WriteLine();
+        Logger.Info(string.Empty);
+        Logger.Info("The app has been configured. Feel free to change the settings in 'settings.json' file.");
+        Logger.Info("Check https://github.com/pryvyd9/AzgaarToCK3 for instructions or feedback.");
+        Logger.Info(string.Empty);
 
         if (string.IsNullOrWhiteSpace(Settings.Instance.ModName))
         {
-            Console.Write("Name your mod: ");
+            Logger.Info("Name your mod: ");
             Settings.Instance.ModName = Console.ReadLine()!;
         }
 
@@ -81,17 +83,17 @@ internal class Program
 
         if (!File.Exists(Settings.Instance.InputJsonPath))
         {
-            Console.WriteLine($".json file has not been found.");
-            Console.WriteLine($"Please, place it in '{Settings.Instance.InputJsonPath}' or change '{nameof(Settings.Instance.InputJsonPath)}' in 'settings.json'.");
+            Logger.Error($".json file has not been found.");
+            Logger.Error($"Please, place it in '{Settings.Instance.InputJsonPath}' or change '{nameof(Settings.Instance.InputJsonPath)}' in 'settings.json'.");
             Exit();
         }
         if (!File.Exists(Settings.Instance.InputGeojsonPath))
         {
-            Console.WriteLine($".geojson file has not been found.");
-            Console.WriteLine($"Please, place it in '{Settings.Instance.InputGeojsonPath}' or change '{nameof(Settings.Instance.InputGeojsonPath)}' in 'settings.json'.");
+            Logger.Error($".geojson file has not been found.");
+            Logger.Error($"Please, place it in '{Settings.Instance.InputGeojsonPath}' or change '{nameof(Settings.Instance.InputGeojsonPath)}' in 'settings.json'.");
             Exit();
         }
-        Console.WriteLine("Start conversion?");
+        Logger.Info("Start conversion?");
         if (YesNo())
         {
             // Copy sandbox mod files.
@@ -106,9 +108,9 @@ internal class Program
             }
             catch (Exception ex)
             {
-                Console.WriteLine("An error has occured.");
-                Console.WriteLine(ex.Message);
-                Console.WriteLine(ex.StackTrace);
+                Logger.Error("An error has occured.");
+                Logger.Error(ex.Message);
+                Logger.Error(ex.StackTrace ?? string.Empty);
             }
         }
 
@@ -117,7 +119,7 @@ internal class Program
         Environment.Exit(0);
 #endif
 
-        Console.WriteLine("Map conversion finished successfully!");
+        Logger.Info("Map conversion finished successfully!");
 
         Exit();
     }
@@ -131,7 +133,8 @@ internal class Program
             string? jsonPath = null;
             string? geojsonPath = null;
             string? riversGeojsonPath = null;
-            bool? debug = null;
+            LogLevel? logLevel = null;
+            bool noImages = false;
             bool noRivers = false;
             bool? empireFromCulture = null;
             int? minDuchiesPerKingdom = null;
@@ -159,9 +162,13 @@ internal class Program
                 {
                     noRivers = true;
                 }
-                else if ((args[i] == "--debug" || args[i] == "-d") && i + 1 < args.Length)
+                else if (args[i] == "--no-images")
                 {
-                    debug = bool.Parse(args[i + 1]);
+                    noImages = true;
+                }
+                else if (args[i] == "--log-level" && i + 1 < args.Length)
+                {
+                    logLevel = Enum.Parse<LogLevel>(args[i + 1], ignoreCase: true);
                     i++; // Skip the next argument
                 }
                 else if (args[i] == "--empire-from-culture" && i + 1 < args.Length)
@@ -222,39 +229,39 @@ internal class Program
             {
                 bool ok = ProvinceImageValidator.Validate(
                     validateProvincesPath, definitionCsvPath, out var errors);
-                foreach (var e in errors) Console.WriteLine($"  {e}");
-                Console.WriteLine(ok ? "✓ Valid" : $"✗ Invalid ({errors.Count} errors)");
+                foreach (var e in errors) Logger.Info($"  {e}");
+                Logger.Info(ok ? "✓ Valid" : $"✗ Invalid ({errors.Count} errors)");
                 return;
             }
 
             // --validate-rivers: validate a rivers.png without full conversion
             if (!string.IsNullOrWhiteSpace(validateRiversPath))
             {
-                Console.WriteLine($"Validating: {validateRiversPath}");
+                Logger.Info($"Validating: {validateRiversPath}");
                 bool ok = RiverImageValidator.ValidateRivers(
                     validateRiversPath,
                     out var badPixels,
                     out var msg);
 
                 if (msg != null)
-                    Console.WriteLine($"  Format: {msg}");
+                    Logger.Info($"  Format: {msg}");
                 if (badPixels != null)
                 {
-                    Console.WriteLine($"  Invalid pixels: {badPixels.Count}");
+                    Logger.Info($"  Invalid pixels: {badPixels.Count}");
                     foreach (var p in badPixels.Take(50))
-                        Console.WriteLine($"    ({p.X},{p.Y})");
+                        Logger.Info($"    ({p.X},{p.Y})");
                     if (badPixels.Count > 50)
-                        Console.WriteLine($"  ... and {badPixels.Count - 50} more");
+                        Logger.Info($"  ... and {badPixels.Count - 50} more");
                 }
-                Console.WriteLine(ok ? "✓ Valid" : "✗ Invalid");
+                Logger.Info(ok ? "✓ Valid" : "✗ Invalid");
                 return;
             }
 
-            await Run(jsonPath, geojsonPath, riversGeojsonPath, debug, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire, noRivers);
+            await Run(jsonPath, geojsonPath, riversGeojsonPath, logLevel, noImages, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire, noRivers);
         }
         catch (Exception ex)
         {
-            Console.WriteLine("An error has occured.");
+            Console.WriteLine("An error has occurred.");
             Console.WriteLine(ex.Message);
             Console.WriteLine(ex.StackTrace);
         }
@@ -275,7 +282,8 @@ internal class Program
         Console.WriteLine();
         Console.WriteLine("Conversion Options:");
         Console.WriteLine("  --no-rivers                      Skip river drawing; write a blank rivers.png (runtime only, not saved)");
-        Console.WriteLine("  --debug, -d <true|false>         Enable/disable debug mode (default: true)");
+        Console.WriteLine("  --log-level <verbose|debug|info|warning|error>  Set log verbosity (default: info)");
+        Console.WriteLine("  --no-images                      Suppress debug image generation (provinces.png and rivers.png still written)");
         Console.WriteLine("  --empire-from-culture <bool>     Form empires by culture instead of religion");
         Console.WriteLine("  --min-duchies-per-kingdom <int>  Minimum duchies per kingdom (default: 4)");
         Console.WriteLine("  --min-kingdoms-per-empire <int>  Minimum kingdoms per empire (default: 3)");
@@ -290,7 +298,7 @@ internal class Program
         Console.WriteLine();
         Console.WriteLine("Examples:");
         Console.WriteLine("  ConsoleUI --json map.json --geojson map.geojson --rivers-geojson rivers.geojson");
-        Console.WriteLine("  ConsoleUI -j map.json -g map.geojson -r rivers.geojson --debug false");
+        Console.WriteLine("  ConsoleUI -j map.json -g map.geojson -r rivers.geojson --log-level verbose");
         Console.WriteLine("  ConsoleUI map.json map.geojson rivers.geojson --min-duchies-per-kingdom 3");
         Console.WriteLine();
         Console.WriteLine("If no arguments are provided, the program will use the settings.json file.");
@@ -298,10 +306,10 @@ internal class Program
 
     private static bool YesNo(bool defaultIsYes = true)
     {
-        if (Settings.Instance.Debug)
+        if (Settings.Instance.LogLevel <= LogLevel.Debug)
         {
             //print the response to the console
-            Console.WriteLine($"{(defaultIsYes ? "- Yes" : "- No")} (Debug mode)");
+            Console.WriteLine($"{(defaultIsYes ? "- Yes" : "- No")} (auto-answer: log level <= debug)");
 
             return defaultIsYes;
         }
