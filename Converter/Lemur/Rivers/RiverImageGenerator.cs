@@ -58,6 +58,12 @@ namespace Converter.Lemur.Rivers
                 riversImage.Quantize(new QuantizeSettings { Colors = 256, DitherMethod = DitherMethod.No });
             }
             riversImage.ColorType = ColorType.Palette;
+            // Force 8-bit depth — CK3 requires 8-bit indexed palette PNG.
+            // ImageMagick auto-optimises to 1-bit when only 2 colours are
+            // present (e.g. blank rivers image), which CK3 rejects.
+            // Setting riversImage.Depth = 8 does NOT work for palette PNGs;
+            // we must use the png:bit-depth define instead.
+            riversImage.Settings.SetDefine(MagickFormat.Png, "bit-depth", 8);
 
             var outputPath = Helper.GetPath(Settings.OutputDirectory, "map_data", "rivers.png");
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
