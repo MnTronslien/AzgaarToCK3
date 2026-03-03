@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using Converter.Lemur;
 using L = Converter.Lemur.Entities;
 
 namespace Converter.Lemur.Writers;
@@ -8,6 +9,7 @@ public static class LandedTitlesWriter
 {
     public static async Task Write(L.Map map, string outputDirectory)
     {
+        using var _ = OperationTimer.Start("Writing landed titles");
         var sb = new StringBuilder();
 
         // Build a lookup: barony → province ID (1-based index in AllProvinces)

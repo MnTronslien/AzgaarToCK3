@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Converter.Lemur;
 using L = Converter.Lemur.Entities;
 
 namespace Converter.Lemur.Writers;
@@ -16,6 +17,7 @@ public static class LocatorWriter
 
     public static async Task Write(L.Map map, string outputDirectory)
     {
+        using var _ = OperationTimer.Start("Writing locator files");
         var baronies = map.Baronies!;
 
         // Build the instances block once — all four locator files have identical content.

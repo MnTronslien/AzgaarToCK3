@@ -10,7 +10,7 @@ internal class Program
     static async Task Run(string? jsonPath = null, string? geojsonPath = null, string? riversGeojsonPath = null,
         LogLevel? logLevel = null, bool noImages = false, bool? empireFromCulture = null,
         int? minDuchiesPerKingdom = null, int? minKingdomsPerEmpire = null,
-        bool noRivers = false)
+        bool noRivers = false, bool noWipe = false)
     {
         if (!SettingsManager.TryLoad())
         {
@@ -23,6 +23,8 @@ internal class Program
             Settings.Instance.LogLevel = logLevel.Value;
         if (noImages)
             Settings.Instance.GenerateDebugImages = false;
+        if (noWipe)
+            Settings.Instance.AutoWipeOutput = false;
 
         if (!string.IsNullOrWhiteSpace(jsonPath))
         {
@@ -102,6 +104,9 @@ internal class Program
                 await ModManager.CreateMod();
             }
 
+            if (Settings.Instance.AutoWipeOutput)
+                WipeOutputDirectory();
+
             try
             {
                 await Converter.Lemur.ConversionManager.Run(noRivers);
@@ -136,6 +141,7 @@ internal class Program
             LogLevel? logLevel = null;
             bool noImages = false;
             bool noRivers = false;
+            bool noWipe = false;
             bool? empireFromCulture = null;
             int? minDuchiesPerKingdom = null;
             int? minKingdomsPerEmpire = null;
@@ -165,6 +171,10 @@ internal class Program
                 else if (args[i] == "--no-images")
                 {
                     noImages = true;
+                }
+                else if (args[i] == "--no-wipe")
+                {
+                    noWipe = true;
                 }
                 else if (args[i] == "--log-level" && i + 1 < args.Length)
                 {
@@ -257,7 +267,7 @@ internal class Program
                 return;
             }
 
-            await Run(jsonPath, geojsonPath, riversGeojsonPath, logLevel, noImages, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire, noRivers);
+            await Run(jsonPath, geojsonPath, riversGeojsonPath, logLevel, noImages, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire, noRivers, noWipe);
         }
         catch (Exception ex)
         {
@@ -284,6 +294,7 @@ internal class Program
         Console.WriteLine("  --no-rivers                      Skip river drawing; write a blank rivers.png (runtime only, not saved)");
         Console.WriteLine("  --log-level <verbose|debug|info|warning|error>  Set log verbosity (default: info)");
         Console.WriteLine("  --no-images                      Suppress debug image generation (provinces.png and rivers.png still written)");
+        Console.WriteLine("  --no-wipe                        Skip auto-wipe of mod output directory before conversion (default: wipe enabled)");
         Console.WriteLine("  --empire-from-culture <bool>     Form empires by culture instead of religion");
         Console.WriteLine("  --min-duchies-per-kingdom <int>  Minimum duchies per kingdom (default: 4)");
         Console.WriteLine("  --min-kingdoms-per-empire <int>  Minimum kingdoms per empire (default: 3)");
@@ -335,6 +346,22 @@ internal class Program
         Console.WriteLine("Failed to read supported response.");
         Exit();
         return false;
+    }
+
+    private static void WipeOutputDirectory()
+    {
+        var outputDir = Settings.OutputDirectory;
+        if (!Directory.Exists(outputDir))
+        {
+            Logger.Info("Output directory does not exist — nothing to wipe.");
+            return;
+        }
+        Logger.Info($"Wiping output directory: {outputDir}");
+        foreach (var file in Directory.GetFiles(outputDir))
+            File.Delete(file);
+        foreach (var dir in Directory.GetDirectories(outputDir))
+            Directory.Delete(dir, recursive: true);
+        Logger.Info("Output directory wiped.");
     }
 
     private static void Exit()

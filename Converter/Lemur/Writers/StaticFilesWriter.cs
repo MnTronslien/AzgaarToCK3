@@ -1,9 +1,12 @@
+using Converter.Lemur;
+
 namespace Converter.Lemur.Writers;
 
 public static class StaticFilesWriter
 {
     public static async Task Write(string tcsSandboxPath, string outputDirectory)
     {
+        using var _ = OperationTimer.Start("Writing static files");
         var mapDataDir = Helper.GetPath(outputDirectory, "map_data");
         Directory.CreateDirectory(mapDataDir);
 

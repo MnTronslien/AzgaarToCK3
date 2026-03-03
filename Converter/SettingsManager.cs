@@ -31,6 +31,11 @@ public class Settings
 
     public LogLevel LogLevel { get; set; } = LogLevel.Info;
     public bool GenerateDebugImages { get; set; } = true;
+    /// <summary>
+    /// Wipe the mod output directory before each conversion to prevent stale file bleed.
+    /// Disable with --no-wipe if you intentionally want incremental output.
+    /// </summary>
+    public bool AutoWipeOutput { get; set; } = true;
 
     // This is based on guestimate observations form CK3
     // Sparsley populated areas often have fewer baronies per county than densely populated areas

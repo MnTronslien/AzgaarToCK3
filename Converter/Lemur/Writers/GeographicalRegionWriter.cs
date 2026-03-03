@@ -1,3 +1,4 @@
+using Converter.Lemur;
 using L = Converter.Lemur.Entities;
 
 namespace Converter.Lemur.Writers;
@@ -6,6 +7,7 @@ public static class GeographicalRegionWriter
 {
     public static async Task Write(L.Map map, string outputDirectory)
     {
+        using var _ = OperationTimer.Start("Writing geographical regions");
         var baronies = map.Baronies!;
 
         // Build barony ID → province ID mapping (1-based index in AllProvinces)

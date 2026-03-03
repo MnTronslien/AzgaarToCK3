@@ -1,4 +1,5 @@
 using System.Text;
+using Converter.Lemur;
 
 namespace Converter.Lemur.Graphs
 {
@@ -193,7 +194,7 @@ namespace Converter.Lemur.Graphs
         }
         public static List<Graph> PartitionGraph(Graph graph)
         {
-
+            using var _ = OperationTimer.Start("Partitioning graph");
 
             // Determine the number of partitions for this graph
             int numberOfPartitions = DetermineNumberOfPartitions(graph);

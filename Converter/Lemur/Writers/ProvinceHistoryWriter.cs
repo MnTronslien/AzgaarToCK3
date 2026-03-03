@@ -1,3 +1,4 @@
+using Converter.Lemur;
 using L = Converter.Lemur.Entities;
 
 namespace Converter.Lemur.Writers;
@@ -11,6 +12,7 @@ public static class ProvinceHistoryWriter
 
     public static async Task Write(L.Map map, string outputDirectory)
     {
+        using var _ = OperationTimer.Start("Writing province history");
         // AllProvinces order: baronies first, then wastelands, then sea zones.
         // Province IDs are 1-based (index 0 → ID 1).
         // Only baronies need history entries (holdings, culture, religion).
