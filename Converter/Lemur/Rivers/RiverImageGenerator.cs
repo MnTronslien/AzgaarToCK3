@@ -83,7 +83,7 @@ namespace Converter.Lemur.Rivers
                 Directory.CreateDirectory(Path.GetDirectoryName(debugPath)!);
                 await riversImage.WriteAsync(debugPath);
                 ImageUtility.RegisterGeneratedImage(debugPath);
-                Logger.Info($"Debug: Saved rivers image to '{debugPath}'");
+                Logger.Debug($"Saved rivers image to '{debugPath}'");
             }
         }
 

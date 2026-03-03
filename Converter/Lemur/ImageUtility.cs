@@ -104,7 +104,7 @@ namespace Converter.Lemur
                     var path = Helper.GetPath(debugRoot, GetDebugFolderName(),"1_cells.png");
                     Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                     await cellsMap.WriteAsync(path);
-                    Logger.Info($"Debug: Saved cells image to '{path}'");
+                    Logger.Debug($"Saved cells image to '{path}'");
                     RegisterGeneratedImage(path);
                 }
             }
@@ -212,7 +212,7 @@ namespace Converter.Lemur
                     var debugPath = Helper.GetPath(debugRoot, GetDebugFolderName(),"2_baronies.png");
                     Directory.CreateDirectory(Path.GetDirectoryName(debugPath)!);
                     await cellsMap.WriteAsync(debugPath);
-                    Logger.Info($"Debug: Saved baronies image to '{debugPath}'");
+                    Logger.Debug($"Saved baronies image to '{debugPath}'");
                     RegisterGeneratedImage(debugPath);
                 }
 
@@ -281,9 +281,9 @@ namespace Converter.Lemur
                     var debugRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AzgaarToCK3", "debug");
                     var path = Helper.GetPath(debugRoot, GetDebugFolderName(), numberedName);
                     Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                    Logger.Info($"Debug: Saving {name} image to '{path}'");
+                    Logger.Debug($"Saving {name} image to '{path}'");
                     await cellsMap.WriteAsync(path);
-                    Logger.Info($"Debug: {name} image saved to '{path}'");
+                    Logger.Debug($"{name} image saved to '{path}'");
                     RegisterGeneratedImage(path);
                 }
 
@@ -348,7 +348,7 @@ namespace Converter.Lemur
                     var path = Helper.GetPath(debugRoot, GetDebugFolderName(), "2_sea_zones.png");
                     Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                     await image.WriteAsync(path);
-                    Logger.Info($"Debug: Saved sea zones image to '{path}'");
+                    Logger.Debug($"Saved sea zones image to '{path}'");
                     RegisterGeneratedImage(path);
                 }
             }
