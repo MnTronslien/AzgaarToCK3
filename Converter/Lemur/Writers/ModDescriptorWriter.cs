@@ -40,12 +40,12 @@ public static class ModDescriptorWriter
             $"replace_path=\"history/province_mappings\"",
             $"replace_path=\"common/bookmarks\"",
             $"replace_path=\"common/bookmark_portraits\"",
-            // NOTE: gfx/map/map_object_data intentionally NOT replaced.
-            // Upstream writes building/siege/combat/player_stack locator files here;
-            // Lemur does not generate them. Allowing TCS locators to load is better
-            // than CK3 finding zero locator data (null dereference → crash).
-            // TCS locator pixel coords will be wrong for our map (visual issue only).
-            // TODO: generate proper locators — see notes-for-later.md §Locators.
+            // NOTE: gfx/map/map_object_data was temporarily removed while Lemur lacked
+            // locator files. Without this replace_path, TCS's locators loaded instead
+            // (wrong pixel coords but no crash). Now that LocatorWriter generates proper
+            // building/combat/player_stack/siege locator files for our map, we must
+            // block TCS's locators so CK3 uses our correct coordinates.
+            $"replace_path=\"gfx/map/map_object_data\"",
         };
 
         if (includePath && outputDirectory != null)
