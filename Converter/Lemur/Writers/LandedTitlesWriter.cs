@@ -26,7 +26,7 @@ public static class LandedTitlesWriter
         {
             sb.AppendLine("e_orphan_0 = {");
             sb.AppendLine("\tlandless = yes");
-            sb.AppendLine("\tcolor = { 0.5 0.5 0.5 }");
+            sb.AppendLine("\tcolor = { 80 80 80 }");
             foreach (var kingdom in orphanKingdoms)
                 WriteKingdom(sb, kingdom, baroniesProvId);
             sb.AppendLine("}");
@@ -38,8 +38,9 @@ public static class LandedTitlesWriter
         {
             if (!empire.Kingdoms.Any()) continue;
             var empId = ToCk3Id("e", empire.Name, empire.Id);
+            var (er, eg, eb) = TitleColor(empire.Id);
             sb.AppendLine($"{empId} = {{");
-            sb.AppendLine($"\tcolor = {{ 0.5 0.5 0.5 }}");
+            sb.AppendLine($"\tcolor = {{ {er} {eg} {eb} }}");
             foreach (var kingdom in empire.Kingdoms)
                 WriteKingdom(sb, kingdom, baroniesProvId);
             sb.AppendLine("}");
@@ -47,9 +48,9 @@ public static class LandedTitlesWriter
         }
 
         // Vanilla stubs required by CK3 scripting — omitting these causes errors on load
-        sb.AppendLine("e_hre = { landless = yes color = { 0.5 0.5 0.5 } }");
-        sb.AppendLine("e_byzantium = { landless = yes color = { 0.5 0.5 0.5 } }");
-        sb.AppendLine("e_roman_empire = { landless = yes color = { 0.5 0.5 0.5 } }");
+        sb.AppendLine("e_hre = { landless = yes color = { 80 80 80 } }");
+        sb.AppendLine("e_byzantium = { landless = yes color = { 80 80 80 } }");
+        sb.AppendLine("e_roman_empire = { landless = yes color = { 80 80 80 } }");
 
         var path = Helper.GetPath(outputDirectory, "common", "landed_titles", "00_landed_titles.txt");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -60,8 +61,9 @@ public static class LandedTitlesWriter
     private static void WriteKingdom(StringBuilder sb, L.Kingdom kingdom, Dictionary<L.Barony, int> baroniesProvId)
     {
         var kId = ToCk3Id("k", kingdom.Name, kingdom.Id);
+        var (kr, kg, kb) = TitleColor(kingdom.Id);
         sb.AppendLine($"\t{kId} = {{");
-        sb.AppendLine($"\t\tcolor = {{ 0.5 0.5 0.5 }}");
+        sb.AppendLine($"\t\tcolor = {{ {kr} {kg} {kb} }}");
         foreach (var duchy in kingdom.Duchies)
             WriteDuchy(sb, duchy, baroniesProvId);
         sb.AppendLine($"\t}}");
@@ -70,8 +72,9 @@ public static class LandedTitlesWriter
     private static void WriteDuchy(StringBuilder sb, L.Duchy duchy, Dictionary<L.Barony, int> baroniesProvId)
     {
         var dId = ToCk3Id("d", duchy.Name, duchy.Id);
+        var (dr, dg, db) = TitleColor(duchy.Id);
         sb.AppendLine($"\t\t{dId} = {{");
-        sb.AppendLine($"\t\t\tcolor = {{ 0.5 0.5 0.5 }}");
+        sb.AppendLine($"\t\t\tcolor = {{ {dr} {dg} {db} }}");
         foreach (var county in duchy.Counties)
             WriteCounty(sb, county, baroniesProvId);
         sb.AppendLine($"\t\t}}");
@@ -80,8 +83,9 @@ public static class LandedTitlesWriter
     private static void WriteCounty(StringBuilder sb, L.County county, Dictionary<L.Barony, int> baroniesProvId)
     {
         var cId = ToCk3Id("c", county.Name, county.Id);
+        var (cr, cg, cb) = TitleColor(county.Id);
         sb.AppendLine($"\t\t\t{cId} = {{");
-        sb.AppendLine($"\t\t\t\tcolor = {{ 0.5 0.5 0.5 }}");
+        sb.AppendLine($"\t\t\t\tcolor = {{ {cr} {cg} {cb} }}");
         foreach (var barony in county.Baronies!)
         {
             if (!baroniesProvId.TryGetValue(barony, out int provId)) continue;
@@ -91,6 +95,18 @@ public static class LandedTitlesWriter
             sb.AppendLine($"\t\t\t\t}}");
         }
         sb.AppendLine($"\t\t\t}}");
+    }
+
+    /// <summary>
+    /// Derives a visually distinct integer RGB colour (0–255 each channel) from an entity ID.
+    /// Range per channel: 30–235, ensuring colours are never near-black or near-white.
+    /// </summary>
+    private static (int r, int g, int b) TitleColor(int id)
+    {
+        int r = (id * 73  + 40)  % 206 + 30;
+        int g = (id * 137 + 90)  % 206 + 30;
+        int b = (id * 31  + 160) % 206 + 30;
+        return (r, g, b);
     }
 
     /// <summary>
