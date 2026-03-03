@@ -4,8 +4,8 @@ public static class ReligionWriter
 {
     public static async Task Write(string ck3Directory, string outputDirectory)
     {
-        // ck3Directory is the "game" folder (e.g. .../Crusader Kings III/game)
-        var sourceDir = Path.Combine(ck3Directory, "common", "religion");
+        // ck3Directory is the CK3 root (e.g. .../Crusader Kings III); game files live under "game"
+        var sourceDir = Path.Combine(ck3Directory, "game", "common", "religion");
         var destDir = Path.Combine(outputDirectory, "common", "religion");
 
         if (!Directory.Exists(sourceDir))
