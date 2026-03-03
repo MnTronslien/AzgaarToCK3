@@ -25,7 +25,7 @@ public static class LocatorWriter
         {
             var path = Helper.GetPath(outputDirectory, "gfx", "map", "map_object_data", fileName);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            await File.WriteAllTextAsync(path, content, Helper.Utf8NoBom);
+            await File.WriteAllTextAsync(path, content, Helper.Utf8Bom);
         }
 
         Logger.Info($"Wrote {LocatorFileNames.Length} locator files ({baronies.Count} baronies)");
