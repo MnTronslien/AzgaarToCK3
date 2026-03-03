@@ -46,6 +46,14 @@ public static class ModDescriptorWriter
             // building/combat/player_stack/siege locator files for our map, we must
             // block TCS's locators so CK3 uses our correct coordinates.
             $"replace_path=\"gfx/map/map_object_data\"",
+            // TCS suppresses the base game's common/religion/ folder but keeps
+            // common/scripted_triggers/, which references Asian DLC religions
+            // (shintoism, confucianism, etc.) that no longer exist after TCS removes them.
+            // This floods error.log with 500 000+ "Failed to fetch valid religion" errors,
+            // filling the log cap and hiding all other diagnostics. We copy the vanilla
+            // religion folder verbatim (via ReligionWriter) and declare replace_path here
+            // so our copy takes precedence over TCS's empty version.
+            $"replace_path=\"common/religion\"",
         };
 
         if (includePath && outputDirectory != null)

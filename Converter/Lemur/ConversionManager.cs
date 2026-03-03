@@ -106,6 +106,7 @@ namespace Converter.Lemur
             await MapDefinesWriter.Write(Settings.OutputDirectory);
             await ProvinceTerrainWriter.Write(map, Settings.OutputDirectory);
             await StaticFilesWriter.Write(Settings.Instance.TotalConversionSandboxPath, Settings.OutputDirectory);
+            await ReligionWriter.Write(Settings.Instance.Ck3Directory, Settings.OutputDirectory);
             await GeographicalRegionWriter.Write(map, Settings.OutputDirectory);
             await ProvinceHistoryWriter.Write(map, Settings.OutputDirectory);
             await LocatorWriter.Write(map, Settings.OutputDirectory);
