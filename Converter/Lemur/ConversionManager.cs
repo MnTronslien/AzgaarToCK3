@@ -105,10 +105,13 @@ namespace Converter.Lemur
             await ModDescriptorWriter.Write(Settings.Instance.ModName, Settings.Instance.ModsDirectory, Settings.OutputDirectory);
             await MapDefinesWriter.Write(Settings.OutputDirectory);
             await ProvinceTerrainWriter.Write(map, Settings.OutputDirectory);
+            await TerrainMaskWriter.Write(map, Settings.OutputDirectory);
+            await FlatmapWriter.Write(map, Settings.Instance.AzgaarSvgPath, Settings.OutputDirectory);
             await StaticFilesWriter.Write(Settings.Instance.TotalConversionSandboxPath, Settings.OutputDirectory);
             await ReligionWriter.Write(Settings.Instance.Ck3Directory, Settings.OutputDirectory);
             await GeographicalRegionWriter.Write(map, Settings.OutputDirectory);
             await ProvinceHistoryWriter.Write(map, Settings.OutputDirectory);
+            await VanillaPassthroughWriter.Write(Settings.Instance.Ck3Directory, Settings.OutputDirectory);
             await LocatorWriter.Write(map, Settings.OutputDirectory);
             await BookmarkWriter.Write(map, Settings.OutputDirectory);
             await StubFilesWriter.Write(Settings.OutputDirectory);

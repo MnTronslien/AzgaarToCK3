@@ -10,7 +10,7 @@ internal class Program
     static async Task Run(string? jsonPath = null, string? geojsonPath = null, string? riversGeojsonPath = null,
         LogLevel? logLevel = null, bool noImages = false, bool? empireFromCulture = null,
         int? minDuchiesPerKingdom = null, int? minKingdomsPerEmpire = null,
-        bool noRivers = false, bool noWipe = false)
+        bool noRivers = false, bool noWipe = false, string? svgPath = null)
     {
         if (!SettingsManager.TryLoad())
         {
@@ -25,6 +25,8 @@ internal class Program
             Settings.Instance.GenerateDebugImages = false;
         if (noWipe)
             Settings.Instance.AutoWipeOutput = false;
+        if (!string.IsNullOrWhiteSpace(svgPath))
+            Settings.Instance.AzgaarSvgPath = svgPath;
 
         if (!string.IsNullOrWhiteSpace(jsonPath))
         {
@@ -138,6 +140,7 @@ internal class Program
             string? jsonPath = null;
             string? geojsonPath = null;
             string? riversGeojsonPath = null;
+            string? svgPath = null;
             LogLevel? logLevel = null;
             bool noImages = false;
             bool noRivers = false;
@@ -167,6 +170,11 @@ internal class Program
                 else if (args[i] == "--no-rivers")
                 {
                     noRivers = true;
+                }
+                else if ((args[i] == "--svg" || args[i] == "-s") && i + 1 < args.Length)
+                {
+                    svgPath = args[i + 1];
+                    i++;
                 }
                 else if (args[i] == "--no-images")
                 {
@@ -267,7 +275,7 @@ internal class Program
                 return;
             }
 
-            await Run(jsonPath, geojsonPath, riversGeojsonPath, logLevel, noImages, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire, noRivers, noWipe);
+            await Run(jsonPath, geojsonPath, riversGeojsonPath, logLevel, noImages, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire, noRivers, noWipe, svgPath);
         }
         catch (Exception ex)
         {
@@ -292,6 +300,7 @@ internal class Program
         Console.WriteLine();
         Console.WriteLine("Conversion Options:");
         Console.WriteLine("  --no-rivers                      Skip river drawing; write a blank rivers.png (runtime only, not saved)");
+        Console.WriteLine("  --svg, -s <path>                 Path to Azgaar SVG export for flatmap.dds (optional; fallback uses cell biome colors)");
         Console.WriteLine("  --log-level <verbose|debug|info|warning|error>  Set log verbosity (default: info)");
         Console.WriteLine("  --no-images                      Suppress debug image generation (provinces.png and rivers.png still written)");
         Console.WriteLine("  --no-wipe                        Skip auto-wipe of mod output directory before conversion (default: wipe enabled)");

@@ -359,7 +359,7 @@ namespace Converter.Lemur
             }
         }
 
-        private static Drawables GenerateCellPolygons(IEnumerable<Entities.Cell> cells, MagickColor color, Entities.Map map)
+        internal static Drawables GenerateCellPolygons(IEnumerable<Entities.Cell> cells, MagickColor color, Entities.Map map)
         {
             var drawables = new Drawables();
             foreach (var cell in cells)

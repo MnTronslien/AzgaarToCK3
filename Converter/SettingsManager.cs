@@ -116,6 +116,13 @@ public class Settings
     /// </summary>
     public int FarSeaZoneCount { get; set; } = 8;
 
+    /// <summary>
+    /// Optional path to the Azgaar SVG export. When set, FlatmapWriter renders
+    /// the SVG as flatmap.dds. If null or the file is not found, a biome-colored
+    /// fallback image is generated from cell data instead.
+    /// </summary>
+    public string? AzgaarSvgPath { get; set; } = null;
+
     public override string ToString()
     {
         var lines = new List<string>();

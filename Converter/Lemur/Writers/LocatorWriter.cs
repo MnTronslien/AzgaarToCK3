@@ -1,101 +1,108 @@
 using System.Globalization;
 using System.Text;
-using Converter.Lemur;
 using L = Converter.Lemur.Entities;
 
 namespace Converter.Lemur.Writers;
 
 public static class LocatorWriter
 {
-    private static readonly string[] LocatorFileNames =
+    private record LocatorSpec(
+        string FileName, string Name, string Layer,
+        bool BurgsOnly, double OffsetX, double OffsetZ);
+
+    private static readonly LocatorSpec[] Locators =
     {
-        "building_locators.txt",
-        "combat_locators.txt",
-        "player_stack_locators.txt",
-        "siege_locators.txt",
+        new("building_locators.txt",     "buildings",             "building_layer",  BurgsOnly: true,  OffsetX:   0, OffsetZ:   0),
+        new("combat_locators.txt",       "combat",                "combat_layer",    BurgsOnly: true,  OffsetX:   0, OffsetZ:  10),
+        new("siege_locators.txt",        "sieges",                "siege_layer",     BurgsOnly: true,  OffsetX:  10, OffsetZ:  -5),
+        new("player_stack_locators.txt", "unit_stack_player_owned","unit_stack_layer",BurgsOnly: false, OffsetX: -10, OffsetZ:  -5),
     };
 
     public static async Task Write(L.Map map, string outputDirectory)
     {
         using var _ = OperationTimer.Start("Writing locator files");
-        var baronies = map.Baronies!;
 
-        // Build the instances block once — all four locator files have identical content.
-        var content = BuildLocatorContent(baronies, map);
+        var dir = Helper.GetPath(outputDirectory, "gfx", "map", "map_object_data");
+        Directory.CreateDirectory(dir);
 
-        foreach (var fileName in LocatorFileNames)
+        foreach (var spec in Locators)
         {
-            var path = Helper.GetPath(outputDirectory, "gfx", "map", "map_object_data", fileName);
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            var content = BuildLocatorFile(spec, map);
+            var path = Path.Combine(dir, spec.FileName);
             await File.WriteAllTextAsync(path, content, Helper.Utf8Bom);
         }
 
-        Logger.Info($"Wrote {LocatorFileNames.Length} locator files ({baronies.Count} baronies)");
+        Logger.Info($"Wrote {Locators.Length} locator files ({map.Baronies!.Count} baronies)");
     }
 
-    private static string BuildLocatorContent(List<L.Barony> baronies, L.Map map)
+    private static string BuildLocatorFile(LocatorSpec spec, L.Map map)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("instances={");
+        sb.AppendLine("game_object_locator={");
+        sb.AppendLine($"\tname=\"{spec.Name}\"");
+        sb.AppendLine("\tclamp_to_water_level=yes");
+        sb.AppendLine("\trender_under_water=no");
+        sb.AppendLine("\tgenerated_content=no");
+        sb.AppendLine($"\tlayer=\"{spec.Layer}\"");
+        sb.AppendLine("\tinstances={");
 
-        for (int i = 0; i < baronies.Count; i++)
+        int id = 0;
+
+        // Barony (burg) provinces — apply the per-type offset
+        foreach (var barony in map.Baronies!)
         {
-            var barony = baronies[i];
-            var (pixelX, pixelZ) = ComputeCentroid(barony, map);
-
-            string x = pixelX.ToString("F6", CultureInfo.InvariantCulture);
-            string z = pixelZ.ToString("F6", CultureInfo.InvariantCulture);
-
-            sb.AppendLine("\t{");
-            sb.AppendLine($"\t\tid={i}");
-            sb.AppendLine($"\t\tposition={{ {x} 0.000000 {z} }}");
-            sb.AppendLine("\t\trotation={ 0.000000 0.000000 0.000000 1.000000 }");
-            sb.AppendLine("\t\tscale={ 1.000000 1.000000 1.000000 }");
-            sb.AppendLine("\t}");
+            var (px, pz) = ComputeCentroid(barony.Cells, map);
+            AppendInstance(sb, id++, px + spec.OffsetX, pz + spec.OffsetZ);
         }
 
+        // Non-burg land provinces (wastelands) — player_stack only, no offset
+        if (!spec.BurgsOnly)
+        {
+            foreach (var wasteland in map.Wastelands!)
+            {
+                var (px, pz) = ComputeCentroid(wasteland.Cells, map);
+                AppendInstance(sb, id++, px, pz);
+            }
+        }
+
+        sb.AppendLine("\t}");
         sb.AppendLine("}");
         return sb.ToString();
     }
 
-    /// <summary>
-    /// Returns the barony centroid in CK3 map pixel coordinates.
-    /// x = column (0..MapWidth-1), z = row (0..MapHeight-1, top = 0).
-    ///
-    /// Coordinate conversion mirrors ImageUtility.GenerateCellPolygons:
-    ///   pixel_x = (lon - map.XOffset) * map.XRatio
-    ///   pixel_z = MapHeight - (lat - map.YOffset) * map.YRatio
-    ///
-    /// GeoDataCoordinates is a float[][] of polygon vertices [lon, lat].
-    /// The centroid is the mean of all polygon vertex coordinates across all cells.
-    /// </summary>
-    private static (double x, double z) ComputeCentroid(L.Barony barony, L.Map map)
+    private static void AppendInstance(StringBuilder sb, int id, double x, double z)
     {
-        double sumX = 0;
-        double sumZ = 0;
+        string xs = x.ToString("F6", CultureInfo.InvariantCulture);
+        string zs = z.ToString("F6", CultureInfo.InvariantCulture);
+        sb.AppendLine("\t\t{");
+        sb.AppendLine($"\t\t\tid={id}");
+        sb.AppendLine($"\t\t\tposition={{ {xs} 0.000000 {zs} }}");
+        sb.AppendLine("\t\t\trotation={ 0.000000 0.000000 0.000000 1.000000 }");
+        sb.AppendLine("\t\t\tscale={ 1.000000 1.000000 1.000000 }");
+        sb.AppendLine("\t\t}");
+    }
+
+    /// <summary>
+    /// Computes the centroid of a province in CK3 map pixel coordinates
+    /// (mean of all polygon vertex coordinates across all cells).
+    /// </summary>
+    private static (double x, double z) ComputeCentroid(List<L.Cell> cells, L.Map map)
+    {
+        double sumX = 0, sumZ = 0;
         int count = 0;
 
-        foreach (var cell in barony.Cells)
+        foreach (var cell in cells)
         {
             foreach (var vertex in cell.GeoDataCoordinates)
             {
-                float lon = vertex[0];
-                float lat = vertex[1];
-
-                double px = (lon - map.XOffset) * map.XRatio;
-                double pz = L.Map.MapHeight - (lat - map.YOffset) * map.YRatio;
-
-                sumX += px;
-                sumZ += pz;
+                sumX += (vertex[0] - map.XOffset) * map.XRatio;
+                sumZ += L.Map.MapHeight - (vertex[1] - map.YOffset) * map.YRatio;
                 count++;
             }
         }
 
         if (count == 0)
-        {
-            // Fallback: place at map center if the barony somehow has no cells.
             return (L.Map.MapWidth / 2.0, L.Map.MapHeight / 2.0);
-        }
 
         return (sumX / count, sumZ / count);
     }
