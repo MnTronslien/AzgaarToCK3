@@ -111,7 +111,6 @@ namespace Converter.Lemur
             await ReligionWriter.Write(Settings.Instance.Ck3Directory, Settings.OutputDirectory);
             await GeographicalRegionWriter.Write(map, Settings.OutputDirectory);
             await ProvinceHistoryWriter.Write(map, Settings.OutputDirectory);
-            await VanillaPassthroughWriter.Write(Settings.Instance.Ck3Directory, Settings.OutputDirectory);
             await LocatorWriter.Write(map, Settings.OutputDirectory);
             await BookmarkWriter.Write(map, Settings.OutputDirectory);
             await StubFilesWriter.Write(Settings.OutputDirectory);
