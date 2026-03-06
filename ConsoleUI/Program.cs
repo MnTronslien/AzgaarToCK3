@@ -369,7 +369,8 @@ internal class Program
         foreach (var file in Directory.GetFiles(outputDir))
             File.Delete(file);
         foreach (var dir in Directory.GetDirectories(outputDir))
-            Directory.Delete(dir, recursive: true);
+            if (Path.GetFileName(dir) != ".git")
+                Directory.Delete(dir, recursive: true);
         Logger.Info("Output directory wiped.");
     }
 
