@@ -7,6 +7,7 @@ namespace Converter.Lemur
     using Converter.Lemur.Deserialization;
     using Converter.Lemur.Graphs;
     using Converter.Lemur.Rivers;
+    using Converter.Lemur.Provinces;
     using Converter.Lemur.Writers;
     using ImageMagick;
     using static Converter.Lemur.Entities.Cell;
@@ -111,6 +112,11 @@ namespace Converter.Lemur
             await ReligionWriter.Write(Settings.Instance.Ck3Directory, Settings.OutputDirectory);
             await GeographicalRegionWriter.Write(map, Settings.OutputDirectory);
             await ProvinceHistoryWriter.Write(map, Settings.OutputDirectory);
+            ProvinceHistoryValidator.Validate(
+                Helper.GetPath(Settings.OutputDirectory, "history", "provinces"),
+                out var provinceHistoryErrors);
+            foreach (var e in provinceHistoryErrors)
+                Logger.Warning(e);
             await LocatorWriter.Write(map, Settings.OutputDirectory);
             await BookmarkWriter.Write(map, Settings.OutputDirectory);
             await StubFilesWriter.Write(Settings.OutputDirectory);
