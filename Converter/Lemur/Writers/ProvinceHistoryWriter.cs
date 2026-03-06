@@ -13,32 +13,47 @@ public static class ProvinceHistoryWriter
     public static async Task Write(L.Map map, string outputDirectory)
     {
         using var _ = OperationTimer.Start("Writing province history");
-        // AllProvinces order: baronies first, then wastelands, then sea zones.
-        // Province IDs are 1-based (index 0 → ID 1).
-        // Only baronies need history entries (holdings, culture, religion).
+
+        // Build barony → province ID lookup (1-based, baronies are first in AllProvinces).
         var baronies = map.Baronies!;
-
-        var lines = new List<string>
-        {
-            "# Lemur: placeholder province history — english/catholic for all baronies.",
-            "# TODO: derive culture and religion from Azgaar map data.",
-            ""
-        };
-
+        var baroniesProvId = new Dictionary<L.Barony, int>(baronies.Count);
         for (int i = 0; i < baronies.Count; i++)
+            baroniesProvId[baronies[i]] = i + 1;
+
+        var dir = Helper.GetPath(outputDirectory, "history", "provinces");
+        Directory.CreateDirectory(dir);
+
+        int totalBaronies = 0;
+        var tasks = new List<Task>();
+
+        foreach (var kingdom in map.Kingdoms)
         {
-            int provinceId = i + 1;
-            lines.Add($"{provinceId} = {{");
-            lines.Add($"\tculture = {PlaceholderCulture}");
-            lines.Add($"\treligion = {PlaceholderReligion}");
-            lines.Add("\tholding = auto");
-            lines.Add("}");
-            lines.Add("");
+            var lines = new List<string>
+            {
+                $"# Lemur: placeholder province history for {kingdom.Name}.",
+                ""
+            };
+
+            foreach (var duchy in kingdom.Duchies)
+            foreach (var county in duchy.Counties)
+            foreach (var barony in county.Baronies!)
+            {
+                if (!baroniesProvId.TryGetValue(barony, out int provId)) continue;
+                lines.Add($"{provId} = {{");
+                lines.Add($"\tculture = {PlaceholderCulture}");
+                lines.Add($"\treligion = {PlaceholderReligion}");
+                lines.Add("\tholding = auto");
+                lines.Add("}");
+                lines.Add("");
+                totalBaronies++;
+            }
+
+            var fileName = LandedTitlesWriter.ToCk3Id("k", kingdom.Name, kingdom.Id) + ".txt";
+            var path = Path.Combine(dir, fileName);
+            tasks.Add(File.WriteAllLinesAsync(path, lines, Helper.Utf8Bom));
         }
 
-        var path = Helper.GetPath(outputDirectory, "history", "provinces", "00_lemur_provinces.txt");
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        await File.WriteAllLinesAsync(path, lines, Helper.Utf8Bom);
-        Logger.Info($"Wrote 00_lemur_provinces.txt ({baronies.Count} baronies)");
+        await Task.WhenAll(tasks);
+        Logger.Info($"Wrote {map.Kingdoms.Count} province history files ({totalBaronies} baronies)");
     }
 }

@@ -114,7 +114,7 @@ public static class LandedTitlesWriter
     /// Pattern: {prefix}_{lowercase_underscored_ascii_name}_{id}
     /// Example: ToCk3Id("e", "Roman Empire", 5) → "e_roman_empire_5"
     /// </summary>
-    internal static string ToCk3Id(string prefix, string name, int id)
+    public static string ToCk3Id(string prefix, string name, int id)
     {
         var lower = name.ToLowerInvariant();
         var underscored = Regex.Replace(lower, @"[\s\-]+", "_");
