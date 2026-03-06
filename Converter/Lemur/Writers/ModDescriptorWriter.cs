@@ -30,30 +30,6 @@ public static class ModDescriptorWriter
             $"}}",
             $"name=\"{modName}\"",
             $"supported_version=\"1.12.*\"",
-            $"replace_path=\"map_data\"",
-            $"replace_path=\"common/landed_titles\"",
-            $"replace_path=\"common/province_terrain\"",
-            $"replace_path=\"common/defines\"",
-            $"replace_path=\"history/titles\"",
-            $"replace_path=\"history/characters\"",
-            $"replace_path=\"history/provinces\"",
-            $"replace_path=\"history/province_mappings\"",
-            $"replace_path=\"common/bookmarks\"",
-            $"replace_path=\"common/bookmark_portraits\"",
-            // NOTE: gfx/map/map_object_data was temporarily removed while Lemur lacked
-            // locator files. Without this replace_path, TCS's locators loaded instead
-            // (wrong pixel coords but no crash). Now that LocatorWriter generates proper
-            // building/combat/player_stack/siege locator files for our map, we must
-            // block TCS's locators so CK3 uses our correct coordinates.
-            $"replace_path=\"gfx/map/map_object_data\"",
-            // TCS suppresses the base game's common/religion/ folder but keeps
-            // common/scripted_triggers/, which references Asian DLC religions
-            // (shintoism, confucianism, etc.) that no longer exist after TCS removes them.
-            // This floods error.log with 500 000+ "Failed to fetch valid religion" errors,
-            // filling the log cap and hiding all other diagnostics. We copy the vanilla
-            // religion folder verbatim (via ReligionWriter) and declare replace_path here
-            // so our copy takes precedence over TCS's empty version.
-            $"replace_path=\"common/religion\"",
         };
 
         if (includePath && outputDirectory != null)
