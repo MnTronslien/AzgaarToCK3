@@ -123,6 +123,13 @@ public class Settings
     /// </summary>
     public string? AzgaarSvgPath { get; set; } = null;
 
+    /// <summary>
+    /// Per-writer on/off switches. All default to true (current behaviour unchanged).
+    /// Set individual flags to false in settings.json to skip specific writers during
+    /// bisection testing.
+    /// </summary>
+    public WriterFlags Writers { get; set; } = new();
+
     public override string ToString()
     {
         var lines = new List<string>();
@@ -135,7 +142,27 @@ public class Settings
     }
 }
 
+public class WriterFlags
+{
+    public bool DefinitionCsv { get; set; } = true;
+    public bool DefaultMap { get; set; } = true;
+    public bool Adjacencies { get; set; } = true;
+    public bool MapStaticFiles { get; set; } = true;
+    public bool GeographicalRegions { get; set; } = true;
+    public bool LandedTitles { get; set; } = true;
+    public bool ProvinceTerrain { get; set; } = true;
+    public bool MapDefines { get; set; } = true;
+    public bool Religion { get; set; } = true;
+    public bool TerrainMasks { get; set; } = true;
+    public bool Flatmap { get; set; } = true;
+    public bool Locators { get; set; } = true;
+    public bool Characters { get; set; } = true;
+    public bool TitleHistory { get; set; } = true;
+    public bool ProvinceHistory { get; set; } = true;
+}
+
 [JsonSerializable(typeof(Settings))]
+[JsonSerializable(typeof(WriterFlags))]
 [JsonSourceGenerationOptions(WriteIndented = true, AllowTrailingCommas = true,
     PropertyNameCaseInsensitive = true, UseStringEnumConverter = true)]
 public partial class SettingsJsonContext : JsonSerializerContext { }

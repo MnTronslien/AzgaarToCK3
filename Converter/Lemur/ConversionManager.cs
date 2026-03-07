@@ -71,18 +71,23 @@ namespace Converter.Lemur
             await ShowSeaZones(map);
             await ShowBaronies(map);
 
-            await DefinitionCsvWriter.Write(map.AllProvinces!, Settings.OutputDirectory);
+            var w = Settings.Instance.Writers;
+
+            if (w.DefinitionCsv)
+                await DefinitionCsvWriter.Write(map.AllProvinces!, Settings.OutputDirectory);
 
             var seaZoneIndices = map.SeaZones!
                 .Concat(map.FarSeaZones!)
                 .Select(sz => map.AllProvinces!.IndexOf(sz) + 1);
             var wastelandIndices = map.Wastelands!
-                .Select(w => map.AllProvinces!.IndexOf(w) + 1);
+                .Select(w2 => map.AllProvinces!.IndexOf(w2) + 1);
             var farSeaZoneIndices = map.FarSeaZones!
                 .Select(fz => map.AllProvinces!.IndexOf(fz) + 1);
-            await DefaultMapWriter.Write(seaZoneIndices, wastelandIndices, farSeaZoneIndices, Settings.OutputDirectory);
+            if (w.DefaultMap)
+                await DefaultMapWriter.Write(seaZoneIndices, wastelandIndices, farSeaZoneIndices, Settings.OutputDirectory);
 
-            await AdjacenciesCsvWriter.Write(Settings.OutputDirectory);
+            if (w.Adjacencies)
+                await AdjacenciesCsvWriter.Write(Settings.OutputDirectory);
 
             GenerateBaronyAdjacency(map);
             GenerateCounties(map);
@@ -104,24 +109,38 @@ namespace Converter.Lemur
             CharacterFactory.CreateAndAssignAll(map);
 
             // Write CK3 mod files
-            await LandedTitlesWriter.Write(map, Settings.OutputDirectory);
+            if (w.LandedTitles)
+                await LandedTitlesWriter.Write(map, Settings.OutputDirectory);
             await ModDescriptorWriter.Write(Settings.Instance.ModName, Settings.Instance.ModsDirectory, Settings.OutputDirectory);
-            await MapDefinesWriter.Write(Settings.OutputDirectory);
-            await ProvinceTerrainWriter.Write(map, Settings.OutputDirectory);
-            await TerrainMaskWriter.Write(map, Settings.OutputDirectory);
-            await FlatmapWriter.Write(map, Settings.Instance.AzgaarSvgPath, Settings.OutputDirectory);
-            await StaticFilesWriter.Write(Settings.Instance.TotalConversionSandboxPath, Settings.OutputDirectory);
-            await ReligionWriter.Write(Settings.Instance.Ck3Directory, Settings.OutputDirectory);
-            await GeographicalRegionWriter.Write(map, Settings.OutputDirectory);
-            await ProvinceHistoryWriter.Write(map, Settings.OutputDirectory);
-            ProvinceHistoryValidator.Validate(
-                Helper.GetPath(Settings.OutputDirectory, "history", "provinces"),
-                out var provinceHistoryErrors);
-            foreach (var e in provinceHistoryErrors)
-                Logger.Warning(e);
-            await LocatorWriter.Write(map, Settings.OutputDirectory);
-            await CharacterWriter.Write(map, Settings.OutputDirectory);
-            await TitleHistoryWriter.Write(map, Settings.OutputDirectory);
+            if (w.MapDefines)
+                await MapDefinesWriter.Write(Settings.OutputDirectory);
+            if (w.ProvinceTerrain)
+                await ProvinceTerrainWriter.Write(map, Settings.OutputDirectory);
+            if (w.TerrainMasks)
+                await TerrainMaskWriter.Write(map, Settings.OutputDirectory);
+            if (w.Flatmap)
+                await FlatmapWriter.Write(map, Settings.Instance.AzgaarSvgPath, Settings.OutputDirectory);
+            if (w.MapStaticFiles)
+                await StaticFilesWriter.Write(Settings.Instance.TotalConversionSandboxPath, Settings.OutputDirectory);
+            if (w.Religion)
+                await ReligionWriter.Write(Settings.Instance.Ck3Directory, Settings.OutputDirectory);
+            if (w.GeographicalRegions)
+                await GeographicalRegionWriter.Write(map, Settings.OutputDirectory);
+            if (w.ProvinceHistory)
+            {
+                await ProvinceHistoryWriter.Write(map, Settings.OutputDirectory);
+                ProvinceHistoryValidator.Validate(
+                    Helper.GetPath(Settings.OutputDirectory, "history", "provinces"),
+                    out var provinceHistoryErrors);
+                foreach (var e in provinceHistoryErrors)
+                    Logger.Warning(e);
+            }
+            if (w.Locators)
+                await LocatorWriter.Write(map, Settings.OutputDirectory);
+            if (w.Characters)
+                await CharacterWriter.Write(map, Settings.OutputDirectory);
+            if (w.TitleHistory)
+                await TitleHistoryWriter.Write(map, Settings.OutputDirectory);
 
             Logger.Info("Finished conversion!");
 
