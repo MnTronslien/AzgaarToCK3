@@ -122,7 +122,6 @@ namespace Converter.Lemur
             await LocatorWriter.Write(map, Settings.OutputDirectory);
             await CharacterWriter.Write(map, Settings.OutputDirectory);
             await TitleHistoryWriter.Write(map, Settings.OutputDirectory);
-            await BookmarkWriter.Write(map, Settings.OutputDirectory);
             await StubFilesWriter.Write(Settings.OutputDirectory);
 
             Logger.Info("Finished conversion!");
