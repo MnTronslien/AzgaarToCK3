@@ -23,6 +23,7 @@ namespace Converter.Lemur.Entities
         public AzgaarReligion Religion { get; set; }
 
         public ITitle? Parent { get; set; }
+        public Character? Holder { get; set; }
 
         public List<Cell> GetAllCells()
         {

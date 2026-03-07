@@ -42,6 +42,10 @@ namespace Converter.Lemur.Entities
 
         public List<IProvince>? AllProvinces { get; set; }
 
+        public List<Character> Characters { get; set; } = new();
+        public List<Culture> Cultures { get; set; } = new();
+        public List<Religion> Religions { get; set; } = new();
+
         public override string ToString()
         {
             // Return the name of the map and the number of cells in the packed map

@@ -101,6 +101,8 @@ namespace Converter.Lemur
             await ShowKingdoms(map);
             await ShowEmpires(map);
 
+            CharacterFactory.CreateAndAssignAll(map);
+
             // Write CK3 mod files
             await LandedTitlesWriter.Write(map, Settings.OutputDirectory);
             await ModDescriptorWriter.Write(Settings.Instance.ModName, Settings.Instance.ModsDirectory, Settings.OutputDirectory);
@@ -118,6 +120,8 @@ namespace Converter.Lemur
             foreach (var e in provinceHistoryErrors)
                 Logger.Warning(e);
             await LocatorWriter.Write(map, Settings.OutputDirectory);
+            await CharacterWriter.Write(map, Settings.OutputDirectory);
+            await TitleHistoryWriter.Write(map, Settings.OutputDirectory);
             await BookmarkWriter.Write(map, Settings.OutputDirectory);
             await StubFilesWriter.Write(Settings.OutputDirectory);
 

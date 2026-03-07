@@ -3,12 +3,12 @@ using L = Converter.Lemur.Entities;
 namespace Converter.Lemur.Writers;
 
 /// <summary>
-/// Writes the minimum CK3 files needed to avoid a crash at the bookmark/character-selection screen:
-///   - history/titles/00_lemur_titles.txt            (gives TCS character 20842 our first county)
+/// Writes the CK3 bookmark override file:
 ///   - common/bookmarks/bookmarks/z_lemur_bookmarks.txt
 ///       Overrides the TCS "bm_1066_canarias" bookmark (which references c_canarias —
 ///       a title that does not exist in our mod) with a version pointing to our first county.
-///       Reuses TCS character 20842 (Guanarigato) directly — no custom character needed.
+///       Reuses TCS character 20842 (Guanarigato) directly — TCS defines him, no replace_path
+///       on history/characters means TCS characters remain available.
 ///       The z_ prefix ensures LIOS: this file loads after 00_bookmarks.txt and wins.
 /// </summary>
 public static class BookmarkWriter
@@ -30,53 +30,7 @@ public static class BookmarkWriter
         var firstCounty = map.Counties!.First();
         var countyId = LandedTitlesWriter.ToCk3Id("c", firstCounty.Name, firstCounty.Id);
 
-        await WriteCharacters(outputDirectory);
-        await WriteTitleHistory(outputDirectory, countyId);
         await WriteBookmark(outputDirectory, countyId);
-    }
-
-    private static async Task WriteCharacters(string outputDirectory)
-    {
-        var lines = new[]
-        {
-            $"# Lemur: minimal definition for bookmark character (TCS character {TcsCharacterId} / Guanarigato).",
-            $"# Required because replace_path=\"history/characters\" blocks TCS's berber.txt.",
-            $"{TcsCharacterId} = {{",
-            $"\tname = \"{TcsCharacterName}\"",
-            $"\tculture = {TcsCulture}",
-            $"\treligion = \"{TcsReligion}\"",
-            $"\tdynasty = {TcsDynasty}",
-            $"\t{TcsBirthDate} = {{",
-            $"\t\tbirth = yes",
-            $"\t}}",
-            $"\t1089.1.1 = {{",
-            $"\t\tdeath = yes",
-            $"\t}}",
-            $"}}"
-        };
-
-        var path = Helper.GetPath(outputDirectory, "history", "characters", "00_lemur_characters.txt");
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        await File.WriteAllLinesAsync(path, lines, Helper.Utf8Bom);
-        Logger.Info($"Wrote 00_lemur_characters.txt (TCS character {TcsCharacterId} / Guanarigato)");
-    }
-
-    private static async Task WriteTitleHistory(string outputDirectory, string countyId)
-    {
-        var lines = new[]
-        {
-            $"# Lemur: give TCS character {TcsCharacterId} (Guanarigato) our first county.",
-            $"{countyId} = {{",
-            $"\t{StartDate} = {{",
-            $"\t\tholder = {TcsCharacterId}",
-            $"\t}}",
-            $"}}"
-        };
-
-        var path = Helper.GetPath(outputDirectory, "history", "titles", "00_lemur_titles.txt");
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        await File.WriteAllLinesAsync(path, lines, Helper.Utf8Bom);
-        Logger.Info($"Wrote 00_lemur_titles.txt ({countyId} → TCS character {TcsCharacterId})");
     }
 
     private static async Task WriteBookmark(string outputDirectory, string countyId)
