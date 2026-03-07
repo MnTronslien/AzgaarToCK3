@@ -46,8 +46,9 @@ public static class StaticFilesWriter
         // island_region.txt — no islands to declare
         await File.WriteAllTextAsync(Helper.GetPath(mapDataDir, "island_region.txt"), "", enc);
 
-        // positions.txt — empty (CK3 can derive positions from provinces)
-        await File.WriteAllTextAsync(Helper.GetPath(mapDataDir, "positions.txt"), "", enc);
+        // positions.txt — intentionally NOT written. Writing an empty file overrides
+        // TCS's positions.txt and centers all map objects (armies, cities, ports) at
+        // province midpoints. Omitting it lets CK3 fall through to TCS/vanilla data.
 
         // heightmap.heightmap — config for the TCS binary PNGs we copy verbatim.
         //
@@ -71,7 +72,7 @@ public static class StaticFilesWriter
             "max_compress_level=4\n" +
             "empty_tile_offset={ 0 0 }\n", enc);
 
-        Logger.Info("Wrote static map_data text files (seasons, climate, island_region, positions, heightmap.heightmap)");
+        Logger.Info("Wrote static map_data text files (seasons, climate, island_region, heightmap.heightmap)");
     }
 
     private static void CopyHeightmapBinaries(string tcsSandboxPath, string mapDataDir)
