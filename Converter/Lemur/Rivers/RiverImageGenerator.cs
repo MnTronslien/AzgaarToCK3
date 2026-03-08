@@ -44,17 +44,40 @@ namespace Converter.Lemur.Rivers
         /// </summary>
         private static async Task SaveRiversImage(MagickImage riversImage, string debugFileName)
         {
+            // TCS provides rivers.png in its map_data — the base CK3 game does NOT ship one.
+            // We must use the TCS copy as the palette reference; the base game path is a
+            // fallback only (it will not exist on a standard install).
+            // If neither exists we write an ERROR — auto-quantizing a 2-color image produces
+            // a 2-entry PLTE which causes CK3 to OOM on map load.
+            var tcsRiversPath = Path.Combine(
+                Settings.Instance.TotalConversionSandboxPath, "map_data", "rivers.png");
             var ck3RiversPath = Path.Combine(
                 Settings.Instance.Ck3Directory, "game", "map_data", "rivers.png");
-            if (File.Exists(ck3RiversPath))
+
+            string? paletteRefPath = null;
+            if (File.Exists(tcsRiversPath))
+                paletteRefPath = tcsRiversPath;
+            else if (File.Exists(ck3RiversPath))
+                paletteRefPath = ck3RiversPath;
+
+            // Read the reference palette bytes (PLTE chunk) from the reference file now,
+            // before Map() — we will patch them into the output after writing.
+            byte[]? refPltBytes = paletteRefPath != null ? ReadPngPlteBytes(paletteRefPath) : null;
+
+            if (paletteRefPath != null)
             {
-                using var paletteRef = new MagickImage(ck3RiversPath);
+                using var paletteRef = new MagickImage(paletteRefPath);
                 riversImage.Map(paletteRef, new QuantizeSettings { DitherMethod = DitherMethod.No });
-                Logger.Info("  Applied CK3 palette from game reference file.");
+                Logger.Info($"  Mapped colors from '{paletteRefPath}'");
             }
             else
             {
-                Logger.Warning($"  WARNING: CK3 rivers.png not found at '{ck3RiversPath}' — auto-quantizing.");
+                Logger.Error($"  ERROR: No rivers.png palette reference found.\n" +
+                    $"    Tried TCS:       '{tcsRiversPath}'\n" +
+                    $"    Tried base game: '{ck3RiversPath}'\n" +
+                    $"    Output rivers.png will have a WRONG palette — CK3 will OOM on map load.\n" +
+                    $"    Ensure the Total Conversion Sandbox mod is installed in Steam.");
+                // Still write a file so the converter finishes, but flag it clearly.
                 riversImage.Quantize(new QuantizeSettings { Colors = 256, DitherMethod = DitherMethod.No });
             }
             riversImage.ColorType = ColorType.Palette;
@@ -68,6 +91,18 @@ namespace Converter.Lemur.Rivers
             var outputPath = Helper.GetPath(Settings.OutputDirectory, "map_data", "rivers.png");
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
             await riversImage.WriteAsync(outputPath);
+
+            // Post-patch: ImageMagick strips unused palette entries at write time regardless
+            // of ColormapSize / SetColormapColor calls. CK3 requires all 256 entries present
+            // (blank rivers image has 2 colors → 2-entry PLTE → OOM on map load).
+            // Directly replace the PLTE chunk bytes in the written file with the reference palette.
+            if (refPltBytes != null)
+            {
+                var patched = ReplacePngPlte(await File.ReadAllBytesAsync(outputPath), refPltBytes);
+                await File.WriteAllBytesAsync(outputPath, patched);
+                Logger.Info($"  Patched PLTE → {refPltBytes.Length / 3} palette entries");
+            }
+
             Logger.Info($"\nRivers image saved to '{outputPath}'");
 
             if (Settings.Instance.GenerateDebugImages)
@@ -480,6 +515,99 @@ namespace Converter.Lemur.Rivers
             var mapName = Path.GetFileNameWithoutExtension(Settings.Instance.InputJsonPath);
             var timestamp = DateTime.Now.ToString("yyyy.MM.dd_HH.mm");
             return $"{mapName}_{timestamp}";
+        }
+
+        /// <summary>
+        /// Reads the raw PLTE chunk data bytes (R,G,B triples, no length/type/CRC) from a PNG file.
+        /// Returns null if the file has no PLTE chunk.
+        /// </summary>
+        private static byte[]? ReadPngPlteBytes(string path)
+        {
+            var data = File.ReadAllBytes(path);
+            int pos = 8; // skip PNG signature
+            while (pos + 12 <= data.Length)
+            {
+                int chunkLen = (data[pos] << 24) | (data[pos+1] << 16) | (data[pos+2] << 8) | data[pos+3];
+                if (data[pos+4] == 'P' && data[pos+5] == 'L' && data[pos+6] == 'T' && data[pos+7] == 'E')
+                {
+                    var plte = new byte[chunkLen];
+                    Array.Copy(data, pos + 8, plte, 0, chunkLen);
+                    return plte;
+                }
+                pos += 12 + chunkLen;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Returns a copy of <paramref name="pngBytes"/> with its PLTE chunk data replaced by
+        /// <paramref name="newPlteData"/> (R,G,B triples). The CRC is recalculated.
+        /// </summary>
+        private static byte[] ReplacePngPlte(byte[] pngBytes, byte[] newPlteData)
+        {
+            // Find the existing PLTE chunk
+            int pos = 8;
+            while (pos + 12 <= pngBytes.Length)
+            {
+                int oldLen = (pngBytes[pos] << 24) | (pngBytes[pos+1] << 16) | (pngBytes[pos+2] << 8) | pngBytes[pos+3];
+                if (pngBytes[pos+4] == 'P' && pngBytes[pos+5] == 'L' && pngBytes[pos+6] == 'T' && pngBytes[pos+7] == 'E')
+                {
+                    int newLen = newPlteData.Length;
+                    int oldChunkTotal = 12 + oldLen;   // length(4) + type(4) + data + crc(4)
+                    int newChunkTotal = 12 + newLen;
+                    var result = new byte[pngBytes.Length - oldChunkTotal + newChunkTotal];
+
+                    // Copy bytes before this chunk
+                    Array.Copy(pngBytes, 0, result, 0, pos);
+
+                    // Write new chunk length (big-endian)
+                    result[pos]   = (byte)(newLen >> 24);
+                    result[pos+1] = (byte)(newLen >> 16);
+                    result[pos+2] = (byte)(newLen >> 8);
+                    result[pos+3] = (byte)(newLen);
+
+                    // Write type "PLTE"
+                    result[pos+4] = (byte)'P';
+                    result[pos+5] = (byte)'L';
+                    result[pos+6] = (byte)'T';
+                    result[pos+7] = (byte)'E';
+
+                    // Write new palette data
+                    Array.Copy(newPlteData, 0, result, pos + 8, newLen);
+
+                    // Recalculate CRC over type + data
+                    var crcInput = new byte[4 + newLen];
+                    Array.Copy(result, pos + 4, crcInput, 0, 4);  // type bytes ("PLTE")
+                    Array.Copy(newPlteData, 0, crcInput, 4, newLen);
+                    uint crc = PngCrc32(crcInput);
+                    result[pos+8+newLen]   = (byte)(crc >> 24);
+                    result[pos+8+newLen+1] = (byte)(crc >> 16);
+                    result[pos+8+newLen+2] = (byte)(crc >> 8);
+                    result[pos+8+newLen+3] = (byte)(crc);
+
+                    // Copy remaining bytes after old chunk
+                    Array.Copy(pngBytes, pos + oldChunkTotal, result, pos + newChunkTotal,
+                        pngBytes.Length - pos - oldChunkTotal);
+
+                    return result;
+                }
+                pos += 12 + oldLen;
+            }
+            // No PLTE found — return unchanged (should not happen for palette PNGs)
+            return pngBytes;
+        }
+
+        /// <summary>CRC-32 as used by PNG (polynomial 0xEDB88320, reflected).</summary>
+        private static uint PngCrc32(byte[] data)
+        {
+            uint crc = 0xFFFFFFFF;
+            foreach (byte b in data)
+            {
+                crc ^= b;
+                for (int i = 0; i < 8; i++)
+                    crc = (crc & 1) != 0 ? (crc >> 1) ^ 0xEDB88320 : crc >> 1;
+            }
+            return crc ^ 0xFFFFFFFF;
         }
     }
 }
