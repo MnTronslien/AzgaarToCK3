@@ -8,7 +8,7 @@ namespace Converter.Lemur.Rivers
     public static class RiverImageGenerator
     {
         /// <summary>
-        /// Creates the base rivers image: white (land) background with hot-pink ocean polygons.
+        /// Creates the base rivers image: hot-pink background with white land polygons.
         /// Caller is responsible for disposing the returned image.
         /// </summary>
         private static MagickImage CreateBaseRiversImage(Entities.Map map)
@@ -19,17 +19,17 @@ namespace Converter.Lemur.Rivers
                 Height = Entities.Map.MapHeight
             };
 
-            var image = new MagickImage("xc:white", settings);
+            var image = new MagickImage("xc:#ff0080", settings);
 
-            // Draw ocean as hot-pink (CK3 convention: RGB 255, 0, 128 = #ff0080)
-            var oceanColor = new MagickColor(255, 0, 128);
+            // Draw land cells as white
+            var landColor = new MagickColor(255, 255, 255);
             var drawables = new Drawables();
-            foreach (var cell in map.Cells!.Values.Where(c => !Entities.Cell.IsDryLand(c.Type)))
+            foreach (var cell in map.Cells!.Values.Where(c => Entities.Cell.IsDryLand(c.Type)))
             {
                 drawables
                     .DisableStrokeAntialias()
-                    .StrokeColor(oceanColor)
-                    .FillColor(oceanColor)
+                    .StrokeColor(landColor)
+                    .FillColor(landColor)
                     .Polygon(cell.GeoDataCoordinates.Select(n =>
                         Helper.GeoToPixel(n[0], n[1], map)));
             }
@@ -44,26 +44,33 @@ namespace Converter.Lemur.Rivers
         /// </summary>
         private static async Task SaveRiversImage(MagickImage riversImage, string debugFileName)
         {
-            var ck3RiversPath = Path.Combine(
-                Settings.Instance.Ck3Directory, "game", "map_data", "rivers.png");
-            if (File.Exists(ck3RiversPath))
-            {
-                using var paletteRef = new MagickImage(ck3RiversPath);
-                riversImage.Map(paletteRef, new QuantizeSettings { DitherMethod = DitherMethod.No });
-                Logger.Info("  Applied CK3 palette from game reference file.");
-            }
-            else
-            {
-                Logger.Warning($"  WARNING: CK3 rivers.png not found at '{ck3RiversPath}' — auto-quantizing.");
-                riversImage.Quantize(new QuantizeSettings { Colors = 256, DitherMethod = DitherMethod.No });
-            }
-            riversImage.ColorType = ColorType.Palette;
-            // Force 8-bit depth — CK3 requires 8-bit indexed palette PNG.
-            // ImageMagick auto-optimises to 1-bit when only 2 colours are
-            // present (e.g. blank rivers image), which CK3 rejects.
-            // Setting riversImage.Depth = 8 does NOT work for palette PNGs;
-            // we must use the png:bit-depth define instead.
-            riversImage.Settings.SetDefine(MagickFormat.Png, "bit-depth", 8);
+            // Force PNG palette type (color-type 1 = indexed/palette) before mapping.
+            // This ensures CK3's expected 8-bit indexed format regardless of how many
+            // unique colors are present (e.g. blank rivers image with only 2 colors).
+            riversImage.Settings.SetDefine("png:color-type", "1");
+
+            string[] colormap = [
+                "#00FF00",
+                "#FF0000",
+                "#FFFC00",
+                "#00E1FF",
+                "#00C8FF",
+                "#0096FF",
+                "#0064FF",
+                "#0000FF",
+                "#0000E1",
+                "#0000C8",
+                "#000096",
+                "#000064",
+                "#005500",
+                "#007D00",
+                "#009E00",
+                "#18CE00",
+                "#FF0080",
+                "#FFFFFF",
+            ];
+            riversImage.Map(colormap.Select(n => new MagickColor(n)));
+            Logger.Info($"  Applied hardcoded CK3 rivers colormap ({colormap.Length} entries).");
 
             var outputPath = Helper.GetPath(Settings.OutputDirectory, "map_data", "rivers.png");
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
