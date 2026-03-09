@@ -122,6 +122,8 @@ namespace Converter.Lemur
                 await FlatmapWriter.Write(map, Settings.Instance.AzgaarSvgPath, Settings.OutputDirectory);
             if (w.MapStaticFiles)
                 await StaticFilesWriter.Write(Settings.Instance.TotalConversionSandboxPath, Settings.OutputDirectory);
+            if (w.Heightmap)
+                await HeightmapWriter.Write(map, Settings.OutputDirectory);
             if (w.Religion)
                 await ReligionWriter.Write(Settings.Instance.Ck3Directory, Settings.OutputDirectory);
             if (w.GeographicalRegions)
