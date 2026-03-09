@@ -10,13 +10,26 @@ public static class MapDefinesWriter
         Directory.CreateDirectory(definesDir);
 
         // mapsize_defines.txt — extents are 0-based max (width-1, height-1)
-        // WATERLEVEL = (150.0 / 255.0) * 20.0 ≈ 11.765 (matches TCS elevation scale)
+        //
+        // WATERLEVEL derivation:
+        //   HeightmapWriter draws land at greyscale [CK3WaterLevel=20, 255] and ocean at grey=0.
+        //   The greyscale-to-world-height mapping is: world_height = (grey / 255.0) * WORLD_EXTENTS_Y
+        //   With WORLD_EXTENTS_Y=150:
+        //     ocean (grey=0)     → world_height = 0.0
+        //     land_min (grey=20) → world_height = (20/255)*150 ≈ 11.765
+        //   WATERLEVEL must sit strictly between ocean (0.0) and land_min (11.765) so that
+        //   grey=0 pixels render as sea and grey=20 pixels render as land.
+        //   We use grey=10 (midpoint) → world_height = (10/255)*150 ≈ 5.882.
+        //   Upstream uses MaxElevation=51: WATERLEVEL=(20/255)*51≈4.0 with the same logic.
+        const double worldExtentsY = 150.0;
+        const double waterLevelGrey = 10.0;  // midpoint between grey=0 (ocean) and grey=20 (land_min)
+        var waterLevel = (waterLevelGrey / 255.0) * worldExtentsY;
         var mapContent =
             "NJominiMap = {\n" +
             $"\tWORLD_EXTENTS_X = {L.Map.MapWidth - 1}\n" +
-            "\tWORLD_EXTENTS_Y = 150\n" +
+            $"\tWORLD_EXTENTS_Y = {(int)worldExtentsY}\n" +
             $"\tWORLD_EXTENTS_Z = {L.Map.MapHeight - 1}\n" +
-            "\tWATERLEVEL = 11.765\n" +
+            $"\tWATERLEVEL = {waterLevel:F3}\n" +
             "}\n";
 
         var mapPath = Helper.GetPath(definesDir, "mapsize_defines.txt");
