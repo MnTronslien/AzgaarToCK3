@@ -11,25 +11,23 @@ public static class MapDefinesWriter
 
         // mapsize_defines.txt — extents are 0-based max (width-1, height-1)
         //
-        // WATERLEVEL derivation:
-        //   HeightmapWriter draws land at greyscale [CK3WaterLevel=20, 255] and ocean at grey=0.
-        //   The greyscale-to-world-height mapping is: world_height = (grey / 255.0) * WORLD_EXTENTS_Y
-        //   With WORLD_EXTENTS_Y=150:
-        //     ocean (grey=0)     → world_height = 0.0
-        //     land_min (grey=20) → world_height = (20/255)*150 ≈ 11.765
-        //   WATERLEVEL must sit strictly between ocean (0.0) and land_min (11.765) so that
-        //   grey=0 pixels render as sea and grey=20 pixels render as land.
-        //   We use grey=10 (midpoint) → world_height = (10/255)*150 ≈ 5.882.
-        //   Upstream uses MaxElevation=51: WATERLEVEL=(20/255)*51≈4.0 with the same logic.
-        const double worldExtentsY = 150.0;
-        const double waterLevelGrey = 10.0;  // midpoint between grey=0 (ocean) and grey=20 (land_min)
-        var waterLevel = (waterLevelGrey / 255.0) * worldExtentsY;
+        // WORLD_EXTENTS_Y and WATERLEVEL match upstream's formula exactly:
+        //   WORLD_EXTENTS_Y = MaxElevation = 51
+        //   WATERLEVEL = (MaxElevation / 255.0) * CK3WaterLevel = (51/255) * 20 = 4.0
+        //
+        // HeightmapWriter draws land starting at greyscale 20 (CK3WaterLevel).
+        // In world-space: (20/255) * 51 = 4.0, which equals WATERLEVEL exactly.
+        // CK3 renders pixels AT or BELOW WATERLEVEL as ocean, so land (grey=20 → 4.0)
+        // sits right at the water surface — matching upstream's behaviour.
+        const int maxElevation = 51;
+        const int ck3WaterLevel = 20;  // must match HeightmapWriter.CK3WaterLevel
+        var waterLevel = ((float)maxElevation / 255f) * ck3WaterLevel;
         var mapContent =
             "NJominiMap = {\n" +
             $"\tWORLD_EXTENTS_X = {L.Map.MapWidth - 1}\n" +
-            $"\tWORLD_EXTENTS_Y = {(int)worldExtentsY}\n" +
+            $"\tWORLD_EXTENTS_Y = {maxElevation}\n" +
             $"\tWORLD_EXTENTS_Z = {L.Map.MapHeight - 1}\n" +
-            $"\tWATERLEVEL = {waterLevel:F3}\n" +
+            $"\tWATERLEVEL = {waterLevel}\n" +
             "}\n";
 
         var mapPath = Helper.GetPath(definesDir, "mapsize_defines.txt");
