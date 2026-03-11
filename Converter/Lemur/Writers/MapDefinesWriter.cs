@@ -33,10 +33,14 @@ public static class MapDefinesWriter
         var mapPath = Helper.GetPath(definesDir, "mapsize_defines.txt");
         await File.WriteAllTextAsync(mapPath, mapContent, Helper.Utf8Bom);
 
-        // common/defines/graphic/00_graphics.txt — map-size camera panning limits
-        // (minimal subset; full zoom-steps array causes assertion failures on CK3 1.12.5)
+        // common/defines/graphic/00_graphics.txt — camera settings
+        // Full block matching upstream HeightMapConverter output (verified working on CK3 1.12.5).
+        // START_LOOK_AT is proportional to map dimensions so it scales if map size changes.
         var graphicsDir = Helper.GetPath(definesDir, "graphic");
         Directory.CreateDirectory(graphicsDir);
+
+        double startX = L.Map.MapWidth  * (4825.0 / 8192.0);
+        double startZ = L.Map.MapHeight * (1900.0 / 4096.0);
 
         var graphicsContent =
             "NCamera = {\n" +
@@ -46,6 +50,16 @@ public static class MapDefinesWriter
             "\tEDGE_SCROLLING_PIXELS = 10\n" +
             "\tSCROLL_SPEED = 0.045\n" +
             "\tZOOM_RATE = 0.2\n" +
+            "\tZOOM_STEPS = { 100 125 146 165 183 204 229 260 300 350 405 461 518 578 643 714 793 881 981 1092 1218 1360 1521 1703 1903 2116 2341 2573 2809 3047 3282 3512 3733 }\n" +
+            "\tZOOM_STEPS_TILT = { 50 53 56 59 62 65 67 70 72 74 76 77 79 80 82 83 83 84 85 85 85 85 85 85 85 85 85 85 85 85 85 85 85 }\n" +
+            "\tZOOM_STEPS_MIN_TILT = { 40 41 43 44 45 46 47 48 49 50 51 52 52 53 54 54 54 55 55 55 55 55 55 55 55 55 55 55 55 55 55 55 55 }\n" +
+            "\tZOOM_STEPS_MAX_TILT = { 70 73 76 78 80 82 84 85 86 87 88 88 89 89 89 89 89 89 89 89 89 89 89 89 89 89 89 89 89 89 89 89 89 }\n" +
+            "\tZOOM_AUDIO_PARAMETER_SCALE = 0.1\n" +
+            "\tMAX_PAN_TO_ZOOM_STEP = 4\n" +
+            $"\tSTART_LOOK_AT = {{ {startX:F1} 0 {startZ:F1} }}\n" +
+            "\tTITLE_ZOOM_LEVEL_BY_EXTENT = { 20 15 13 11 9 7 5 4 3 }\n" +
+            "\tTITLE_ZOOM_LEVEL_EXTENTS = { 1000 800 600 400 300 200 100 -1 }\n" +
+            "\tTITLE_ZOOM_OFFSET_IF_LEFT_VIEW_SHOWN = { 230 175 145 120 95 70 50 40 30 }\n" +
             $"\tPANNING_WIDTH = {L.Map.MapWidth}\n" +
             $"\tPANNING_HEIGHT = {L.Map.MapHeight}\n" +
             "}\n";
