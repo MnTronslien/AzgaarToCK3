@@ -22,7 +22,6 @@ public static class HeightmapWriter
     // ──────────────────────────────────────────────────────────────────────────
     //  Constants (mirror upstream HeightMapConverter)
     // ──────────────────────────────────────────────────────────────────────────
-    private const int AzgaarWaterLevel = 50;
     public const int CK3WaterLevel = 20;
 
     private static readonly int[] detailSize = [33, 17, 9, 5, 3];
@@ -67,15 +66,21 @@ public static class HeightmapWriter
         using var image = new MagickImage("xc:black", readSettings);
         image.Depth = 8; // 8-bit grayscale (values 0–255)
 
-        // Compute max land height for normalization
-        int maxLandHeight = 1;
+        // Compute land height range for normalization
+        int minLandHeight = int.MaxValue;
+        int maxLandHeight = int.MinValue;
         foreach (var cell in map.Cells!.Values)
         {
-            if (L.Cell.IsDryLand(cell.Type) && cell.Height > maxLandHeight)
-                maxLandHeight = cell.Height;
+            if (!L.Cell.IsDryLand(cell.Type)) continue;
+            if (cell.GeoHeight < minLandHeight) minLandHeight = cell.GeoHeight;
+            if (cell.GeoHeight > maxLandHeight) maxLandHeight = cell.GeoHeight;
         }
-        if (maxLandHeight <= AzgaarWaterLevel)
-            maxLandHeight = AzgaarWaterLevel + 1; // guard against flat maps
+        // Guard: flat maps or no land at all
+        if (minLandHeight == int.MaxValue || minLandHeight >= maxLandHeight)
+        {
+            minLandHeight = 0;
+            maxLandHeight = 1;
+        }
 
         var drawables = new Drawables();
         drawables.DisableStrokeAntialias();
@@ -90,10 +95,9 @@ public static class HeightmapWriter
             }
             else
             {
-                // Scale Azgaar height (water level ~50, max ~100) to CK3 range [20, 255]
-                // Formula: ck3Height = (azgaarHeight - 50) * (255 - 20) / (maxLandHeight - 50) + 20
-                int scaled = (int)((cell.Height - AzgaarWaterLevel) * (255.0 - CK3WaterLevel)
-                    / (maxLandHeight - AzgaarWaterLevel)) + CK3WaterLevel;
+                // Scale GeoHeight [minLandHeight, maxLandHeight] → CK3 range [CK3WaterLevel, 255]
+                int scaled = (int)((cell.GeoHeight - minLandHeight) * (255.0 - CK3WaterLevel)
+                    / (maxLandHeight - minLandHeight)) + CK3WaterLevel;
                 grey = (byte)Math.Clamp(scaled, CK3WaterLevel, 255);
             }
 
@@ -112,7 +116,7 @@ public static class HeightmapWriter
         image.GaussianBlur(1, 1);
 
         await image.WriteAsync(outputPath, MagickFormat.Png);
-        Logger.Info($"  heightmap.png drawn ({L.Map.MapWidth}×{L.Map.MapHeight}, max land height={maxLandHeight})");
+        Logger.Info($"  heightmap.png drawn ({L.Map.MapWidth}×{L.Map.MapHeight}, land height range={minLandHeight}–{maxLandHeight})");
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -166,8 +170,8 @@ public static class HeightmapWriter
                 for (int x = 0; x < mapWidth; x++)
                 {
                     var pixel = pixelCollection.GetPixel(x, y);
-                    // For grayscale, channel 0 is the luminance (scaled 0–255 for Q8)
-                    pixels[y * mapWidth + x] = (byte)(pixel.GetChannel(0) >> 8);
+                    // Q8: GetChannel returns 0–255 directly, no bit shift needed
+                    pixels[y * mapWidth + x] = (byte)pixel.GetChannel(0);
                 }
             }
         }

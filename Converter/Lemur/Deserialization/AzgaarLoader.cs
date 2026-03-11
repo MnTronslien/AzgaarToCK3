@@ -101,7 +101,7 @@ namespace Converter.Lemur.Deserialization
                 var cell = new Entities.Cell()
                 {
                     Id = feature.properties.id,
-                    Height = feature.properties.height,
+                    GeoHeight = feature.properties.height,
                     Culture = feature.properties.culture,
                     Religion = feature.properties.religion,
                     State = feature.properties.state,
