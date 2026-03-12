@@ -153,6 +153,7 @@ public class WriterFlags
     public bool ProvinceTerrain { get; set; } = true;
     public bool MapDefines { get; set; } = true;
     public bool Religion { get; set; } = true;
+    public bool Faiths { get; set; } = true;
     public bool TerrainMasks { get; set; } = true;
     public bool Flatmap { get; set; } = true;
     public bool Locators { get; set; } = true;

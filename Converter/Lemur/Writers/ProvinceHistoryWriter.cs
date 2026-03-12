@@ -1,18 +1,21 @@
 using Converter.Lemur;
+using Converter.Lemur.Entities;
 using L = Converter.Lemur.Entities;
 
 namespace Converter.Lemur.Writers;
 
 public static class ProvinceHistoryWriter
 {
-    // Placeholder culture/religion so CK3 can initialise the world without crashing.
-    // TODO: replace with Azgaar culture/religion data per barony.
+    // Placeholder culture so CK3 can initialise the world without crashing.
+    // TODO: replace with Azgaar culture data per barony.
     private const string PlaceholderCulture = "english";
-    private const string PlaceholderReligion = "catholic";
 
     public static async Task Write(L.Map map, string outputDirectory)
     {
         using var _ = OperationTimer.Start("Writing province history");
+
+        var faiths = map.Faiths;
+        string FallbackFaith() => faiths.Values.FirstOrDefault()?.CK3Key ?? "lemur_faith_1";
 
         // Build barony → province ID lookup (1-based, baronies are first in AllProvinces).
         var baronies = map.Baronies!;
@@ -30,7 +33,7 @@ public static class ProvinceHistoryWriter
         {
             var lines = new List<string>
             {
-                $"# Lemur: placeholder province history for {kingdom.Name}.",
+                $"# Lemur: province history for {kingdom.Name}.",
                 ""
             };
 
@@ -39,9 +42,15 @@ public static class ProvinceHistoryWriter
             foreach (var barony in county.Baronies!)
             {
                 if (!baroniesProvId.TryGetValue(barony, out int provId)) continue;
+
+                var azgaarReligion = barony.GetDominantReligion(map);
+                var faithKey = faiths.TryGetValue(azgaarReligion.i, out var faith)
+                    ? faith.CK3Key
+                    : FallbackFaith();
+
                 lines.Add($"{provId} = {{");
                 lines.Add($"\tculture = {PlaceholderCulture}");
-                lines.Add($"\treligion = {PlaceholderReligion}");
+                lines.Add($"\treligion = {faithKey}");
                 lines.Add("\tholding = auto");
                 lines.Add("}");
                 lines.Add("");

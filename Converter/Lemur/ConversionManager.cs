@@ -23,6 +23,9 @@ namespace Converter.Lemur
             var map = await InitializeMapWithAzgaarData();
             Logger.Info($"{map} has been loaded.");
 
+            map.Faiths = FaithManager.Build(map.JsonMap.pack.religions);
+            Logger.Info($"Built {map.Faiths.Count} faiths");
+
             // ✅ Visualization checkpoint 1: Raw cells
             await ImageUtility.DrawCells(map.Cells!.Values.ToList(), map);
 
@@ -126,6 +129,8 @@ namespace Converter.Lemur
                 await HeightmapWriter.Write(map, Settings.OutputDirectory);
             if (w.Religion)
                 await ReligionWriter.Write(Settings.Instance.Ck3Directory, Settings.OutputDirectory);
+            if (w.Faiths)
+                await FaithWriter.Write(map, Settings.OutputDirectory);
             if (w.GeographicalRegions)
                 await GeographicalRegionWriter.Write(map, Settings.OutputDirectory);
             if (w.ProvinceHistory)
