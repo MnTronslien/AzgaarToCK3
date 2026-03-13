@@ -59,7 +59,27 @@ namespace Converter.Lemur.Deserialization
 
     public record AzgaarCulture(int i, string name);
 
-    public record AzgaarReligion(int i, string name);
+    public record AzgaarReligion(
+        int i,
+        string name,
+        string color,           // hex color e.g. "#b5b5b5"
+        int[]? origins,         // parent religion IDs; [0] or empty = root
+        string type,            // "Folk", "Organized", "Heresy", "Cult"
+        string deity,           // supreme deity name (may be empty string)
+        int center,             // origin cell ID → used as holy site
+        int culture,            // original culture ID
+        float expansionism,     // growth multiplier
+        string expansion,       // "culture" or "global"
+        float rural,            // rural population (may be 0 if absent)
+        float urban,            // urban population (may be 0 if absent)
+        int cells,              // cell count (may be 0 if absent)
+        [property: JsonConverter(typeof(BoolOrIntConverter))]
+        int removed             // 1/true if deleted in Azgaar (newer exports use true/false)
+    )
+    {
+        // Provide defaults so that older exports that omit fields don't fail deserialization
+        public AzgaarReligion() : this(0, "", "#808080", null, "", "", 0, 0, 1.0f, "global", 0f, 0f, 0, 0) { }
+    }
 
     public record AzgaarRiver(
         int i,              // River ID

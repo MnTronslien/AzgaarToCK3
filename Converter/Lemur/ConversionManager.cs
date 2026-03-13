@@ -392,7 +392,8 @@ namespace Converter.Lemur
             //We will do this by duchy
             foreach (Duchy duchy in map.Duchies!)
             {
-                Logger.Info($"Duchy: {duchy.Name}");
+                //Logger.Debug($"Duchy: {duchy.Name}");
+                Logger.Verbose($"Processing Cells for Duchy {duchy.Name} with {duchy.GetAllCells().Count} cells and {duchy.Baronies.Count} baronies");
                 //We start by getting all the baronies in the duchy, we do this by getting all the burgs in the duchy and then getting the baronies from the burgs
                 var baronies = duchy.GetAllCells().Select(c => c.Burg).Where(b => b != null).Select(b => b!.Barony).Distinct();
                 //Sort them on population size decending baroniesInProvince[0].Burg.population
@@ -477,19 +478,14 @@ namespace Converter.Lemur
                 }
 
                 // //if not all countryside cells are assigned, print a warning
-
-                if (Settings.Instance.GenerateDebugImages)
+                if (Settings.Instance.LogLevel <= LogLevel.Info && countrysideCells.Count > 0)
                 {
-                    //list baronies and the number of cells assigned to them
-                    Logger.Info($"Duchy {duchy.Name} has {baronies.Count()} baronies");
-                    foreach (var barony in baronies!)
-                    {
-                        Logger.Info($"{barony.Name} has {barony.Cells.Count} cells");
-                    }
+                    Logger.Info($"{countrysideCells.Count} countryside cells in Duchy {duchy.Name} could not be assigned to a barony. This may be due to isolated islands or water barriers.");
                 }
 
                 //print the response to the console
-                Logger.Info("All cells assigned to baronies");
+                // All cells in this duchy is now assigned to a barony, so we can move on to the next duchy
+                Logger.Info($"Completed Cell assignment for Duchy {duchy.Name}");
                 //list baronies and the number of cells assigned to them
 
             }
@@ -1056,9 +1052,9 @@ namespace Converter.Lemur
             return null;
         }
 
+        /// <summary> Pure Debugging method to show the sea zones on the map </summary>
         private static async Task ShowSeaZones(Map map)
         {
-            Logger.Section("Visualizing Sea Zones");
             await ImageUtility.DrawSeaZonesImage(map);
         }
 
@@ -1067,7 +1063,6 @@ namespace Converter.Lemur
         /// </summary>
         private static async Task ShowBaronies(Map map)
         {
-            Logger.Section("Visualizing Baronies");
             await ImageUtility.DrawProvincesImage(map);
         }
 
@@ -1125,11 +1120,11 @@ namespace Converter.Lemur
 
         private static void GenerateBaronyAdjacency(Map map)
         {
-            Logger.Section("Generating barony adjacency");
+            Logger.Section("Generating barony adjacency graph from cell graph");
 
             foreach (var barony in map.Baronies!)
             {
-                Logger.Info($"Barony {barony.Name}");
+                Logger.Verbose($"Barony {barony.Name}");
                 //fist get all the cells that the cells in this barony are adjacent to
                 var cells = barony.GetAllCells();
                 var adjacentCells = cells.SelectMany(c => c.Neighbors).Distinct().Select(k => map.Cells![k]).ToList();
@@ -1139,11 +1134,8 @@ namespace Converter.Lemur
                 // Now find all unique baronies that the adjacent cells are in
                 var adjacentBaronies = adjacentCells.Select(c => c.Province as Barony).Where(b => b != null).Distinct().ToList();
 
-                if (Settings.Instance.GenerateDebugImages)
-                {
-                    Logger.Info($"Barony {barony.Name} has {adjacentBaronies.Count} adjacent baronies");
-                }
-                //Add the found baronies to this barony¨s list of adjacent baronies. Can be null if there are no adjacent baronies
+                Logger.Info($"Barony {barony.Name} has {adjacentBaronies.Count} adjacent baronies");
+                //Add the found baronies to this baronys list of adjacent baronies. Can be null if there are no adjacent baronies
                 barony.Neighbors = adjacentBaronies!;
             }
         }
