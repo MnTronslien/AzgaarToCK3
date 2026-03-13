@@ -111,6 +111,14 @@ public class Settings
     public bool AutoDetectInputs { get; set; } = false;
 
     /// <summary>
+    /// Directory to scan for input files (.json, .geojson, rivers .geojson).
+    /// When set, the converter auto-resolves the latest matching files from this directory.
+    /// Individual --json/--geojson/--rivers-geojson flags always take precedence.
+    /// Null or empty means not set; individual paths are used as-is.
+    /// </summary>
+    public string? InputDirectory { get; set; } = null;
+
+    /// <summary>
     /// Number of far sea zone strips drawn behind the map to cover corner pixels.
     /// These prevent black (undefined) pixels that crash CK3's map generator.
     /// </summary>

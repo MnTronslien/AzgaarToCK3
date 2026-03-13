@@ -10,7 +10,7 @@ internal class Program
     static async Task Run(string? jsonPath = null, string? geojsonPath = null, string? riversGeojsonPath = null,
         LogLevel? logLevel = null, bool noImages = false, bool? empireFromCulture = null,
         int? minDuchiesPerKingdom = null, int? minKingdomsPerEmpire = null,
-        bool noRivers = false, bool noWipe = false, string? svgPath = null)
+        bool noRivers = false, bool noWipe = false, string? svgPath = null, string? inputDir = null)
     {
         if (!SettingsManager.TryLoad())
         {
@@ -27,6 +27,8 @@ internal class Program
             Settings.Instance.AutoWipeOutput = false;
         if (!string.IsNullOrWhiteSpace(svgPath))
             Settings.Instance.AzgaarSvgPath = svgPath;
+        if (!string.IsNullOrWhiteSpace(inputDir))
+            Settings.Instance.InputDirectory = inputDir;
 
         if (!string.IsNullOrWhiteSpace(jsonPath))
         {
@@ -77,6 +79,27 @@ internal class Program
         }
 
         CheckIfShouldOverride();
+
+        // Resolve inputs from --input-dir / InputDirectory if set
+        if (!string.IsNullOrWhiteSpace(Settings.Instance.InputDirectory))
+        {
+            var (dirJson, dirGeojson, dirRivers) = ModManager.FindLatestInputs(Settings.Instance.InputDirectory);
+            if (string.IsNullOrWhiteSpace(jsonPath) && dirJson != null)
+            {
+                Settings.Instance.InputJsonPath = dirJson;
+                Logger.Info($"Auto-resolved JSON from input directory: {dirJson}");
+            }
+            if (string.IsNullOrWhiteSpace(geojsonPath) && dirGeojson != null)
+            {
+                Settings.Instance.InputGeojsonPath = dirGeojson;
+                Logger.Info($"Auto-resolved GeoJSON from input directory: {dirGeojson}");
+            }
+            if (string.IsNullOrWhiteSpace(riversGeojsonPath) && dirRivers != null)
+            {
+                Settings.Instance.InputRiversGeojsonPath = dirRivers;
+                Logger.Info($"Auto-resolved rivers GeoJSON from input directory: {dirRivers}");
+            }
+        }
 
         // Only search for inputs if paths were not provided via command line AND auto-detect is enabled
         if (string.IsNullOrWhiteSpace(jsonPath) && string.IsNullOrWhiteSpace(geojsonPath) &&
@@ -141,6 +164,7 @@ internal class Program
             string? geojsonPath = null;
             string? riversGeojsonPath = null;
             string? svgPath = null;
+            string? inputDir = null;
             LogLevel? logLevel = null;
             bool noImages = false;
             bool noRivers = false;
@@ -170,6 +194,11 @@ internal class Program
                 else if (args[i] == "--no-rivers")
                 {
                     noRivers = true;
+                }
+                else if ((args[i] == "--input-dir" || args[i] == "-d") && i + 1 < args.Length)
+                {
+                    inputDir = args[i + 1];
+                    i++;
                 }
                 else if ((args[i] == "--svg" || args[i] == "-s") && i + 1 < args.Length)
                 {
@@ -275,7 +304,7 @@ internal class Program
                 return;
             }
 
-            await Run(jsonPath, geojsonPath, riversGeojsonPath, logLevel, noImages, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire, noRivers, noWipe, svgPath);
+            await Run(jsonPath, geojsonPath, riversGeojsonPath, logLevel, noImages, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire, noRivers, noWipe, svgPath, inputDir);
         }
         catch (Exception ex)
         {
@@ -294,9 +323,10 @@ internal class Program
         Console.WriteLine("  ConsoleUI <json-path> <geojson-path> <rivers-geojson-path>");
         Console.WriteLine();
         Console.WriteLine("Input Options:");
-        Console.WriteLine("  --json, -j <path>                Path to the input .json file");
-        Console.WriteLine("  --geojson, -g <path>             Path to the input .geojson file (cells)");
-        Console.WriteLine("  --rivers-geojson, -r <path>      Path to the rivers .geojson file (required)");
+        Console.WriteLine("  --input-dir, -d <dir>            Directory to scan for latest .json/.geojson/rivers files");
+        Console.WriteLine("  --json, -j <path>                Path to the input .json file (overrides --input-dir)");
+        Console.WriteLine("  --geojson, -g <path>             Path to the input .geojson file / cells (overrides --input-dir)");
+        Console.WriteLine("  --rivers-geojson, -r <path>      Path to the rivers .geojson file (overrides --input-dir)");
         Console.WriteLine();
         Console.WriteLine("Conversion Options:");
         Console.WriteLine("  --no-rivers                      Skip river drawing; write a blank rivers.png (runtime only, not saved)");
@@ -317,6 +347,8 @@ internal class Program
         Console.WriteLine("  --help, -h                       Show this help message");
         Console.WriteLine();
         Console.WriteLine("Examples:");
+        Console.WriteLine("  ConsoleUI --input-dir C:/TestData --no-rivers");
+        Console.WriteLine("  ConsoleUI -d C:/TestData --rivers-geojson C:/other/rivers.geojson");
         Console.WriteLine("  ConsoleUI --json map.json --geojson map.geojson --rivers-geojson rivers.geojson");
         Console.WriteLine("  ConsoleUI -j map.json -g map.geojson -r rivers.geojson --log-level verbose");
         Console.WriteLine("  ConsoleUI map.json map.geojson rivers.geojson --min-duchies-per-kingdom 3");
