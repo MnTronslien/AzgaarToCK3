@@ -290,8 +290,7 @@ namespace Converter.Lemur
                 else
                 {
                     zone.IsImpassable = true;
-                    if (Settings.Instance.GenerateDebugImages)
-                        Logger.Info($"Sea zone {zone.Name} is isolated and marked impassable (area={zone.TotalArea})");
+                    Logger.Debug($"Sea zone {zone.Name} is isolated and marked impassable (area={zone.TotalArea})");
                 }
             }
 
@@ -306,11 +305,8 @@ namespace Converter.Lemur
             //Every cell should at this point either be assigned to a barony or be assigned to the wastelands
             var landCells = map.Cells!.Where(c => IsDryLand(c.Value.Type)).ToList();
 
-            if (Settings.Instance.GenerateDebugImages)
-            {
-                Logger.Section("Asserting that every land cell is assigned to a barony or wasteland");
-                Logger.Info($"There are {landCells.Count} land cells");
-            }
+            Logger.Debug("Asserting that every land cell is assigned to a barony or wasteland");
+            Logger.Debug($"There are {landCells.Count} land cells");
 
             bool listPassable = true;
 
@@ -339,9 +335,9 @@ namespace Converter.Lemur
             {
                 throw new Exception("Not all land cells are assigned to a barony or wasteland");
             }
-            else if (Settings.Instance.GenerateDebugImages)
+            else
             {
-                Logger.Info("All land cells are assigned to a barony or wasteland");
+                Logger.Debug("All land cells are assigned to a barony or wasteland");
             }
 
         }
@@ -565,12 +561,9 @@ namespace Converter.Lemur
             }
             map.Baronies = baronies;
 
-            if (Settings.Instance.GenerateDebugImages)
+            foreach (var barony in baronies)
             {
-                foreach (var barony in baronies)
-                {
-                    Logger.Info($"Barony {barony.Id} {barony.Name}");
-                }
+                Logger.Debug($"Barony {barony.Id} {barony.Name}");
             }
 
             Logger.Info($"Generated {baronies.Count} baronies");
@@ -663,12 +656,9 @@ namespace Converter.Lemur
                 }
             }
 
-            if (Settings.Instance.GenerateDebugImages)
+            foreach (var duchy in duchies)
             {
-                foreach (var duchy in duchies)
-                {
-                    Logger.Info($"Duchy {duchy.Id} {duchy.Name} has {duchy.GetAllCells().Count} cells");
-                }
+                Logger.Debug($"Duchy {duchy.Id} {duchy.Name} has {duchy.GetAllCells().Count} cells");
             }
             Logger.Info($"Generated {duchies.Count} duchies");
         }
@@ -730,10 +720,7 @@ namespace Converter.Lemur
                     }
 
                     var county = new County(IdManager.Instance.GetNextId(), name, baronies: baroniesInPartition, duchy: duchy, capital: baroniesInPartition.First());
-                    if (Settings.Instance.GenerateDebugImages)
-                    {
-                        Logger.Info($"County {county.Name} has {baroniesInPartition.Count} baronies");
-                    }
+                    Logger.Debug($"County {county.Name} has {baroniesInPartition.Count} baronies");
                     counties.Add(county);
                 }
 
@@ -763,12 +750,9 @@ namespace Converter.Lemur
                 map.Empires = ByReligion();
             }
 
-            if (Settings.Instance.GenerateDebugImages)
+            foreach (var empire in map.Empires!)
             {
-                foreach (var empire in map.Empires!)
-                {
-                    Logger.Info($"Empire {empire.Id} {empire.Name}");
-                }
+                Logger.Debug($"Empire {empire.Id} {empire.Name}");
             }
 
 
@@ -892,12 +876,9 @@ namespace Converter.Lemur
 
             }
 
-            if (Settings.Instance.GenerateDebugImages)
+            foreach (var kingdom in kingdoms)
             {
-                foreach (var kingdom in kingdoms)
-                {
-                    Logger.Info($"Kingdom {kingdom.Id} {kingdom.Name} has {kingdom.Duchies.Count} duchies");
-                }
+                Logger.Debug($"Kingdom {kingdom.Id} {kingdom.Name} has {kingdom.Duchies.Count} duchies");
             }
             // Assign the kingdoms to the map
             map.Kingdoms = kingdoms;
@@ -972,13 +953,10 @@ namespace Converter.Lemur
                 }
             } while (mergerOccurred); // Continue looping as long as a merger occurred in the last iteration
 
-            if (Settings.Instance.GenerateDebugImages)
+            Logger.Debug($"Kingdoms after merging:");
+            foreach (var kingdom in map.Kingdoms)
             {
-                Logger.Info($"Kingdoms after merging:");
-                foreach (var kingdom in map.Kingdoms)
-                {
-                    Logger.Info($" - {kingdom.Name} has {kingdom.Duchies.Count} duchies");
-                }
+                Logger.Debug($" - {kingdom.Name} has {kingdom.Duchies.Count} duchies");
             }
         }
 
@@ -1023,13 +1001,10 @@ namespace Converter.Lemur
                 Logger.Info($"Merged {empire.Name} into {mergeTarget.Name}");
             }
 
-            if (Settings.Instance.GenerateDebugImages)
+            Logger.Debug($"Empires after merging:");
+            foreach (var empire in map.Empires)
             {
-                Logger.Info($"Empires after merging:");
-                foreach (var empire in map.Empires)
-                {
-                    Logger.Info($" - {empire.Name} has {empire.Kingdoms.Count} kingdoms");
-                }
+                Logger.Debug($" - {empire.Name} has {empire.Kingdoms.Count} kingdoms");
             }
         }
 

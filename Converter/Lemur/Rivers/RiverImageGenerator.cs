@@ -199,8 +199,8 @@ namespace Converter.Lemur.Rivers
                 string dataDesc = dataIsTributary         ? "tributary" : "main river";
                 if (connectedAsTributary != dataIsTributary)
                     Logger.Warning($"  WARNING: {river.Name} drawn as {drawnAs} but data says {dataDesc} (ParentId={river.ParentId})");
-                else if (Settings.Instance.GenerateDebugImages)
-                    Logger.Info($"  {river.Name}: drawn as {drawnAs} (matches data)");
+                else
+                    Logger.Debug($"  {river.Name}: drawn as {drawnAs} (matches data)");
 
                 if (allActualPixels.Count < 2)
                 {
