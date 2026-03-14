@@ -7,18 +7,17 @@ public static class FaithManager
 {
     public static Dictionary<int, Faith> Build(AzgaarReligion[] religions)
     {
-
         Logger.Section("Building faiths");
         var faiths = new Dictionary<int, Faith>();
 
-        // Pass 1: build Faith objects (skip index 0 and removed entries)
+        // Pass 1: construct Faith objects (skip sentinel index 0 and removed entries)
         foreach (var r in religions)
         {
             if (r.i == 0) continue;
             if (r.removed != 0) continue;
 
             int rootId = FindRoot(r.i, religions);
-            var faith = new Faith
+            faiths[r.i] = new Faith
             {
                 AzgaarId          = r.i,
                 Name              = r.name,
@@ -36,10 +35,9 @@ public static class FaithManager
                 UrbanPop          = r.urban,
                 CellCount         = r.cells,
             };
-            faiths[r.i] = faith;
         }
 
-        // Pass 2: wire Parent references
+        // Pass 2: wire Parent references (one step up, not root)
         foreach (var faith in faiths.Values)
         {
             var r = religions[faith.AzgaarId];
@@ -50,16 +48,86 @@ public static class FaithManager
             }
         }
 
-        // Pass 3: assign doctrines and tenets
-        // Global seed is always set by ConversionManager before Build() is called.
-        DoctrineAssigner.Assign(
-            faiths.Values,
-            Settings.Instance.Seed!.Value,
-            Settings.Instance.TenetCount,
-            Settings.Instance.DoctrineMutationRate);
+        // Pass 3: assign doctrines and tenets in topological order (parents before children)
+        // so child faiths can inherit and mutate from an already-assigned parent.
+        // Global seed is always resolved by ConversionManager before Build() is called.
+        int seed = Settings.Instance.Seed!.Value;
+        int tenetCount = Settings.Instance.TenetCount;
+        float mutationRate = Settings.Instance.DoctrineMutationRate;
+
+        var childrenOf = faiths.Values
+            .Where(f => f.Parent != null)
+            .GroupBy(f => f.Parent!.AzgaarId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var queue = new Queue<Faith>(faiths.Values.Where(f => f.Parent == null));
+        while (queue.Count > 0)
+        {
+            var faith = queue.Dequeue();
+            AssignDoctrinesAndTenets(faith, seed, tenetCount, mutationRate);
+            if (childrenOf.TryGetValue(faith.AzgaarId, out var children))
+                foreach (var child in children)
+                    queue.Enqueue(child);
+        }
+
+        // Safety net: faiths skipped due to broken parent references
+        foreach (var faith in faiths.Values.Where(f => f.Doctrines.Count == 0))
+            AssignDoctrinesAndTenets(faith, seed, tenetCount, mutationRate);
 
         return faiths;
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Doctrine & tenet assignment
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private static void AssignDoctrinesAndTenets(Faith faith, int seed, int tenetCount, float mutationRate)
+    {
+        var rng = new Random(HashCode.Combine(seed, faith.AzgaarId));
+        faith.Doctrines = PickDoctrines(faith, rng, mutationRate);
+        faith.Tenets    = PickTenets(faith, rng, tenetCount, mutationRate);
+    }
+
+    private static List<string> PickDoctrines(Faith faith, Random rng, float mutationRate)
+    {
+        var result = new List<string>(DoctrineData.Groups.Length);
+        for (int i = 0; i < DoctrineData.Groups.Length; i++)
+        {
+            var options = DoctrineData.Groups[i].Options;
+            // Inherit from parent unless this slot mutates (or faith has no parent)
+            if (faith.Parent?.Doctrines.Count > i && rng.NextDouble() > mutationRate)
+                result.Add(faith.Parent.Doctrines[i]);
+            else
+                result.Add(options[rng.Next(options.Length)]);
+        }
+        return result;
+    }
+
+    private static List<string> PickTenets(Faith faith, Random rng, int count, float mutationRate)
+    {
+        var chosen = new List<string>(faith.Parent?.Tenets ?? []);
+
+        while (chosen.Count < count)
+            chosen.Add(PickUniqueTenet(rng, chosen));
+        while (chosen.Count > count)
+            chosen.RemoveAt(chosen.Count - 1);
+
+        for (int i = 0; i < chosen.Count; i++)
+            if (faith.Parent == null || rng.NextDouble() < mutationRate)
+                chosen[i] = PickUniqueTenet(rng, chosen.Where((_, idx) => idx != i).ToList());
+
+        return chosen;
+    }
+
+    private static string PickUniqueTenet(Random rng, ICollection<string> excluded)
+    {
+        var pool = DoctrineData.AllTenets.Except(excluded).ToArray();
+        return pool[rng.Next(pool.Length)];
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────────────────────
 
     private static int FindRoot(int id, AzgaarReligion[] religions)
     {
