@@ -11,8 +11,10 @@ internal class Program
         LogLevel? logLevel = null, bool noImages = false, bool? empireFromCulture = null,
         int? minDuchiesPerKingdom = null, int? minKingdomsPerEmpire = null,
         bool noRivers = false, bool noWipe = false, string? svgPath = null, string? inputDir = null,
-        int? doctrinesSeed = null, int? tenetCount = null, float? doctrineMutationRate = null)
+        int? seed = null, int? tenetCount = null, float? doctrineMutationRate = null)
     {
+        Logger.Section("Welcome to Azgaar to CK3 Converter!");
+
         if (!SettingsManager.TryLoad())
         {
             SettingsManager.CreateDefault();
@@ -61,8 +63,8 @@ internal class Program
             Settings.Instance.MinimumKingdomsPerEmpire = minKingdomsPerEmpire.Value;
             Logger.Info($"Minimum kingdoms per empire: {minKingdomsPerEmpire.Value}");
         }
-        if (doctrinesSeed.HasValue)
-            Settings.Instance.DoctrinesSeed = doctrinesSeed.Value;
+        if (seed.HasValue)
+            Settings.Instance.Seed = seed.Value;
         if (tenetCount.HasValue)
             Settings.Instance.TenetCount = tenetCount.Value;
         if (doctrineMutationRate.HasValue)
@@ -76,7 +78,7 @@ internal class Program
 
         Logger.Info(string.Empty);
         Logger.Info("The app has been configured. Feel free to change the settings in 'settings.json' file.");
-        Logger.Info("Check https://github.com/pryvyd9/AzgaarToCK3 for instructions or feedback.");
+        Logger.Info("Check https://github.com/MnTronslien/AzgaarToCK3 for instructions or feedback.");
         Logger.Info(string.Empty);
 
         if (string.IsNullOrWhiteSpace(Settings.Instance.ModName))
@@ -179,7 +181,7 @@ internal class Program
             bool? empireFromCulture = null;
             int? minDuchiesPerKingdom = null;
             int? minKingdomsPerEmpire = null;
-            int? doctrinesSeed = null;
+            int? seed = null;
             int? tenetCount = null;
             float? doctrineMutationRate = null;
 
@@ -243,9 +245,9 @@ internal class Program
                     minKingdomsPerEmpire = int.Parse(args[i + 1]);
                     i++; // Skip the next argument
                 }
-                else if (args[i] == "--doctrines-seed" && i + 1 < args.Length)
+                else if (args[i] == "--seed" && i + 1 < args.Length)
                 {
-                    doctrinesSeed = int.Parse(args[i + 1]);
+                    seed = int.Parse(args[i + 1]);
                     i++;
                 }
                 else if (args[i] == "--tenet-count" && i + 1 < args.Length)
@@ -329,7 +331,7 @@ internal class Program
                 return;
             }
 
-            await Run(jsonPath, geojsonPath, riversGeojsonPath, logLevel, noImages, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire, noRivers, noWipe, svgPath, inputDir, doctrinesSeed, tenetCount, doctrineMutationRate);
+            await Run(jsonPath, geojsonPath, riversGeojsonPath, logLevel, noImages, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire, noRivers, noWipe, svgPath, inputDir, seed, tenetCount, doctrineMutationRate);
         }
         catch (Exception ex)
         {
@@ -369,7 +371,7 @@ internal class Program
         Console.WriteLine("  --empire-from-culture <bool>     Form empires by culture instead of religion");
         Console.WriteLine("  --min-duchies-per-kingdom <int>  Minimum duchies per kingdom (default: 4)");
         Console.WriteLine("  --min-kingdoms-per-empire <int>  Minimum kingdoms per empire (default: 3)");
-        Console.WriteLine("  --doctrines-seed <int>           Seed for doctrine/tenet selection (omit for random each run)");
+        Console.WriteLine("  --seed <int>                     Global converter seed for all randomised decisions (omit for a new random seed each run)");
         Console.WriteLine("  --tenet-count <int>              Number of tenets per faith, 1–5 (default: 3)");
         Console.WriteLine("  --doctrine-mutation-rate <float> Child faith mutation rate 0.0–1.0 (default: 0.3)");
         Console.WriteLine();

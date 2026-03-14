@@ -23,13 +23,12 @@ namespace Converter.Lemur
             var map = await InitializeMapWithAzgaarData();
             Logger.Info($"{map} has been loaded.");
 
-            // Resolve doctrine seed once — store back so any run can be reproduced
-            if (!Settings.Instance.DoctrinesSeed.HasValue)
-                Settings.Instance.DoctrinesSeed = Random.Shared.Next();
-            Logger.Info($"Doctrine seed: {Settings.Instance.DoctrinesSeed.Value} (use --doctrines-seed to reproduce)");
+            // Resolve global seed once — stored back into settings so any run can be reproduced
+            if (!Settings.Instance.Seed.HasValue)
+                Settings.Instance.Seed = Random.Shared.Next();
+            Logger.Info($"Converter seed: {Settings.Instance.Seed.Value} (use --seed to reproduce)");
 
             map.Faiths = FaithManager.Build(map.JsonMap.pack.religions);
-            Logger.Info($"Built {map.Faiths.Count} faiths");
 
             // ✅ Visualization checkpoint 1: Raw cells
             await ImageUtility.DrawCells(map.Cells!.Values.ToList(), map);
@@ -70,7 +69,7 @@ namespace Converter.Lemur
 
             ComputeDistanceToCoast(map);
             GenerateSeaZones(map);
-            Logger.Info($"Generated {map.SeaZones!.Count} sea zones.");
+           
 
             CreateFarSeaZones(map);
 
@@ -95,7 +94,7 @@ namespace Converter.Lemur
                 await DefaultMapWriter.Write(seaZoneIndices, wastelandIndices, farSeaZoneIndices, Settings.OutputDirectory);
 
             if (w.Adjacencies)
-                await AdjacenciesCsvWriter.Write(Settings.OutputDirectory);
+                await AdjacenciesCsvWriter.Write(Settings.OutputDirectory); //I think this is too soon: We probably wantto do more with adjacencys.
 
             GenerateBaronyAdjacency(map);
             GenerateCounties(map);
@@ -210,6 +209,8 @@ namespace Converter.Lemur
 
         private static void GenerateSeaZones(Map map)
         {
+
+            Logger.Section("Generating sea zones");
             var seaCellsById = map.Cells!.Values
                 .Where(c => !Cell.IsDryLand(c.Type))
                 .ToDictionary(c => c.Id);
@@ -295,7 +296,7 @@ namespace Converter.Lemur
                 else
                 {
                     zone.IsImpassable = true;
-                    Logger.Debug($"Sea zone {zone.Name} is isolated and marked impassable (area={zone.TotalArea})");
+                    Logger.Debug($"Sea zone {zone.Name} is isolated and marked impassable (area={zone.TotalArea})"); //BUG: zone.Name is not set at this point, so it will print as empty. Consider assigning temporary IDs to zones earlier for better logging.
                 }
             }
 
@@ -304,6 +305,7 @@ namespace Converter.Lemur
                 seaZones[i].Name = $"sea_{i + 1}";
 
             map.SeaZones = seaZones;
+            Logger.Info($"Generated {map.SeaZones.Count} sea zones after merging undersized zones.");
         }
         private static void AssertEveryLandCellIsAssignedToABurg(Map map)
         {
@@ -361,7 +363,9 @@ namespace Converter.Lemur
 
             map.AllProvinces = allProvinces;
         }
-
+        /// <summary>
+        /// Far Sea Zones are a special category of sea zones that are manually created to cover any area of teh province map that azgaar data does not cover.
+        /// </summary> 
         private static void CreateFarSeaZones(Map map)
         {
             int n = Settings.Instance.FarSeaZoneCount;
@@ -375,7 +379,7 @@ namespace Converter.Lemur
                 };
                 map.FarSeaZones.Add(zone);
             }
-            Logger.Info($"Created {n} far sea zones to cover corner pixels.");
+            Logger.Info($"Created {n} far sea zones to make sure that everything is covered.");
         }
         private static void AssignUniqueColorsToCounties(Map map)
         {
@@ -507,8 +511,9 @@ namespace Converter.Lemur
                 //and reverse
                 map.Cells![burg.Value.Cell_id].Burg = burg.Value;
 
-                Logger.Info($"Burg {burg.Value.Name} <<=>> {burg.Value.Cell_id} Cell");
+                Logger.Verbose($"Burg {burg.Value.Name} <<=>> {burg.Value.Cell_id} Cell");
             }
+            Logger.Info($"Cell linking complete: {map.Burgs.Count - 1} burgs linked to cells");
         }
 
         private static async Task<Map> InitializeMapWithAzgaarData()

@@ -131,8 +131,12 @@ public class Settings
     /// </summary>
     public string? AzgaarSvgPath { get; set; } = null;
 
-    /// <summary>Seed for deterministic doctrine/tenet selection. Null = new random each run.</summary>
-    public int? DoctrinesSeed { get; set; } = null;
+    /// <summary>
+    /// Global seed for all non-deterministic decisions in the converter (doctrine/tenet selection,
+    /// colour assignment, any future randomised steps). Null = fresh random seed each run.
+    /// Set once at pipeline start; logged so any run can be reproduced with --seed.
+    /// </summary>
+    public int? Seed { get; set; } = null;
 
     /// <summary>Number of tenets per faith (1–5). Default: 3.</summary>
     public int TenetCount { get; set; } = 3;

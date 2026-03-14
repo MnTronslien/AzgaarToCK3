@@ -7,6 +7,8 @@ public static class FaithManager
 {
     public static Dictionary<int, Faith> Build(AzgaarReligion[] religions)
     {
+
+        Logger.Section("Building faiths");
         var faiths = new Dictionary<int, Faith>();
 
         // Pass 1: build Faith objects (skip index 0 and removed entries)
@@ -49,10 +51,10 @@ public static class FaithManager
         }
 
         // Pass 3: assign doctrines and tenets
-        // DoctrinesSeed is always set by ConversionManager before Build() is called.
+        // Global seed is always set by ConversionManager before Build() is called.
         DoctrineAssigner.Assign(
             faiths.Values,
-            Settings.Instance.DoctrinesSeed!.Value,
+            Settings.Instance.Seed!.Value,
             Settings.Instance.TenetCount,
             Settings.Instance.DoctrineMutationRate);
 
