@@ -61,7 +61,9 @@ public static class FaithWriter
         foreach (var group in byReligion)
         {
             bool anyUnreformed = group.Any(f => f.IsUnreformed);
+            var rootFaith = group.OrderBy(f => f.AzgaarId).First();
 
+            lines.Add($"# {rootFaith.Name}");
             lines.Add($"{group.Key} = {{");
             lines.Add("\tfamily = rf_other");
             if (anyUnreformed)
@@ -81,6 +83,7 @@ public static class FaithWriter
                 var (r, g, b) = ParseHexColor(faith.HexColor);
                 var holySiteKey = $"lemur_site_{faith.AzgaarId}";
 
+                lines.Add($"\t\t# {faith.Name}");
                 lines.Add($"\t\t{faith.CK3Key} = {{");
                 lines.Add($"\t\t\tcolor = rgb {{ {r} {g} {b} }}");
                 lines.Add($"\t\t\ticon = {faith.IconKey}");
@@ -130,6 +133,7 @@ public static class FaithWriter
             var countyId = FindHolySiteCountyId(faith, map, cellIdToBarony);
             var countyKey = $"c_{countyId}";
 
+            lines.Add($"# {faith.Name}");
             lines.Add($"lemur_site_{faith.AzgaarId} = {{");
             lines.Add($"\tcounty = {countyKey}");
             lines.Add("\tcharacter_modifier = {");

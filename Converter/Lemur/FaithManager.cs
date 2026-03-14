@@ -25,7 +25,6 @@ public static class FaithManager
                 HexColor          = r.color ?? "#808080",
                 IconKey           = $"custom_faith_{(r.i % 10) + 1}",
                 Type              = r.type ?? "",
-                IsUnreformed      = r.type == "Folk" || r.type == "Cult",
                 Deity             = r.deity ?? "",
                 Expansion         = r.expansion ?? "",
                 Expansionism      = r.expansionism,

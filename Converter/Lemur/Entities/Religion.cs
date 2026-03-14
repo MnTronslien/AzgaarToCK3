@@ -13,7 +13,8 @@ public class Faith
 
     // Azgaar fields
     public string Type { get; init; } = "";
-    public bool IsUnreformed { get; init; }           // true if Type == "Folk" or "Cult"
+    // true if Type == "Folk"
+    public bool IsUnreformed => Type == "Folk"; 
     public string Deity { get; init; } = "";
     public string Expansion { get; init; } = "";
     public float Expansionism { get; init; }
