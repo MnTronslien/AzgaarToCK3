@@ -69,12 +69,32 @@ public static class FaithWriter
             if (anyUnreformed)
                 lines.Add("\tpagan_roots = yes");
             lines.Add("");
+            // head of faith
             lines.Add("\tdoctrine = doctrine_no_head");
+            // gender
             lines.Add("\tdoctrine = doctrine_gender_equal");
+            // marriage & family
             lines.Add("\tdoctrine = doctrine_clerical_marriage_allowed");
-            lines.Add("\tdoctrine = doctrine_clerical_succession_temporal");
+            lines.Add("\tdoctrine = doctrine_clerical_succession_temporal_appointment");
             lines.Add("\tdoctrine = doctrine_clerical_gender_either");
+            lines.Add("\tdoctrine = doctrine_clerical_function_alms_and_pacification");
+            lines.Add("\tdoctrine = doctrine_consanguinity_restricted");
+            lines.Add("\tdoctrine = doctrine_bastardry_legitimization");
+            lines.Add("\tdoctrine = doctrine_divorce_approval");
+            lines.Add("\tdoctrine = doctrine_adultery_men_shunned");
+            lines.Add("\tdoctrine = doctrine_adultery_women_shunned");
+            // society
             lines.Add("\tdoctrine = doctrine_pluralism_pluralistic");
+            lines.Add("\tdoctrine = doctrine_polytheist");
+            lines.Add("\tdoctrine = doctrine_theocracy_lay_clergy");
+            lines.Add("\tdoctrine = doctrine_kinslaying_close_kin_crime");
+            lines.Add("\tdoctrine = doctrine_deviancy_shunned");
+            lines.Add("\tdoctrine = doctrine_homosexuality_shunned");
+            lines.Add("\tdoctrine = doctrine_witchcraft_accepted");
+            // ritual
+            lines.Add("\tdoctrine = doctrine_pilgrimage_encouraged");
+            lines.Add("\tdoctrine = doctrine_no_anointment");
+            lines.Add("\tdoctrine = doctrine_funeral_stoic");
             lines.Add("");
             lines.Add("\tfaiths = {");
 
@@ -95,9 +115,9 @@ public static class FaithWriter
                 if (faith.IsUnreformed)
                     lines.Add("\t\t\tdoctrine = unreformed_faith_doctrine");
 
-                lines.Add("\t\t\tdoctrine = tenet_animism");
                 lines.Add("\t\t\tdoctrine = tenet_ancestor_worship");
-                lines.Add("\t\t\tdoctrine = tenet_sanctioned_looting");
+                lines.Add("\t\t\tdoctrine = tenet_ritual_celebrations");
+                lines.Add("\t\t\tdoctrine = tenet_astrology");
                 lines.Add("\t\t}");
             }
 
