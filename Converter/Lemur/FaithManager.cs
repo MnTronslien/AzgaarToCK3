@@ -48,6 +48,14 @@ public static class FaithManager
             }
         }
 
+        // Pass 3: assign doctrines and tenets
+        // DoctrinesSeed is always set by ConversionManager before Build() is called.
+        DoctrineAssigner.Assign(
+            faiths.Values,
+            Settings.Instance.DoctrinesSeed!.Value,
+            Settings.Instance.TenetCount,
+            Settings.Instance.DoctrineMutationRate);
+
         return faiths;
     }
 

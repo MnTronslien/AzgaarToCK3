@@ -10,7 +10,8 @@ internal class Program
     static async Task Run(string? jsonPath = null, string? geojsonPath = null, string? riversGeojsonPath = null,
         LogLevel? logLevel = null, bool noImages = false, bool? empireFromCulture = null,
         int? minDuchiesPerKingdom = null, int? minKingdomsPerEmpire = null,
-        bool noRivers = false, bool noWipe = false, string? svgPath = null, string? inputDir = null)
+        bool noRivers = false, bool noWipe = false, string? svgPath = null, string? inputDir = null,
+        int? doctrinesSeed = null, int? tenetCount = null, float? doctrineMutationRate = null)
     {
         if (!SettingsManager.TryLoad())
         {
@@ -60,6 +61,12 @@ internal class Program
             Settings.Instance.MinimumKingdomsPerEmpire = minKingdomsPerEmpire.Value;
             Logger.Info($"Minimum kingdoms per empire: {minKingdomsPerEmpire.Value}");
         }
+        if (doctrinesSeed.HasValue)
+            Settings.Instance.DoctrinesSeed = doctrinesSeed.Value;
+        if (tenetCount.HasValue)
+            Settings.Instance.TenetCount = tenetCount.Value;
+        if (doctrineMutationRate.HasValue)
+            Settings.Instance.DoctrineMutationRate = doctrineMutationRate.Value;
 
         // Print settings (debug level)
         Logger.Debug(Settings.Instance.ToString());
@@ -172,6 +179,9 @@ internal class Program
             bool? empireFromCulture = null;
             int? minDuchiesPerKingdom = null;
             int? minKingdomsPerEmpire = null;
+            int? doctrinesSeed = null;
+            int? tenetCount = null;
+            float? doctrineMutationRate = null;
 
             // Parse command-line arguments
             for (int i = 0; i < args.Length; i++)
@@ -232,6 +242,21 @@ internal class Program
                 {
                     minKingdomsPerEmpire = int.Parse(args[i + 1]);
                     i++; // Skip the next argument
+                }
+                else if (args[i] == "--doctrines-seed" && i + 1 < args.Length)
+                {
+                    doctrinesSeed = int.Parse(args[i + 1]);
+                    i++;
+                }
+                else if (args[i] == "--tenet-count" && i + 1 < args.Length)
+                {
+                    tenetCount = int.Parse(args[i + 1]);
+                    i++;
+                }
+                else if (args[i] == "--doctrine-mutation-rate" && i + 1 < args.Length)
+                {
+                    doctrineMutationRate = float.Parse(args[i + 1]);
+                    i++;
                 }
                 else if ((args[i] == "--validate-rivers" || args[i] == "-vr") && i + 1 < args.Length)
                 {
@@ -304,7 +329,7 @@ internal class Program
                 return;
             }
 
-            await Run(jsonPath, geojsonPath, riversGeojsonPath, logLevel, noImages, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire, noRivers, noWipe, svgPath, inputDir);
+            await Run(jsonPath, geojsonPath, riversGeojsonPath, logLevel, noImages, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire, noRivers, noWipe, svgPath, inputDir, doctrinesSeed, tenetCount, doctrineMutationRate);
         }
         catch (Exception ex)
         {
@@ -344,6 +369,9 @@ internal class Program
         Console.WriteLine("  --empire-from-culture <bool>     Form empires by culture instead of religion");
         Console.WriteLine("  --min-duchies-per-kingdom <int>  Minimum duchies per kingdom (default: 4)");
         Console.WriteLine("  --min-kingdoms-per-empire <int>  Minimum kingdoms per empire (default: 3)");
+        Console.WriteLine("  --doctrines-seed <int>           Seed for doctrine/tenet selection (omit for random each run)");
+        Console.WriteLine("  --tenet-count <int>              Number of tenets per faith, 1–5 (default: 3)");
+        Console.WriteLine("  --doctrine-mutation-rate <float> Child faith mutation rate 0.0–1.0 (default: 0.3)");
         Console.WriteLine();
         Console.WriteLine("Validation:");
         Console.WriteLine("  --validate-rivers, -vr <path>    Validate a rivers.png against CK3 requirements and exit");

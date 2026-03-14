@@ -131,6 +131,19 @@ public class Settings
     /// </summary>
     public string? AzgaarSvgPath { get; set; } = null;
 
+    /// <summary>Seed for deterministic doctrine/tenet selection. Null = new random each run.</summary>
+    public int? DoctrinesSeed { get; set; } = null;
+
+    /// <summary>Number of tenets per faith (1–5). Default: 3.</summary>
+    public int TenetCount { get; set; } = 3;
+
+    /// <summary>
+    /// Probability (0.0–1.0) that a child faith mutates each doctrine/tenet slot
+    /// away from its parent's value. 0 = identical to parent, 1 = fully random.
+    /// Default: 0.3 (30% chance to mutate each slot).
+    /// </summary>
+    public float DoctrineMutationRate { get; set; } = 0.3f;
+
     /// <summary>
     /// Per-writer on/off switches. All default to true (current behaviour unchanged).
     /// Set individual flags to false in settings.json to skip specific writers during

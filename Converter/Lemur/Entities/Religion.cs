@@ -14,7 +14,7 @@ public class Faith
     // Azgaar fields
     public string Type { get; init; } = "";
     // true if Type == "Folk"
-    public bool IsUnreformed => Type == "Folk"; 
+    public bool IsUnreformed => Type == "Folk";
     public string Deity { get; init; } = "";
     public string Expansion { get; init; } = "";
     public float Expansionism { get; init; }
@@ -23,4 +23,8 @@ public class Faith
     public float RuralPop { get; init; }
     public float UrbanPop { get; init; }
     public int CellCount { get; init; }
+
+    // Assigned by DoctrineAssigner after faith graph is built
+    public List<string> Doctrines { get; set; } = [];  // one per required doctrine group (21 entries)
+    public List<string> Tenets { get; set; } = [];      // 1–5 tenets
 }

@@ -23,6 +23,11 @@ namespace Converter.Lemur
             var map = await InitializeMapWithAzgaarData();
             Logger.Info($"{map} has been loaded.");
 
+            // Resolve doctrine seed once — store back so any run can be reproduced
+            if (!Settings.Instance.DoctrinesSeed.HasValue)
+                Settings.Instance.DoctrinesSeed = Random.Shared.Next();
+            Logger.Info($"Doctrine seed: {Settings.Instance.DoctrinesSeed.Value} (use --doctrines-seed to reproduce)");
+
             map.Faiths = FaithManager.Build(map.JsonMap.pack.religions);
             Logger.Info($"Built {map.Faiths.Count} faiths");
 
