@@ -22,6 +22,37 @@ namespace Converter.Lemur.Deserialization
     }
 
     /// <summary>
+    /// Reads an int array where elements may be null (treated as 0).
+    /// Azgaar newer exports write origins as [null] for root religions instead of [] or [0].
+    /// </summary>
+    public class NullableIntArrayConverter : JsonConverter<int[]?>
+    {
+        public override int[]? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Null) return null;
+            if (reader.TokenType != JsonTokenType.StartArray) return null;
+
+            var list = new List<int>();
+            while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+            {
+                if (reader.TokenType == JsonTokenType.Null)
+                    list.Add(0);
+                else
+                    list.Add(reader.GetInt32());
+            }
+            return list.ToArray();
+        }
+
+        public override void Write(Utf8JsonWriter writer, int[]? value, JsonSerializerOptions options)
+        {
+            if (value == null) { writer.WriteNullValue(); return; }
+            writer.WriteStartArray();
+            foreach (var v in value) writer.WriteNumberValue(v);
+            writer.WriteEndArray();
+        }
+    }
+
+    /// <summary>
     /// Clean DTOs for Azgaar JSON structure - no upstream dependencies
     /// These records match the Azgaar data model directly for deserialization
     /// </summary>
@@ -63,7 +94,8 @@ namespace Converter.Lemur.Deserialization
         int i,
         string name,
         string color,           // hex color e.g. "#b5b5b5"
-        int[]? origins,         // parent religion IDs; [0] or empty = root
+        [property: JsonConverter(typeof(NullableIntArrayConverter))]
+        int[]? origins,         // parent religion IDs; [0] or [null] or empty = root
         string type,            // "Folk", "Organized", "Heresy", "Cult"
         string deity,           // supreme deity name (may be empty string)
         int center,             // origin cell ID → used as holy site
