@@ -9,9 +9,10 @@ public static class DoctrineData
 {
     /// <summary>
     /// All 21 required doctrine groups in output order.
-    /// Each entry is (human-readable label, valid doctrine keys for that group).
     /// A faith must declare exactly one key from each group.
     /// </summary>
+    /// <param name="Label">Human-readable label for the doctrine group (not used in output)</param>
+    /// <param name="Options">Valid doctrine keys for this group; a faith must pick exactly one per group</param>
     public static readonly (string Label, string[] Options)[] Groups =
     [
         ("head of faith",       ["doctrine_no_head", "doctrine_spiritual_head", "doctrine_temporal_head"]),
@@ -40,7 +41,7 @@ public static class DoctrineData
     /// <summary>
     /// All valid tenet keys from 30_core_tenets.txt (CK3 v1.12.5).
     /// A faith picks TenetCount (default 3) distinct tenets from this pool.
-    /// Does NOT include unreformed_faith_doctrine — that is a special doctrine written separately.
+    /// Does not account for mutual exclusivity between certain tenets (e.g., human sacrifice vs. pacifism).
     /// </summary>
     public static readonly string[] AllTenets =
     [

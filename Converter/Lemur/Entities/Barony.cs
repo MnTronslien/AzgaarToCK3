@@ -1,4 +1,5 @@
 using ImageMagick;
+using Converter.Lemur;
 using Converter.Lemur.Deserialization;
 
 namespace Converter.Lemur.Entities
@@ -27,6 +28,8 @@ namespace Converter.Lemur.Entities
         public List<Barony>? Neighbors { get; set; }
         public ITitle? Parent { get; set; }
         public Character? Holder { get; set; }
+
+        public string Ck3_Id() => Helper.ToCk3Id("b", Name, Id);
 
         public List<Cell> GetAllCells()
         {

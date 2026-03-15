@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using ImageMagick;
 
 namespace Converter.Lemur;
@@ -56,6 +57,21 @@ public static class Helper
             j = i;
         }
         return inside;
+    }
+
+    /// <summary>
+    /// Converts a name to a valid CK3 title identifier.
+    /// Pattern: {prefix}_{lowercase_underscored_ascii_name}_{id}
+    /// Example: ToCk3Id("e", "Roman Empire", 5) → "e_roman_empire_5"
+    /// </summary>
+    public static string ToCk3Id(string prefix, string name, int id)
+    {
+        var lower = name.ToLowerInvariant();
+        var underscored = Regex.Replace(lower, @"[\s\-]+", "_");
+        var ascii = Regex.Replace(underscored, @"[^a-z0-9_]", "");
+        var clean = Regex.Replace(ascii, @"_+", "_").Trim('_');
+        if (string.IsNullOrEmpty(clean)) clean = "unnamed";
+        return $"{prefix}_{clean}_{id}";
     }
 
     public static MagickColor GetColor(int i, int maxI)

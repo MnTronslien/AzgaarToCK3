@@ -117,7 +117,9 @@ namespace Converter.Lemur
 
             // Write CK3 mod files
             if (w.LandedTitles)
-                await LandedTitlesWriter.Write(map, Settings.OutputDirectory);
+                await Task.WhenAll(
+                    LandedTitlesWriter.Write(map, Settings.OutputDirectory),
+                    TitleLocalizationWriter.Write(map, Settings.OutputDirectory));
             await ModDescriptorWriter.Write(Settings.Instance.ModName, Settings.Instance.ModsDirectory, Settings.OutputDirectory);
             if (w.MapDefines)
                 await MapDefinesWriter.Write(Settings.OutputDirectory);

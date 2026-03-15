@@ -36,7 +36,7 @@ public static class FaithWriter
 
         var t1 = WriteReligionsFile(byReligion, outputDirectory);
         var t2 = WriteHolySitesFile(faiths.Values.Where(f => f.AzgaarId > 0).ToList(), map, cellIdToBarony, outputDirectory);
-        var t3 = WriteLocalizationFile(byReligion, outputDirectory);
+        var t3 = WriteLocalizationFile(byReligion, map.JsonMap.pack.cultures, outputDirectory);
 
         await Task.WhenAll(t1, t2, t3);
 
@@ -155,6 +155,7 @@ public static class FaithWriter
     // ─────────────────────────────────────────────────────────────────────────
     private static async Task WriteLocalizationFile(
         List<IGrouping<string, Faith>> byReligion,
+        Deserialization.AzgaarCulture[] cultures,
         string outputDirectory)
     {
         var dir = Helper.GetPath(outputDirectory, "localization", "english");
@@ -162,24 +163,32 @@ public static class FaithWriter
 
         var lines = new List<string> { "l_english:" };
 
-        // Track which religion containers we've already written
         var writtenReligions = new HashSet<string>();
 
         foreach (var group in byReligion)
         {
-            // Write religion container name once (use root faith name)
             var rootFaith = group.OrderBy(f => f.AzgaarId).First();
             if (writtenReligions.Add(group.Key))
             {
-                lines.Add($" {group.Key}: \"{rootFaith.Name}\"");
+                // Religion container name, adjective, and description
+                var cultureName = rootFaith.OriginalCultureId > 0
+                    ? cultures.FirstOrDefault(c => c.i == rootFaith.OriginalCultureId)?.name
+                    : null;
+                var desc = cultureName != null
+                    ? $"The ancient religion of the {cultureName}"
+                    : $"The ancient {rootFaith.Name} religion";
+
+                lines.Add($" {group.Key}:0 \"{rootFaith.Name}\"");
+                lines.Add($" {group.Key}_adj:0 \"{rootFaith.Name}\"");
+                lines.Add($" {group.Key}_desc:0 \"{desc}\"");
             }
 
             foreach (var faith in group.OrderBy(f => f.AzgaarId))
             {
-                lines.Add($" {faith.CK3Key}: \"{faith.Name}\"");
-                lines.Add($" {faith.CK3Key}_adj: \"{faith.Name}\"");
+                lines.Add($" {faith.CK3Key}:0 \"{faith.Name}\"");
+                lines.Add($" {faith.CK3Key}_adj:0 \"{faith.Name}\"");
                 if (!string.IsNullOrEmpty(faith.Deity))
-                    lines.Add($" {faith.CK3Key}_HighGodName: \"{faith.Deity}\"");
+                    lines.Add($" {faith.CK3Key}_HighGodName:0 \"{faith.Deity}\"");
             }
         }
 

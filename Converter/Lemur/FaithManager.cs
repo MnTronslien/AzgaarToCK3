@@ -70,9 +70,15 @@ public static class FaithManager
                     queue.Enqueue(child);
         }
 
-        // Safety net: faiths skipped due to broken parent references
-        foreach (var faith in faiths.Values.Where(f => f.Doctrines.Count == 0))
-            AssignDoctrinesAndTenets(faith, seed, tenetCount, mutationRate);
+        // Since we used topological order, all parents will have been processed before their children, so inheritance and mutation will work as intended.
+
+        string logline = $"Assigned doctrines and tenets to {faiths.Count} faiths.";
+        foreach (var f in faiths.Values)
+        {
+            logline += $"\n- {f.Name} (id {f.AzgaarId}): tenets=[{string.Join(", ", f.Tenets)}]";
+        }
+        Logger.Info(logline);
+        Logger.Info("Faiths done.");
 
         return faiths;
     }
