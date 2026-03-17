@@ -113,11 +113,11 @@ namespace Converter.Lemur
             // These are isolated landless titles that would create orphan CK3 titles.
             int culledKingdoms = map.Kingdoms.RemoveAll(k => !k.Duchies.Any());
             if (culledKingdoms > 0)
-                Logger.Warning($"Culled {culledKingdoms} kingdom(s) with 0 duchies after merge.");
+                Logger.Info($"Culled {culledKingdoms} kingdom(s) with 0 duchies after merge.");
 
             int culledEmpires = map.Empires.RemoveAll(e => !e.Kingdoms.Any());
             if (culledEmpires > 0)
-                Logger.Warning($"Culled {culledEmpires} empire(s) with 0 kingdoms after merge.");
+                Logger.Info($"Culled {culledEmpires} empire(s) with 0 kingdoms after merge.");
 
             // ✅ Visualization checkpoint 4: Final hierarchy
             await ShowDuchies(map);
