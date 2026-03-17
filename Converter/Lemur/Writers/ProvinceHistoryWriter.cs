@@ -6,16 +6,14 @@ namespace Converter.Lemur.Writers;
 
 public static class ProvinceHistoryWriter
 {
-    // Placeholder culture so CK3 can initialise the world without crashing.
-    // TODO: replace with Azgaar culture data per barony.
-    private const string PlaceholderCulture = "english";
-
     public static async Task Write(L.Map map, string outputDirectory)
     {
         using var _ = OperationTimer.Start("Writing province history");
 
         var faiths = map.Faiths;
+        var cultures = map.Cultures;
         string FallbackFaith() => faiths.Values.FirstOrDefault()?.CK3Key ?? "lemur_faith_1";
+        string FallbackCulture() => cultures.Values.FirstOrDefault()?.CK3Key ?? "lemur_culture_1";
 
         // Build barony → province ID lookup (1-based, baronies are first in AllProvinces).
         var baronies = map.Baronies!;
@@ -48,8 +46,13 @@ public static class ProvinceHistoryWriter
                     ? faith.CK3Key
                     : FallbackFaith();
 
+                var azgaarCulture = barony.GetDominantCulture(map);
+                var cultureKey = (azgaarCulture.i > 0 && cultures.TryGetValue(azgaarCulture.i, out var culture))
+                    ? culture.CK3Key
+                    : FallbackCulture();
+
                 lines.Add($"{provId} = {{");
-                lines.Add($"\tculture = {PlaceholderCulture}");
+                lines.Add($"\tculture = {cultureKey}");
                 lines.Add($"\treligion = {faithKey}");
                 lines.Add("\tholding = auto");
                 lines.Add("}");

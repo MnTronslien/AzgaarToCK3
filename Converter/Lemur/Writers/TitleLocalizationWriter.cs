@@ -22,28 +22,20 @@ public static class TitleLocalizationWriter
         {
             if (!empire.Kingdoms.Any()) continue;
             lines.Add($" {empire.Ck3_Id()}:0 \"{empire.Name}\"");
-
-            foreach (var kingdom in empire.Kingdoms)
-            {
-                lines.Add($" {kingdom.Ck3_Id()}:0 \"{kingdom.Name}\"");
-
-                foreach (var duchy in kingdom.Duchies)
-                {
-                    lines.Add($" {duchy.Ck3_Id()}:0 \"{duchy.Name}\"");
-
-                    foreach (var county in duchy.Counties)
-                    {
-                        lines.Add($" {county.Ck3_Id()}:0 \"{county.Name}\"");
-
-                        foreach (var barony in county.Baronies!)
-                            lines.Add($" {barony.Ck3_Id()}:0 \"{barony.Name}\"");
-                    }
-                }
-            }
+            WriteKingdomsLoc(lines, empire.Kingdoms);
         }
 
         // Orphan kingdoms and their children
-        foreach (var kingdom in map.Kingdoms.Where(k => k.Parent == null))
+        WriteKingdomsLoc(lines, map.Kingdoms.Where(k => k.Parent == null));
+
+        var path = Helper.GetPath(dir, "lemur_titles_l_english.yml");
+        await File.WriteAllLinesAsync(path, lines, Helper.Utf8Bom);
+        Logger.Info($"Wrote lemur_titles_l_english.yml");
+    }
+
+    private static void WriteKingdomsLoc(List<string> lines, IEnumerable<L.Kingdom> kingdoms)
+    {
+        foreach (var kingdom in kingdoms)
         {
             lines.Add($" {kingdom.Ck3_Id()}:0 \"{kingdom.Name}\"");
 
@@ -60,9 +52,5 @@ public static class TitleLocalizationWriter
                 }
             }
         }
-
-        var path = Helper.GetPath(dir, "lemur_titles_l_english.yml");
-        await File.WriteAllLinesAsync(path, lines, Helper.Utf8Bom);
-        Logger.Info($"Wrote lemur_titles_l_english.yml");
     }
 }

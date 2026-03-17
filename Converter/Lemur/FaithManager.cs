@@ -72,12 +72,10 @@ public static class FaithManager
 
         // Since we used topological order, all parents will have been processed before their children, so inheritance and mutation will work as intended.
 
-        string logline = $"Assigned doctrines and tenets to {faiths.Count} faiths.";
+        var sb = new System.Text.StringBuilder($"Assigned doctrines and tenets to {faiths.Count} faiths.");
         foreach (var f in faiths.Values)
-        {
-            logline += $"\n- {f.Name} (id {f.AzgaarId}): tenets=[{string.Join(", ", f.Tenets)}]";
-        }
-        Logger.Info(logline);
+            sb.Append($"\n- {f.Name} (id {f.AzgaarId}): tenets=[{string.Join(", ", f.Tenets)}]");
+        Logger.Info(sb.ToString());
         Logger.Info("Faiths done.");
 
         return faiths;

@@ -29,6 +29,7 @@ namespace Converter.Lemur
             Logger.Info($"Converter seed: {Settings.Instance.Seed.Value} (use --seed to reproduce)");
 
             map.Faiths = FaithManager.Build(map.JsonMap.pack.religions);
+            map.Cultures = CultureManager.Build(map.JsonMap.pack.cultures, Settings.Instance.Seed!.Value);
 
             // ✅ Visualization checkpoint 1: Raw cells
             await ImageUtility.DrawCells(map.Cells!.Values.ToList(), map);
@@ -137,6 +138,8 @@ namespace Converter.Lemur
                 await ReligionWriter.Write(Settings.Instance.Ck3Directory, Settings.OutputDirectory);
             if (w.Faiths)
                 await FaithWriter.Write(map, Settings.OutputDirectory);
+            if (w.Cultures)
+                await CultureWriter.Write(map, Settings.OutputDirectory);
             if (w.GeographicalRegions)
                 await GeographicalRegionWriter.Write(map, Settings.OutputDirectory);
             if (w.ProvinceHistory)
