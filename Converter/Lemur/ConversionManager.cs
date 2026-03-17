@@ -778,11 +778,9 @@ namespace Converter.Lemur
                 // Get every culture in the map, they are packed in the json map
                 var cultures = map.JsonMap.pack.cultures.Skip(1).ToArray(); //skip the 0'eth entry, that is wildlands
                                                                             //print each
-                Logger.Info($"Empire From Culture: True, there are {cultures.Length} cultures in the map");
+                Logger.Debug($"Empire From Culture: True — {cultures.Length} cultures");
                 foreach (var culture in cultures)
-                {
-                    Logger.Info($"Culture: {culture}");
-                }
+                    Logger.Debug($"  Culture {culture.i}: {culture.name}");
 
                 // For each culture, form an empire
                 List<Empire> empires = new();
