@@ -9,10 +9,7 @@ public static class CultureWriter
     {
         using var _ = OperationTimer.Start("Writing culture files");
 
-        // Filter out sentinel/placeholder cultures (AzgaarId <= 0) inserted by CharacterFactory.
-        var cultures = map.Cultures
-            .Where(kvp => kvp.Value.AzgaarId > 0)
-            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+        var cultures = map.Cultures;
         if (cultures.Count == 0)
         {
             Logger.Warning("CultureWriter: no cultures found, skipping.");

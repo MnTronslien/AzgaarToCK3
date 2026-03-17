@@ -24,9 +24,7 @@ public static class FaithWriter
         if (File.Exists(oldHolySites)) File.Delete(oldHolySites);
 
         // Group faiths by religion container key.
-        // Skip sentinel/placeholder faiths inserted by CharacterFactory (AzgaarId <= 0).
         var byReligion = faiths.Values
-            .Where(f => f.AzgaarId > 0)
             .GroupBy(f => f.CK3ReligionKey)
             .OrderBy(g => g.Key)
             .ToList();
@@ -35,12 +33,12 @@ public static class FaithWriter
         var cellIdToBarony = BuildCellToBaronyLookup(map);
 
         var t1 = WriteReligionsFile(byReligion, outputDirectory);
-        var t2 = WriteHolySitesFile(faiths.Values.Where(f => f.AzgaarId > 0).ToList(), map, cellIdToBarony, outputDirectory);
+        var t2 = WriteHolySitesFile(faiths.Values.ToList(), map, cellIdToBarony, outputDirectory);
         var t3 = WriteLocalizationFile(byReligion, map.JsonMap.pack.cultures, outputDirectory);
 
         await Task.WhenAll(t1, t2, t3);
 
-        Logger.Info($"Wrote {faiths.Values.Count(f => f.AzgaarId > 0)} faiths in {byReligion.Count} religion containers.");
+        Logger.Info($"Wrote {faiths.Count} faiths in {byReligion.Count} religion containers.");
     }
 
     // ─────────────────────────────────────────────────────────────────────────
