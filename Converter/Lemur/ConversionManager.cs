@@ -94,9 +94,6 @@ namespace Converter.Lemur
             if (w.DefaultMap)
                 await DefaultMapWriter.Write(seaZoneIndices, wastelandIndices, farSeaZoneIndices, Settings.OutputDirectory);
 
-            if (w.Adjacencies)
-                await AdjacenciesCsvWriter.Write(Settings.OutputDirectory); //I think this is too soon: We probably wantto do more with adjacencys.
-
             GenerateBaronyAdjacency(map);
             GenerateCounties(map);
 
@@ -126,7 +123,10 @@ namespace Converter.Lemur
 
             CharacterFactory.CreateAndAssignAll(map);
 
-            // Write CK3 mod files
+            Logger.Section("Writing CK3 mod files");
+
+            if (w.Adjacencies)
+                await AdjacenciesCsvWriter.Write(Settings.OutputDirectory);
             if (w.LandedTitles)
                 await Task.WhenAll(
                     LandedTitlesWriter.Write(map, Settings.OutputDirectory),
