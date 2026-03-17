@@ -115,6 +115,12 @@ public static class CultureWriter
             lines.Add($"# {culture.Name}");
             lines.Add($"{culture.Heritage} = {{");
             lines.Add("\ttype = heritage");
+            lines.Add("\tis_shown = {");
+            lines.Add("\t\theritage_is_shown_trigger = {");
+            lines.Add($"\t\t\tHERITAGE = {culture.Heritage}");
+            lines.Add("\t\t}");
+            lines.Add("\t}");
+            lines.Add("\taudio_parameter = european");
             lines.Add("}");
             lines.Add("");
         }
@@ -150,6 +156,18 @@ public static class CultureWriter
             lines.Add($"# {culture.Name}");
             lines.Add($"{culture.Language} = {{");
             lines.Add("\ttype = language");
+            lines.Add("\tis_shown = {");
+            lines.Add("\t\tlanguage_is_shown_trigger = {");
+            lines.Add($"\t\t\tLANGUAGE = {culture.Language}");
+            lines.Add("\t\t}");
+            lines.Add("\t}");
+            lines.Add("\tai_will_do = {");
+            lines.Add("\t\tvalue = 10");
+            lines.Add("\t\tif = {");
+            lines.Add($"\t\t\tlimit = {{ has_cultural_pillar = {culture.Language} }}");
+            lines.Add("\t\t\tmultiply = 10");
+            lines.Add("\t\t}");
+            lines.Add("\t}");
             lines.Add("}");
             lines.Add("");
         }
