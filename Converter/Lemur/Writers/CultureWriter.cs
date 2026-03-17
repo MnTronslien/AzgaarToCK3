@@ -9,7 +9,10 @@ public static class CultureWriter
     {
         using var _ = OperationTimer.Start("Writing culture files");
 
-        var cultures = map.Cultures;
+        // Filter out sentinel/placeholder cultures (AzgaarId <= 0) inserted by CharacterFactory.
+        var cultures = map.Cultures
+            .Where(kvp => kvp.Value.AzgaarId > 0)
+            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
         if (cultures.Count == 0)
         {
             Logger.Warning("CultureWriter: no cultures found, skipping.");
@@ -111,7 +114,7 @@ public static class CultureWriter
         {
             lines.Add($"# {culture.Name}");
             lines.Add($"{culture.Heritage} = {{");
-            lines.Add("\theritage = yes");
+            lines.Add("\ttype = heritage");
             lines.Add("}");
             lines.Add("");
         }
@@ -146,7 +149,7 @@ public static class CultureWriter
         {
             lines.Add($"# {culture.Name}");
             lines.Add($"{culture.Language} = {{");
-            lines.Add("\tlanguage = yes");
+            lines.Add("\ttype = language");
             lines.Add("}");
             lines.Add("");
         }
