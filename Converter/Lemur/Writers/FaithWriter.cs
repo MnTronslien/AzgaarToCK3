@@ -40,7 +40,7 @@ public static class FaithWriter
 
         await Task.WhenAll(t1, t2, t3);
 
-        Logger.Info($"Wrote {faiths.Count} faiths in {byReligion.Count} religion containers.");
+        Logger.Info($"Wrote {faiths.Values.Count(f => f.AzgaarId > 0)} faiths in {byReligion.Count} religion containers.");
     }
 
     // ─────────────────────────────────────────────────────────────────────────
