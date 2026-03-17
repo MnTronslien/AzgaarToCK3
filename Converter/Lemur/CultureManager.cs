@@ -302,45 +302,67 @@ public static class CultureManager
             parentIds[azc.i] = GetRealOrigins(azc.origins);
         }
 
-        // BFS from foundational outward, tracking depth
+        // Compute depth as max(parent depths) + 1 so hybrid cultures (two parents)
+        // are always strictly younger than BOTH parents, not just the first visited.
         var depth = new Dictionary<int, int>();
-        var queue = new Queue<int>();
 
+        // Foundational cultures start at depth 0
         foreach (var azc in cultures)
         {
             if (azc.i == 0) continue;
             if (parentIds[azc.i].Length == 0)
-            {
                 depth[azc.i] = 0;
-                queue.Enqueue(azc.i);
-            }
         }
 
-        while (queue.Count > 0)
+        // Iterative relaxation: keep updating depths until stable.
+        // A culture's depth = max(parent depths) + 1.
+        // Converges in at most O(tree height) passes; cycle guard via max iterations.
+        bool changed = true;
+        int maxIterations = result.Count + 1;
+        while (changed && maxIterations-- > 0)
         {
-            var id = queue.Dequeue();
-            int myDepth = depth[id];
-
-            foreach (var candidate in result.Keys)
+            changed = false;
+            foreach (var azc in cultures)
             {
-                if (depth.ContainsKey(candidate)) continue;
-                if (parentIds.TryGetValue(candidate, out var pids) && pids.Contains(id))
+                if (azc.i == 0) continue;
+                var pids = parentIds[azc.i];
+                if (pids.Length == 0) continue; // foundational, already set
+
+                // Only assign if ALL parents have a known depth
+                if (!pids.All(pid => depth.ContainsKey(pid))) continue;
+
+                int newDepth = pids.Max(pid => depth[pid]) + 1;
+                if (!depth.TryGetValue(azc.i, out int existing) || existing != newDepth)
                 {
-                    depth[candidate] = myDepth + 1;
-                    queue.Enqueue(candidate);
+                    depth[azc.i] = newDepth;
+                    changed = true;
                 }
             }
         }
 
+        // Any cultures still unresolved (cycles) fall back to depth 1
+        foreach (var id in result.Keys)
+            if (!depth.ContainsKey(id))
+                depth[id] = 1;
+
+        // Invert: deepest culture is created 100 years before start date,
+        // each level up adds another 100 years. Foundational (depth 0) = no date.
+        const int startYear = 1066;
+        const int stepYears = 100;
+        int maxDepth = depth.Values.DefaultIfEmpty(0).Max();
+
         foreach (var culture in result.Values)
         {
             if (!depth.TryGetValue(culture.AzgaarId, out int d)) d = 1; // unvisited = treat as derived
-            culture.CreationDate = d switch
+            if (d == 0)
             {
-                0 => null,          // foundational: ancient, no created date
-                1 => "867.1.1",     // derived from foundational
-                _ => "1000.1.1",    // derived from derived
-            };
+                culture.CreationDate = null; // foundational: ancient, no created date
+                continue;
+            }
+            // depth maxDepth → startYear - stepYears
+            // depth 1        → startYear - (maxDepth * stepYears)
+            int year = startYear - ((maxDepth - d + 1) * stepYears);
+            culture.CreationDate = $"{year}.1.1";
         }
     }
 
