@@ -196,8 +196,8 @@ public static class CultureWriter
         {
             lines.Add($"# {culture.Name}");
             lines.Add($"{culture.CK3Key} = {{");
-            lines.Add("\t867.1.1 = {");
-            lines.Add("\t}");
+            if (culture.CreationDate != null)
+                lines.Add($"\tcreated = {culture.CreationDate}");
             lines.Add("}");
             lines.Add("");
         }
@@ -226,11 +226,17 @@ public static class CultureWriter
 
             // Heritage loc (only if this culture owns it)
             if (culture.Heritage == $"lemur_heritage_{culture.AzgaarId}")
+            {
                 lines.Add($" {culture.Heritage}:0 \"{culture.Name} Heritage\"");
+                lines.Add($" {culture.Heritage}_name:0 \"{culture.Name} Heritage\"");
+            }
 
             // Language loc (only if this culture owns it)
             if (culture.Language == $"lemur_language_{culture.AzgaarId}")
+            {
                 lines.Add($" {culture.Language}:0 \"{culture.Name} Language\"");
+                lines.Add($" {culture.Language}_name:0 \"{culture.Name} Language\"");
+            }
         }
 
         var path = Helper.GetPath(dir, "lemur_cultures_l_english.yml");

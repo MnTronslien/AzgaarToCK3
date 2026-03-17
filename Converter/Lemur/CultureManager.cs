@@ -16,6 +16,7 @@ public static class CultureManager
     ];
 
     // 4 non-DLC GFX bundles: [coa_gfx, building_gfx, clothing_gfx, unit_gfx]
+    //TODO: Expand on this - must be more valid declarations. Would like each bundle to be thematically internally coherent.
     private static readonly string[][] GfxBundles =
     [
         ["western_coa_gfx",         "western_building_gfx",   "western_clothing_gfx",   "western_unit_gfx"],
@@ -66,6 +67,12 @@ public static class CultureManager
                 if (result.TryGetValue(pid, out var parentCulture))
                     culture.Parents.Add(parentCulture.CK3Key);
         }
+
+        // Pass 5: assign creation dates
+        // Foundational cultures (no parents) are ancient — no created date.
+        // Depth 1 (derived from foundational): 867.1.1
+        // Depth 2+ (derived from derived): 1000.1.1
+        AssignCreationDates(cultures, result);
 
         var sb = new System.Text.StringBuilder($"Assigned pillars and traditions to {result.Count} cultures.");
         foreach (var c in result.Values.OrderBy(c => c.AzgaarId))
@@ -285,6 +292,57 @@ public static class CultureManager
     // ─────────────────────────────────────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────────────────────────────────────
+
+    private static void AssignCreationDates(AzgaarCulture[] cultures, Dictionary<int, Culture> result)
+    {
+        var parentIds = new Dictionary<int, int[]>();
+        foreach (var azc in cultures)
+        {
+            if (azc.i == 0) continue;
+            parentIds[azc.i] = GetRealOrigins(azc.origins);
+        }
+
+        // BFS from foundational outward, tracking depth
+        var depth = new Dictionary<int, int>();
+        var queue = new Queue<int>();
+
+        foreach (var azc in cultures)
+        {
+            if (azc.i == 0) continue;
+            if (parentIds[azc.i].Length == 0)
+            {
+                depth[azc.i] = 0;
+                queue.Enqueue(azc.i);
+            }
+        }
+
+        while (queue.Count > 0)
+        {
+            var id = queue.Dequeue();
+            int myDepth = depth[id];
+
+            foreach (var candidate in result.Keys)
+            {
+                if (depth.ContainsKey(candidate)) continue;
+                if (parentIds.TryGetValue(candidate, out var pids) && pids.Contains(id))
+                {
+                    depth[candidate] = myDepth + 1;
+                    queue.Enqueue(candidate);
+                }
+            }
+        }
+
+        foreach (var culture in result.Values)
+        {
+            if (!depth.TryGetValue(culture.AzgaarId, out int d)) d = 1; // unvisited = treat as derived
+            culture.CreationDate = d switch
+            {
+                0 => null,          // foundational: ancient, no created date
+                1 => "867.1.1",     // derived from foundational
+                _ => "1000.1.1",    // derived from derived
+            };
+        }
+    }
 
     /// <summary>Extract non-zero, non-null origin IDs. Returns at most 2.</summary>
     private static int[] GetRealOrigins(int[]? origins)

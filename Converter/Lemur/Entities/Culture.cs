@@ -21,4 +21,10 @@ public class Culture
     public List<string> Traditions { get; set; } = new();
     /// <summary>CK3 keys of parent cultures (0, 1, or 2 entries)</summary>
     public List<string> Parents { get; set; } = new();
+
+    /// <summary>
+    /// Creation date for derived/hybrid cultures. Null for foundational cultures (ancient, no created date needed).
+    /// Written as `created = DATE` in culture history.
+    /// </summary>
+    public string? CreationDate { get; set; } = null;
 }
