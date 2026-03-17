@@ -577,9 +577,7 @@ namespace Converter.Lemur
             map.Baronies = baronies;
 
             foreach (var barony in baronies)
-            {
-                Logger.Debug($"Barony {barony.Id} {barony.Name}");
-            }
+                Logger.Verbose($"Barony {barony.Id} {barony.Name}");
 
             Logger.Info($"Generated {baronies.Count} baronies");
         }
@@ -672,15 +670,15 @@ namespace Converter.Lemur
             }
 
             foreach (var duchy in duchies)
-            {
-                Logger.Debug($"Duchy {duchy.Id} {duchy.Name} has {duchy.GetAllCells().Count} cells");
-            }
+                Logger.Verbose($"Duchy {duchy.Id} {duchy.Name} has {duchy.GetAllCells().Count} cells");
+
             Logger.Info($"Generated {duchies.Count} duchies");
         }
 
         private static void GenerateCounties(Map map)
         {
             Logger.Section("Generating counties");
+            using var _ = OperationTimer.Start("Generating counties");
             //For each duchy, generate a graph of the duchy
             foreach (var duchy in map.Duchies!)
             {
@@ -742,7 +740,7 @@ namespace Converter.Lemur
                 //add the counties to the map's list of counties
                 map.Counties ??= new();
                 map.Counties.AddRange(counties);
-                Logger.Info($"Duchy {duchy.Name} has {counties.Count} counties");
+                Logger.Debug($"Duchy {duchy.Name} has {counties.Count} counties");
             }
             Logger.Info($"Generated {map.Counties!.Count} counties");
 
@@ -1109,10 +1107,10 @@ namespace Converter.Lemur
         private static void GenerateBaronyAdjacency(Map map)
         {
             Logger.Section("Generating barony adjacency graph from cell graph");
+            using var _ = OperationTimer.Start("Generating barony adjacency");
 
             foreach (var barony in map.Baronies!)
             {
-                Logger.Verbose($"Barony {barony.Name}");
                 //fist get all the cells that the cells in this barony are adjacent to
                 var cells = barony.GetAllCells();
                 var adjacentCells = cells.SelectMany(c => c.Neighbors).Distinct().Select(k => map.Cells![k]).ToList();
@@ -1122,10 +1120,11 @@ namespace Converter.Lemur
                 // Now find all unique baronies that the adjacent cells are in
                 var adjacentBaronies = adjacentCells.Select(c => c.Province as Barony).Where(b => b != null).Distinct().ToList();
 
-                Logger.Info($"Barony {barony.Name} has {adjacentBaronies.Count} adjacent baronies");
+                Logger.Verbose($"Barony {barony.Name} has {adjacentBaronies.Count} adjacent baronies");
                 //Add the found baronies to this baronys list of adjacent baronies. Can be null if there are no adjacent baronies
                 barony.Neighbors = adjacentBaronies!;
             }
+            Logger.Info($"Built barony adjacency graph ({map.Baronies.Count} baronies)");
         }
     }
 }
