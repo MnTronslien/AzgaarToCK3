@@ -12,23 +12,25 @@ public static class TitleHistoryWriter
 
         foreach (var empire in map.Empires!)
         {
-            if (empire.Holder != null)
-                sb.AppendLine(TitleEntry(LandedTitlesWriter.ToCk3Id("e", empire.Name, empire.Id), empire.Holder.Id));
+            // Emperors are never assigned (de jure only)
 
             foreach (var kingdom in empire.Kingdoms)
             {
                 if (kingdom.Holder != null)
-                    sb.AppendLine(TitleEntry(LandedTitlesWriter.ToCk3Id("k", kingdom.Name, kingdom.Id), kingdom.Holder.Id));
+                    sb.AppendLine(TitleEntry(kingdom.Ck3_Id(), kingdom.Holder.Id, liege: null));
 
                 foreach (var duchy in kingdom.Duchies)
                 {
+                    // Duchy is a vassal of the kingdom only if it belongs to that kingdom's state
+                    string? duchyLiege = duchy.AzgaarStateId == kingdom.Id ? kingdom.Ck3_Id() : null;
+
                     if (duchy.Holder != null)
-                        sb.AppendLine(TitleEntry(LandedTitlesWriter.ToCk3Id("d", duchy.Name, duchy.Id), duchy.Holder.Id));
+                        sb.AppendLine(TitleEntry(duchy.Ck3_Id(), duchy.Holder.Id, duchyLiege));
 
                     foreach (var county in duchy.Counties)
                     {
                         if (county.Holder != null)
-                            sb.AppendLine(TitleEntry(LandedTitlesWriter.ToCk3Id("c", county.Name, county.Id), county.Holder.Id));
+                            sb.AppendLine(TitleEntry(county.Ck3_Id(), county.Holder.Id, duchy.Ck3_Id()));
                     }
                 }
             }
@@ -40,6 +42,9 @@ public static class TitleHistoryWriter
         Logger.Info($"Wrote 00_lemur_titles.txt");
     }
 
-    private static string TitleEntry(string titleId, string holderId) =>
-        $"{titleId} = {{ {StartDate} = {{ holder = {holderId} }} }}";
+    private static string TitleEntry(string titleId, string holderId, string? liege)
+    {
+        var liegeClause = liege != null ? $" liege = {liege}" : "";
+        return $"{titleId} = {{ {StartDate} = {{ holder = {holderId}{liegeClause} }} }}";
+    }
 }
