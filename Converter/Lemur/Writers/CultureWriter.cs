@@ -21,8 +21,7 @@ public static class CultureWriter
             WriteHeritagePillarsFile(cultures, outputDirectory),
             WriteLanguagePillarsFile(cultures, outputDirectory),
             WriteCultureHistoryFile(cultures, outputDirectory),
-            WriteCultureLocalizationFile(cultures, outputDirectory),
-            WriteNameListPlaceholderFile(outputDirectory)
+            WriteCultureLocalizationFile(cultures, outputDirectory)
         );
 
         Logger.Info($"Wrote {cultures.Count} cultures.");
@@ -55,7 +54,7 @@ public static class CultureWriter
             lines.Add($"\tlanguage = {culture.Language}");
             lines.Add($"\tmartial_custom = {culture.MartialCustom}");
             lines.Add($"\thead_determination = {culture.HeadDetermination}");
-            lines.Add($"\tname_list = {culture.NameList}");
+            lines.Add($"\tname_list = {culture.ThemeBundle.NameList}");
 
             if (culture.Parents.Count > 0)
             {
@@ -69,13 +68,10 @@ public static class CultureWriter
 
             lines.Add($"\tcolor = {{ {r} {g} {b} }}");
 
-            if (culture.GfxBundle.Length >= 4)
-            {
-                lines.Add($"\tcoa_gfx = {{ {culture.GfxBundle[0]} }}");
-                lines.Add($"\tbuilding_gfx = {{ {culture.GfxBundle[1]} }}");
-                lines.Add($"\tclothing_gfx = {{ {culture.GfxBundle[2]} }}");
-                lines.Add($"\tunit_gfx = {{ {culture.GfxBundle[3]} }}");
-            }
+            lines.Add($"\tcoa_gfx = {{ {culture.ThemeBundle.CoaGfx} }}");
+            lines.Add($"\tbuilding_gfx = {{ {culture.ThemeBundle.BuildingGfx} }}");
+            lines.Add($"\tclothing_gfx = {{ {culture.ThemeBundle.ClothingGfx} }}");
+            lines.Add($"\tunit_gfx = {{ {culture.ThemeBundle.UnitGfx} }}");
 
             lines.Add("}");
             lines.Add("");
@@ -237,39 +233,6 @@ public static class CultureWriter
         }
 
         var path = Helper.GetPath(dir, "lemur_cultures_l_english.yml");
-        await File.WriteAllLinesAsync(path, lines, Helper.Utf8Bom);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // common/names/name_lists/lemur_placeholder.txt
-    // ─────────────────────────────────────────────────────────────────────────
-    private static async Task WriteNameListPlaceholderFile(string outputDirectory)
-    {
-        var dir = Helper.GetPath(outputDirectory, "common", "names", "name_lists");
-        Directory.CreateDirectory(dir);
-
-        var lines = new List<string>
-        {
-            "# Lemur conversion: placeholder name list.",
-            "# All cultures share this until real name lists are generated from Azgaar nameBases.",
-            "",
-            "name_list_lemur_placeholder = {",
-            "\tmale_names = {",
-            "\t\tJohn Elvis Paul George Ringo Arthur Merlin Lancelot Percival Gawain",
-            "\t\tGlorp Zyx Blargh Wumbo Skronk Flanbert Dobbis Quux Zorzax",
-            "\t}",
-            "\tfemale_names = {",
-            "\t\tJill Mary Jane Susan Elizabeth Guinevere Morgana Isolde Elaine",
-            "\t\tFlorb Zyla Blix Wumba Skronkette Flanbertha Dobbissa Quuxa Zorzaxia",
-            "\t}",
-            "\tdynasty_names = {",
-            "\t\tSmith Jones Williams Brown Taylor Davies Evans Wilson Thomas Roberts",
-            "\t\tGlorpson Zyxian Blarghian Wumbian Skronkian",
-            "\t}",
-            "}",
-        };
-
-        var path = Helper.GetPath(dir, "lemur_placeholder.txt");
         await File.WriteAllLinesAsync(path, lines, Helper.Utf8Bom);
     }
 
