@@ -56,60 +56,35 @@ namespace Converter.Lemur.Entities
             return Color;
         }
         /// <summary>
-        /// Get the distribution of cultures in this barony by cell count, excluding wildlands (culture 0)
+        /// Get the distribution of cultures in this barony by cell count, excluding invalid/removed cultures.
         /// </summary>
-        public Dictionary<int, int> GetCultureDistributionByCells()
+        public Dictionary<int, int> GetCultureDistributionByCells(Map map)
         {
-            var cultureCounts = new Dictionary<int, int>();
+            var counts = new Dictionary<int, int>();
             foreach (var cell in Cells)
             {
-                // Skip wildlands culture (culture 0)
-                if (cell.Culture == 0) continue;
-
-                if (cultureCounts.ContainsKey(cell.Culture))
-                {
-                    cultureCounts[cell.Culture]++;
-                }
-                else
-                {
-                    cultureCounts[cell.Culture] = 1;
-                }
+                if (!map.Cultures.ContainsKey(cell.Culture)) continue;
+                counts[cell.Culture] = counts.GetValueOrDefault(cell.Culture, 0) + 1;
             }
-            return cultureCounts;
+            return counts;
         }
 
-        //Get the dominant culture of the barony by counting the number of cells with each culture and returning the most common (excluding wildlands)
-        public AzgaarCulture GetDominantCulture(Map map)
+        /// <summary>
+        /// Get the distribution of religions in this barony by cell count, excluding invalid/removed religions.
+        /// </summary>
+        public Dictionary<int, int> GetReligionDistributionByCells(Map map)
         {
-            var cultureCounts = GetCultureDistributionByCells();
-
-            // If all cells are wildlands, return wildlands culture
-            if (cultureCounts.Count == 0)
-            {
-                return map.JsonMap.pack.cultures[0];
-            }
-
-            var mostCommon = cultureCounts.Aggregate((l, r) => l.Value > r.Value ? l : r).Key;
-            return map.JsonMap.pack.cultures[mostCommon];
-        }
-
-        public AzgaarReligion GetDominantReligion(Map map)
-        {
-            var religionCounts = new Dictionary<int, int>();
+            var counts = new Dictionary<int, int>();
             foreach (var cell in Cells)
             {
-                if (religionCounts.ContainsKey(cell.Religion))
-                {
-                    religionCounts[cell.Religion]++;
-                }
-                else
-                {
-                    religionCounts[cell.Religion] = 1;
-                }
+                if (!map.Faiths.ContainsKey(cell.Religion)) continue;
+                counts[cell.Religion] = counts.GetValueOrDefault(cell.Religion, 0) + 1;
             }
-            var mostCommon = religionCounts.Aggregate((l, r) => l.Value > r.Value ? l : r).Key;
-            return map.JsonMap.pack.religions[mostCommon];
+            return counts;
         }
+
+        public AzgaarCulture GetDominantCulture(Map map) => ((ITitle)this).GetDominantCulture(map);
+        public AzgaarReligion GetDominantReligion(Map map) => ((ITitle)this).GetDominantReligion(map);
 
         public Dictionary<ITitle, int> GetNeighbours()
         {
