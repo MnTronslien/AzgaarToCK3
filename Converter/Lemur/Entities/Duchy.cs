@@ -7,7 +7,19 @@ namespace Converter.Lemur.Entities
     public class Duchy(int i, List<Cell> cells, string name) : ITitle
     {
 
+        /// <summary>
+        /// Azgaar province ID (normal duchies) or state ID (wasteland-derived duchies).
+        /// Drives CK3 title ID generation and deterministic color hashing. Numeric collisions
+        /// between province and state ID spaces are harmless — the duchy name is always part
+        /// of the CK3 key. Does not represent Azgaar state membership; that is not persisted here.
+        /// </summary>
         public int Id { get; set; } = i;
+
+        /// <summary>
+        /// The Azgaar state this duchy belongs to. Azgaar guarantees all cells in a province
+        /// share the same state, so any cell is authoritative.
+        /// </summary>
+        public int AzgaarStateId => Cells.First().State;
 
         public string Name { get; set; } = name;
         public MagickColor? Color { get; set; }

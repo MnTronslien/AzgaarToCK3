@@ -654,7 +654,7 @@ namespace Converter.Lemur
                         duchies.Add(d);
 
                     }
-                    Logger.Info($"Some cells in the wastelands province are assigned to states, generated {duchies.Count} duchies");
+                    Logger.Info($"Some cells in the azgaar wastelands province are assigned to states, we generated {duchies.Count} duchies from these states to preserve the state structure as much as possible. The rest of the cells are assigned to the Wastelands province.");
                     continue;
                 }
 
@@ -845,7 +845,7 @@ namespace Converter.Lemur
             // Get all the duchies, order them by state, get the state data from the json data and create a kingdom from the state data
             // The kingdom will be named after the state
             Logger.Section("Generating kingdoms");
-            var duchiesByState = map.Duchies!.GroupBy(d => d.GetAllCells().First().State).OrderBy(g => g.Key);
+            var duchiesByState = map.Duchies!.GroupBy(d => d.AzgaarStateId).OrderBy(g => g.Key);
             List<Kingdom> kingdoms = new(duchiesByState.Count()); // preallocate memory for the kingdoms
 
             foreach (var state in duchiesByState)
