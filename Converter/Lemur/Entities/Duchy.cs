@@ -24,14 +24,7 @@ namespace Converter.Lemur.Entities
         /// <summary>True if absorbed by MergeTinyKingdoms into a foreign kingdom (AzgaarStateId ≠ parent kingdom.Id); absorbed duchies start independent in title history.</summary>
         public bool IsAbsorbed => Cells.Any() && AzgaarStateId != ((Kingdom)DeJureParent!).Id;
 
-        /// <summary>
-        /// For secondary absorbed duchies only: the primary duchy that represents this state's duke.
-        /// Counties in secondary duchies declare liege to the primary duchy, not their own.
-        /// Null on primary and intact (non-absorbed) duchies. Set by CharacterFactory.
-        /// </summary>
-        public Duchy? PrimaryDuchy { get; set; }
-
-        public string Name { get; set; } = name;
+public string Name { get; set; } = name;
         public MagickColor? Color { get; set; }
         public List<Cell> Cells { get; set; } = cells;
         public ITitle? DeJureParent { get; set; }

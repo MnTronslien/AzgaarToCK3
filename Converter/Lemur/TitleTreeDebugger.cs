@@ -46,7 +46,7 @@ public static class TitleTreeDebugger
 
         var primaryAbsorbed = map.Kingdoms
             .SelectMany(k => k.Duchies)
-            .Where(d => d.IsAbsorbed && d.PrimaryDuchy == null)
+            .Where(d => d.IsAbsorbed && d.DeFactoLiege == null)
             .ToList();
 
         foreach (var primary in primaryAbsorbed)
@@ -55,7 +55,7 @@ public static class TitleTreeDebugger
 
             var secondaries = map.Kingdoms
                 .SelectMany(k => k.Duchies)
-                .Where(d => d.PrimaryDuchy == primary)
+                .Where(d => d.DeFactoLiege == primary)
                 .ToList();
 
             var ownCounties = primary.Counties.ToList();

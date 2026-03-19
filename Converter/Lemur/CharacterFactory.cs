@@ -32,35 +32,26 @@ public static class CharacterFactory
             }
         }
 
-        // Step 2 — Independent dukes: one per absorbed state (group by AzgaarStateId)
+        // Step 2 — Independent dukes: one per absorbed state.
+        // DeFactoHierarchyBuilder has already identified primaries (IsAbsorbed && DeFactoLiege == null)
+        // and set each county's DeFactoLiege, so we just read from the entity graph.
         foreach (var empire in map.Empires!)
         {
             foreach (var kingdom in empire.Kingdoms)
             {
-                var absorbedGroups = kingdom.Duchies
-                    .Where(d => d.IsAbsorbed)
-                    .GroupBy(d => d.AzgaarStateId);
-
-                foreach (var group in absorbedGroups)
+                foreach (var duchy in kingdom.Duchies)
                 {
-                    // Primary = most counties; tie-break by Id for determinism
-                    var primary = group
-                        .OrderByDescending(d => d.Counties.Count)
-                        .ThenBy(d => d.Id)
-                        .First();
+                    if (!duchy.IsAbsorbed || duchy.DeFactoLiege != null) continue;
 
-                    foreach (var secondary in group.Where(d => d != primary))
-                        secondary.PrimaryDuchy = primary;
-
-                    var duke = MakeCharacter(primary, map);
+                    var duke = MakeCharacter(duchy, map);
                     map.Characters.Add(duke);
-                    primary.Holder = duke;
-                    duke.HeldTitles.Add(primary);
+                    duchy.Holder = duke;
+                    duke.HeldTitles.Add(duchy);
 
-                    // Pool from all duchies in the group
-                    var pool = group
+                    // Pool = all counties whose de facto liege is this duchy
+                    var pool = kingdom.Duchies
                         .SelectMany(d => d.Counties)
-                        .Where(c => !claimed.Contains(c))
+                        .Where(c => c.DeFactoLiege == duchy && !claimed.Contains(c))
                         .ToList();
                     ClaimCounties(duke, pool, DukeDemesne, claimed);
                 }
@@ -84,23 +75,6 @@ public static class CharacterFactory
                         count.HeldTitles.Add(county);
                         claimed.Add(county);
                     }
-                }
-            }
-        }
-
-        // Step 4 — Commit liege decisions to entity graph so writers only serialize
-        foreach (var empire in map.Empires!)
-        {
-            foreach (var kingdom in empire.Kingdoms)
-            {
-                foreach (var duchy in kingdom.Duchies)
-                {
-                    duchy.DeFactoLiege = duchy.IsAbsorbed ? null : kingdom;
-
-                    // Every county always has an explicit de facto liege (never null)
-                    var liegeDuchy = duchy.PrimaryDuchy ?? duchy;
-                    foreach (var county in duchy.Counties)
-                        county.DeFactoLiege = liegeDuchy;
                 }
             }
         }

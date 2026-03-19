@@ -121,6 +121,7 @@ namespace Converter.Lemur
             await ShowKingdoms(map);
             await ShowEmpires(map);
 
+            DeFactoHierarchyBuilder.Build(map);
             CharacterFactory.CreateAndAssignAll(map);
 
             TitleTreeDebugger.PrintTrees(map);
