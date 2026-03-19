@@ -121,35 +121,27 @@ public static class CharacterFactory
         var capital = PickCapital(pool);
         var character = MakeCharacter(root, map);
 
-        // Assign character to the root title
-        Assign(character, root, map);
-
-        // Walk down de facto children toward the capital county,
-        // assigning the character to each intermediate unheld title
-        ITitle current = root;
-        while (current is not County)
+        // Build path from capital up to root via DeFactoLiege chain, then reverse.
+        // e.g. kingdom root: [duchy, county] — assigns character to kingdom + duchy + county.
+        var path = new List<ITitle>();
+        ITitle? current = capital;
+        while (current != null && current != root)
         {
-            var children = GetDeFactoChildren(current).ToList();
-            // Find the child whose territory contains the capital county
-            var next = children.FirstOrDefault(child => CollectCountiesUnder(child).Contains(capital))
-                       ?? children.FirstOrDefault(child => CollectCountiesUnder(child).Any(c => !claimed.Contains(c)));
-
-            if (next == null) break;
-
-            if (next.Holder == null)
-                Assign(character, next, map);
-
-            current = next;
+            path.Add(current);
+            current = current.DeFactoLiege;
         }
+        path.Reverse();
 
-        // Assign and claim the capital county
-        if (capital.Holder == null)
-            Assign(character, capital, map);
+        Assign(character, root, map);
+        foreach (var title in path)
+            if (title.Holder == null)
+                Assign(character, title, map);
+
         claimed.Add(capital);
     }
 
     private static County PickCapital(List<County> pool) =>
-        pool.OrderByDescending(c => c.Baronies!.Max(b => (double)(b.burg?.Population ?? 0))).First();
+        pool.OrderByDescending(c => c.Baronies!.Max(b => (double?)b.burg?.Population ?? 0)).First();
 
     private static void Assign(Character character, ITitle title, Map map)
     {
