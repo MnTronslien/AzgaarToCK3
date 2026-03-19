@@ -30,7 +30,7 @@ public static class TitleTreeDebugger
     public static void PrintTrees(L.Map map)
     {
         if (map.Empires is null) return;
-        Logger.Debug("=== DE FACTO TITLE TREE ===");
+        Logger.Section("DE FACTO TITLE TREE");
 
         foreach (var kingdom in map.Kingdoms)
         {
@@ -88,7 +88,7 @@ public static class TitleTreeDebugger
     public static void PrintDeJureTrees(L.Map map)
     {
         if (map.Empires is null) return;
-        Logger.Debug("=== DE JURE TITLE TREE ===");
+        Logger.Section("DE JURE TITLE TREE");
 
         foreach (var empire in map.Empires)
         {

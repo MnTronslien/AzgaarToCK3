@@ -882,7 +882,7 @@ namespace Converter.Lemur
                         continue;
                     }
                     empire.Kingdoms.Add(kingdom);
-                    kingdom.Parent = empire;
+                    kingdom.DeJureParent = empire;
                 }
                 else
                 {
@@ -895,7 +895,7 @@ namespace Converter.Lemur
                         continue;
                     }
                     empire.Kingdoms.Add(kingdom);
-                    kingdom.Parent = empire;
+                    kingdom.DeJureParent = empire;
                 }
 
             }
@@ -964,7 +964,7 @@ namespace Converter.Lemur
                     mergeTarget.Duchies.AddRange(TinyKingdom.Duchies);
                     foreach (var duchy in TinyKingdom.Duchies)
                     {
-                        duchy.Parent = mergeTarget;
+                        duchy.DeJureParent = mergeTarget;
                     }
                     // Remove the tiny kingdom from the empire
                     empire.Kingdoms.Remove(TinyKingdom);
@@ -1017,7 +1017,7 @@ namespace Converter.Lemur
                 mergeTarget.Kingdoms.AddRange(empire.Kingdoms);
                 foreach (var kingdom in empire.Kingdoms)
                 {
-                    kingdom.Parent = mergeTarget;
+                    kingdom.DeJureParent = mergeTarget;
                 }
                 // Remove the tiny empire from the map
                 map.Empires.Remove(empire);

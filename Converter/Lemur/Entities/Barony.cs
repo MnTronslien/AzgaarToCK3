@@ -26,7 +26,7 @@ namespace Converter.Lemur.Entities
         /// See <see cref="ConversionManager.GenerateBaronyAdjacency"/> for how this is generated.
         /// </summary>
         public List<Barony>? Neighbors { get; set; }
-        public ITitle? Parent { get; set; }
+        public ITitle? DeJureParent { get; set; }
         public Character? Holder { get; set; }
 
         public string Ck3_Id() => Helper.ToCk3Id("b", Name, Id);

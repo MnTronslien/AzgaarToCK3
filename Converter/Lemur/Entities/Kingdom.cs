@@ -13,7 +13,7 @@ namespace Converter.Lemur.Entities
 
         public List<Duchy> Duchies { get; set; } = new List<Duchy>();
 
-        public ITitle? Parent { get; set; }
+        public ITitle? DeJureParent { get; set; }
         public Character? Holder { get; set; }
 
         public Kingdom(int id, string name, MagickColor? color, List<Duchy>? duchies)
@@ -25,7 +25,7 @@ namespace Converter.Lemur.Entities
             {
                 Duchies = duchies;
                 Cells = GetAllCells();
-                duchies.ForEach(duchy => duchy.Parent = this);
+                duchies.ForEach(duchy => duchy.DeJureParent = this);
             }
         }
 
@@ -92,7 +92,7 @@ namespace Converter.Lemur.Entities
                     }
 
                     // The neighbour is from another kingdom, so we update the count
-                    var kingdom = neighbour.Parent; // Can be null in edge cases
+                    var kingdom = neighbour.DeJureParent; // Can be null in edge cases
 
                     // Skip orphan duchies (no parent kingdom)
                     if (kingdom == null)

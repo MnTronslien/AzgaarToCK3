@@ -12,7 +12,7 @@ namespace Converter.Lemur.Entities
         public MagickColor? Color { get; set; }
         public List<Cell> Cells { get; set; }
 
-        public ITitle? Parent { get; set; }
+        public ITitle? DeJureParent { get; set; }
         public Character? Holder { get; set; }
         public List<Barony>? Baronies { get; set; }
 
@@ -26,7 +26,7 @@ namespace Converter.Lemur.Entities
         /// </summary>
         public Duchy LiegeDuchy
         {
-            get => _liegeDuchy ?? (Duchy)Parent!;
+            get => _liegeDuchy ?? (Duchy)DeJureParent!;
             set => _liegeDuchy = value;
         }
 
@@ -39,7 +39,7 @@ namespace Converter.Lemur.Entities
             {
                 Baronies = baronies;
                 Cells = Baronies.SelectMany(barony => barony.GetAllCells()).ToList();
-                baronies.ForEach(barony => barony.Parent = this);
+                baronies.ForEach(barony => barony.DeJureParent = this);
             }
             else
             {
@@ -47,8 +47,8 @@ namespace Converter.Lemur.Entities
             }
             if (duchy != null)
             {
-                Parent = duchy;
-                ((Duchy)Parent).Counties.Add(this);
+                DeJureParent = duchy;
+                ((Duchy)DeJureParent).Counties.Add(this);
             }
 
         }
@@ -106,7 +106,7 @@ namespace Converter.Lemur.Entities
                 foreach (var neighbour in barony.Neighbors)
                 {
                     //Get the county of the neibghbour
-                    var neighbourCounty = neighbour.Parent as County;
+                    var neighbourCounty = neighbour.DeJureParent as County;
 
                     //If the county is already in the dictionary, increment the value
                     if (adjacentCounties.ContainsKey(neighbourCounty))

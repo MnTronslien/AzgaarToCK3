@@ -32,7 +32,7 @@ namespace Converter.Lemur.Entities
 
         public List<Cell> Cells { get; set; }
 
-        public ITitle? Parent { get; set; }
+        public ITitle? DeJureParent { get; set; }
 
         /// <summary>
         /// A way to get all the cells in the title. 

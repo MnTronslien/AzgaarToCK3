@@ -22,7 +22,7 @@ namespace Converter.Lemur.Entities
         public int AzgaarStateId => Cells.First().State;
 
         /// <summary>True if absorbed by MergeTinyKingdoms into a foreign kingdom (AzgaarStateId ≠ parent kingdom.Id); absorbed duchies start independent in title history.</summary>
-        public bool IsAbsorbed => Cells.Any() && AzgaarStateId != ((Kingdom)Parent!).Id;
+        public bool IsAbsorbed => Cells.Any() && AzgaarStateId != ((Kingdom)DeJureParent!).Id;
 
         /// <summary>
         /// For secondary absorbed duchies only: the primary duchy that represents this state's duke.
@@ -40,7 +40,7 @@ namespace Converter.Lemur.Entities
         public string Name { get; set; } = name;
         public MagickColor? Color { get; set; }
         public List<Cell> Cells { get; set; } = cells;
-        public ITitle? Parent { get; set; }
+        public ITitle? DeJureParent { get; set; }
         public Character? Holder { get; set; }
         public List<Barony> Baronies { get; set; } = new List<Barony>();
 
@@ -116,7 +116,7 @@ namespace Converter.Lemur.Entities
             foreach (var county in neighbouringCounties.Keys)
             {
                 // Get the duchy the county belongs to
-                var duchy = (Duchy)county.Parent;
+                var duchy = (Duchy)county.DeJureParent;
                 // Add or update the neighbouring duchy count
                 if (!neighbouringDuchies.ContainsKey(duchy))
                 {

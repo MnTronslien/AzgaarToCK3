@@ -108,7 +108,7 @@ public static class CharacterFactory
         Logger.Info($"Created {map.Characters.Count} characters " +
                     $"({map.Empires!.SelectMany(e => e.Kingdoms).Count(k => k.Holder != null)} kings, " +
                     $"{map.Empires!.SelectMany(e => e.Kingdoms).SelectMany(k => k.Duchies).Count(d => d.Holder != null)} dukes, " +
-                    $"{map.Empires!.SelectMany(e => e.Kingdoms).SelectMany(k => k.Duchies).SelectMany(d => d.Counties).Count(c => c.Holder != null && c.Holder != c.Parent?.Holder)} counts)");
+                    $"{map.Empires!.SelectMany(e => e.Kingdoms).SelectMany(k => k.Duchies).SelectMany(d => d.Counties).Count(c => c.Holder != null && c.Holder != c.DeJureParent?.Holder)} counts)");
     }
 
     /// <summary>
@@ -174,11 +174,11 @@ public static class CharacterFactory
                 if (kingdom.Holder == null) continue;
                 var badCounties = kingdom.Holder.HeldTitles
                     .OfType<County>()
-                    .Where(c => ((Duchy)c.Parent!).AzgaarStateId != kingdom.Id)
+                    .Where(c => ((Duchy)c.DeJureParent!).AzgaarStateId != kingdom.Id)
                     .ToList();
                 foreach (var county in badCounties)
                     Logger.Error($"Assert fail: king of {kingdom.Name} holds county {county.Name} " +
-                                 $"from state {((Duchy)county.Parent!).AzgaarStateId} (expected {kingdom.Id})");
+                                 $"from state {((Duchy)county.DeJureParent!).AzgaarStateId} (expected {kingdom.Id})");
             }
         }
     }
