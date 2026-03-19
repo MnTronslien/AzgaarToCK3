@@ -25,7 +25,7 @@ public static class Logger
         "██║  ██║███████╗╚██████╔╝██║  ██║██║  ██║██║  ██║       ██║   ╚██████╔╝    ╚██████╗██║  ██╗██████╔╝\n" +
         "╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝       ╚═╝    ╚═════╝      ╚═════╝╚═╝  ╚═╝╚═════╝ ";
 
-    public static void Title() => Console.WriteLine($"{Yellow}{Bold}{TitleArt}{Reset}\n");
+    public static void Title() => Console.WriteLine($"\n{Yellow}{Bold}{TitleArt}{Reset}\n");
 
     public static void Section(string header)
     {
