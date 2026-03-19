@@ -88,6 +88,22 @@ public static class CharacterFactory
             }
         }
 
+        // Step 4 — Commit liege decisions to entity graph so writers only serialize
+        foreach (var empire in map.Empires!)
+        {
+            foreach (var kingdom in empire.Kingdoms)
+            {
+                foreach (var duchy in kingdom.Duchies)
+                {
+                    duchy.LiegeId = duchy.IsAbsorbed ? null : kingdom.Ck3_Id();
+
+                    if (duchy.PrimaryDuchy != null)
+                        foreach (var county in duchy.Counties)
+                            county.LiegeDuchy = duchy.PrimaryDuchy;
+                }
+            }
+        }
+
         RunAssertions(map);
         Logger.Info($"Created {map.Characters.Count} characters " +
                     $"({map.Empires!.SelectMany(e => e.Kingdoms).Count(k => k.Holder != null)} kings, " +

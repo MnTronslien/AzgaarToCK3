@@ -18,6 +18,18 @@ namespace Converter.Lemur.Entities
 
         public Barony? Capital { get; set; }
 
+        private Duchy? _liegeDuchy;
+        /// <summary>
+        /// The duchy this county declares liege to in title history.
+        /// Defaults to own parent duchy; overridden for counties in secondary absorbed duchies.
+        /// Set by CharacterFactory after holder assignment.
+        /// </summary>
+        public Duchy LiegeDuchy
+        {
+            get => _liegeDuchy ?? (Duchy)Parent!;
+            set => _liegeDuchy = value;
+        }
+
         //constructor
         public County(int id, string name, List<Barony>? baronies = null, Duchy? duchy = null, Barony? capital = null)
         {

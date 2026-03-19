@@ -21,18 +21,13 @@ public static class TitleHistoryWriter
 
                 foreach (var duchy in kingdom.Duchies)
                 {
-                    // Duchy is a vassal of the kingdom only if it belongs to that kingdom's state
-                    string? duchyLiege = duchy.IsAbsorbed ? null : kingdom.Ck3_Id();
-
                     if (duchy.Holder != null)
-                        sb.AppendLine(TitleEntry(duchy.Ck3_Id(), duchy.Holder.Id, duchyLiege));
+                        sb.AppendLine(TitleEntry(duchy.Ck3_Id(), duchy.Holder.Id, duchy.LiegeId));
 
-                    // Counties in secondary absorbed duchies declare liege to the primary duchy
-                    string countyLiege = duchy.PrimaryDuchy?.Ck3_Id() ?? duchy.Ck3_Id();
                     foreach (var county in duchy.Counties)
                     {
                         if (county.Holder != null)
-                            sb.AppendLine(TitleEntry(county.Ck3_Id(), county.Holder.Id, countyLiege));
+                            sb.AppendLine(TitleEntry(county.Ck3_Id(), county.Holder.Id, county.LiegeDuchy.Ck3_Id()));
                     }
                 }
             }

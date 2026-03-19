@@ -31,6 +31,12 @@ namespace Converter.Lemur.Entities
         /// </summary>
         public Duchy? PrimaryDuchy { get; set; }
 
+        /// <summary>
+        /// Pre-computed CK3 liege title key for title history. Null = independent (no liege declared).
+        /// Set by CharacterFactory after holder assignment.
+        /// </summary>
+        public string? LiegeId { get; set; }
+
         public string Name { get; set; } = name;
         public MagickColor? Color { get; set; }
         public List<Cell> Cells { get; set; } = cells;
