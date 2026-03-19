@@ -27,10 +27,12 @@ public static class TitleHistoryWriter
                     if (duchy.Holder != null)
                         sb.AppendLine(TitleEntry(duchy.Ck3_Id(), duchy.Holder.Id, duchyLiege));
 
+                    // Counties in secondary absorbed duchies declare liege to the primary duchy
+                    string countyLiege = duchy.PrimaryDuchy?.Ck3_Id() ?? duchy.Ck3_Id();
                     foreach (var county in duchy.Counties)
                     {
                         if (county.Holder != null)
-                            sb.AppendLine(TitleEntry(county.Ck3_Id(), county.Holder.Id, duchy.Ck3_Id()));
+                            sb.AppendLine(TitleEntry(county.Ck3_Id(), county.Holder.Id, countyLiege));
                     }
                 }
             }

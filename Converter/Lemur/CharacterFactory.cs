@@ -32,21 +32,34 @@ public static class CharacterFactory
             }
         }
 
-        // Step 2 — Independent dukes for absorbed duchies (AzgaarStateId != parent kingdom.Id)
+        // Step 2 — Independent dukes: one per absorbed state (group by AzgaarStateId)
         foreach (var empire in map.Empires!)
         {
             foreach (var kingdom in empire.Kingdoms)
             {
-                foreach (var duchy in kingdom.Duchies)
+                var absorbedGroups = kingdom.Duchies
+                    .Where(d => d.IsAbsorbed)
+                    .GroupBy(d => d.AzgaarStateId);
+
+                foreach (var group in absorbedGroups)
                 {
-                    if (!duchy.IsAbsorbed) continue;
+                    // Primary = most counties; tie-break by Id for determinism
+                    var primary = group
+                        .OrderByDescending(d => d.Counties.Count)
+                        .ThenBy(d => d.Id)
+                        .First();
 
-                    var duke = MakeCharacter(duchy, map);
+                    foreach (var secondary in group.Where(d => d != primary))
+                        secondary.PrimaryDuchy = primary;
+
+                    var duke = MakeCharacter(primary, map);
                     map.Characters.Add(duke);
-                    duchy.Holder = duke;
-                    duke.HeldTitles.Add(duchy);
+                    primary.Holder = duke;
+                    duke.HeldTitles.Add(primary);
 
-                    var pool = duchy.Counties
+                    // Pool from all duchies in the group
+                    var pool = group
+                        .SelectMany(d => d.Counties)
                         .Where(c => !claimed.Contains(c))
                         .ToList();
                     ClaimCounties(duke, pool, DukeDemesne, claimed);
