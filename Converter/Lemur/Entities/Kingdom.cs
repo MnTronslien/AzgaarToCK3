@@ -75,8 +75,6 @@ namespace Converter.Lemur.Entities
             return counts;
         }
 
-        public AzgaarCulture GetDominantCulture(Map map) => ((ITitle)this).GetDominantCulture(map);
-        public AzgaarReligion GetDominantReligion(Map map) => ((ITitle)this).GetDominantReligion(map);
 
         public Dictionary<ITitle, int> GetNeighbours()
         {

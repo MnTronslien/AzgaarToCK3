@@ -874,7 +874,7 @@ namespace Converter.Lemur
                 if (Settings.Instance.EmpireFromCulture)
                 {
                     // Get the dominant culture across ALL duchies in the kingdom, not just the first duchy
-                    var culture = kingdom.GetDominantCulture(map);
+                    var culture = ((ITitle)kingdom).GetDominantCulture(map);
                     var empire = map.Empires!.FirstOrDefault(e => e.Culture == culture);
                     if (empire == null)
                     {
@@ -887,7 +887,7 @@ namespace Converter.Lemur
                 else
                 {
                     // Get the dominant religion across ALL duchies in the kingdom, not just the first duchy
-                    var religion = kingdom.GetDominantReligion(map);
+                    var religion = ((ITitle)kingdom).GetDominantReligion(map);
                     var empire = map.Empires!.FirstOrDefault(e => e.Religion == religion);
                     if (empire == null)
                     {

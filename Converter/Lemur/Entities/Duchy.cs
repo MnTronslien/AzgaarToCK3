@@ -21,11 +21,7 @@ namespace Converter.Lemur.Entities
         /// </summary>
         public int AzgaarStateId => Cells.First().State;
 
-        /// <summary>
-        /// True if this duchy was absorbed into a foreign kingdom by MergeTinyKingdoms —
-        /// i.e. its Azgaar state ID does not match the de jure parent kingdom's ID.
-        /// Absorbed duchies start as independent (no liege) in title history.
-        /// </summary>
+        /// <summary>True if absorbed by MergeTinyKingdoms into a foreign kingdom (AzgaarStateId ≠ parent kingdom.Id); absorbed duchies start independent in title history.</summary>
         public bool IsAbsorbed => Cells.Any() && AzgaarStateId != ((Kingdom)Parent!).Id;
 
         public string Name { get; set; } = name;
@@ -73,8 +69,6 @@ namespace Converter.Lemur.Entities
             return counts;
         }
 
-        public AzgaarCulture GetDominantCulture(Map map) => ((ITitle)this).GetDominantCulture(map);
-        public AzgaarReligion GetDominantReligion(Map map) => ((ITitle)this).GetDominantReligion(map);
 
         public Dictionary<ITitle, int> GetNeighbours()
         {
