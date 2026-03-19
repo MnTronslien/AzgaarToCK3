@@ -22,7 +22,7 @@ public static class TitleHistoryWriter
                 foreach (var duchy in kingdom.Duchies)
                 {
                     // Duchy is a vassal of the kingdom only if it belongs to that kingdom's state
-                    string? duchyLiege = duchy.AzgaarStateId == kingdom.Id ? kingdom.Ck3_Id() : null;
+                    string? duchyLiege = duchy.IsAbsorbed ? null : kingdom.Ck3_Id();
 
                     if (duchy.Holder != null)
                         sb.AppendLine(TitleEntry(duchy.Ck3_Id(), duchy.Holder.Id, duchyLiege));

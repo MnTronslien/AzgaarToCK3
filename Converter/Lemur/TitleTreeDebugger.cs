@@ -31,7 +31,7 @@ public static class TitleTreeDebugger
 
             foreach (var duchy in kingdom.Duchies)
             {
-                if (IsDuchyIndependent(duchy, kingdom)) continue;
+                if (duchy.IsAbsorbed) continue;
 
                 Logger.Debug($"  [DUCHY-VASSAL] {duchy.Ck3_Id()} ({duchy.Name}) -- {FormatHolder(duchy.Holder)}");
                 PrintCounties(duchy, "    ");
@@ -43,7 +43,7 @@ public static class TitleTreeDebugger
         {
             foreach (var duchy in kingdom.Duchies)
             {
-                if (!IsDuchyIndependent(duchy, kingdom)) continue;
+                if (!duchy.IsAbsorbed) continue;
 
                 Logger.Debug($"[DUKE-INDEP] {duchy.Ck3_Id()} ({duchy.Name}) -- {FormatHolder(duchy.Holder)}");
                 PrintCounties(duchy, "  ");
@@ -57,17 +57,6 @@ public static class TitleTreeDebugger
     {
         foreach (var county in duchy.Counties)
             Logger.Debug($"{indent}[COUNTY] {county.Ck3_Id()} ({county.Name}) -- {FormatHolder(county.Holder)}");
-    }
-
-    /// <summary>
-    /// A duchy is independent when its Azgaar state ID does not match the
-    /// Kingdom's ID. This is the post-MergeTinyKingdoms condition.
-    /// Returns false for empty-cell duchies to avoid Cells.First() throwing.
-    /// </summary>
-    private static bool IsDuchyIndependent(L.Duchy duchy, L.Kingdom parentKingdom)
-    {
-        if (!duchy.Cells.Any()) return false;
-        return duchy.AzgaarStateId != parentKingdom.Id;
     }
 
     private static string FormatHolder(L.Character? holder)

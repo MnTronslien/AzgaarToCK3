@@ -21,6 +21,13 @@ namespace Converter.Lemur.Entities
         /// </summary>
         public int AzgaarStateId => Cells.First().State;
 
+        /// <summary>
+        /// True if this duchy was absorbed into a foreign kingdom by MergeTinyKingdoms —
+        /// i.e. its Azgaar state ID does not match the de jure parent kingdom's ID.
+        /// Absorbed duchies start as independent (no liege) in title history.
+        /// </summary>
+        public bool IsAbsorbed => Cells.Any() && AzgaarStateId != ((Kingdom)Parent!).Id;
+
         public string Name { get; set; } = name;
         public MagickColor? Color { get; set; }
         public List<Cell> Cells { get; set; } = cells;

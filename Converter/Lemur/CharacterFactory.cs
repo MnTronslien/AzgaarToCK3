@@ -16,7 +16,7 @@ public static class CharacterFactory
         {
             foreach (var kingdom in empire.Kingdoms)
             {
-                bool intact = kingdom.Duchies.All(d => d.AzgaarStateId == kingdom.Id);
+                bool intact = kingdom.Duchies.All(d => !d.IsAbsorbed);
                 if (!intact) continue;
 
                 var king = MakeCharacter(kingdom, map);
@@ -39,7 +39,7 @@ public static class CharacterFactory
             {
                 foreach (var duchy in kingdom.Duchies)
                 {
-                    if (duchy.AzgaarStateId == kingdom.Id) continue;
+                    if (!duchy.IsAbsorbed) continue;
 
                     var duke = MakeCharacter(duchy, map);
                     map.Characters.Add(duke);
@@ -130,7 +130,7 @@ public static class CharacterFactory
         var independentDukes = map.Empires!
             .SelectMany(e => e.Kingdoms)
             .SelectMany(k => k.Duchies)
-            .Where(d => d.Holder != null && d.AzgaarStateId != ((Kingdom)d.Parent!).Id)
+            .Where(d => d.Holder != null && d.IsAbsorbed)
             .ToList();
 
         foreach (var group in independentDukes.GroupBy(d => d.AzgaarStateId).Where(g => g.Count() > 1))
