@@ -95,11 +95,12 @@ public static class CharacterFactory
             {
                 foreach (var duchy in kingdom.Duchies)
                 {
-                    duchy.LiegeId = duchy.IsAbsorbed ? null : kingdom.Ck3_Id();
+                    duchy.DeFactoLiege = duchy.IsAbsorbed ? null : kingdom;
 
-                    if (duchy.PrimaryDuchy != null)
-                        foreach (var county in duchy.Counties)
-                            county.LiegeDuchy = duchy.PrimaryDuchy;
+                    // Every county always has an explicit de facto liege (never null)
+                    var liegeDuchy = duchy.PrimaryDuchy ?? duchy;
+                    foreach (var county in duchy.Counties)
+                        county.DeFactoLiege = liegeDuchy;
                 }
             }
         }

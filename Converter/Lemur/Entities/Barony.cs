@@ -27,6 +27,7 @@ namespace Converter.Lemur.Entities
         /// </summary>
         public List<Barony>? Neighbors { get; set; }
         public ITitle? DeJureParent { get; set; }
+        public ITitle? DeFactoLiege { get; set; }
         public Character? Holder { get; set; }
 
         public string Ck3_Id() => Helper.ToCk3Id("b", Name, Id);

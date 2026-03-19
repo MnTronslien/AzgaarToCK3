@@ -24,6 +24,7 @@ namespace Converter.Lemur.Entities
         public AzgaarReligion Religion { get; set; }
 
         public ITitle? DeJureParent { get; set; }
+        public ITitle? DeFactoLiege { get; set; }
         public Character? Holder { get; set; }
 
         public string Ck3_Id() => Helper.ToCk3Id("e", Name, Id);

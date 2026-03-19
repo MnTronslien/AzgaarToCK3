@@ -35,6 +35,13 @@ namespace Converter.Lemur.Entities
         public ITitle? DeJureParent { get; set; }
 
         /// <summary>
+        /// The de facto liege title. Null means independent (no liege declared in title history).
+        /// For counties this is always set explicitly (own duchy, or primary duchy of an absorbed state).
+        /// Set by CharacterFactory after all holders are assigned.
+        /// </summary>
+        public ITitle? DeFactoLiege { get; set; }
+
+        /// <summary>
         /// A way to get all the cells in the title. 
         /// </summary>
         /// <returns></returns>

@@ -13,22 +13,11 @@ namespace Converter.Lemur.Entities
         public List<Cell> Cells { get; set; }
 
         public ITitle? DeJureParent { get; set; }
+        public ITitle? DeFactoLiege { get; set; }
         public Character? Holder { get; set; }
         public List<Barony>? Baronies { get; set; }
 
         public Barony? Capital { get; set; }
-
-        private Duchy? _liegeDuchy;
-        /// <summary>
-        /// The duchy this county declares liege to in title history.
-        /// Defaults to own parent duchy; overridden for counties in secondary absorbed duchies.
-        /// Set by CharacterFactory after holder assignment.
-        /// </summary>
-        public Duchy LiegeDuchy
-        {
-            get => _liegeDuchy ?? (Duchy)DeJureParent!;
-            set => _liegeDuchy = value;
-        }
 
         //constructor
         public County(int id, string name, List<Barony>? baronies = null, Duchy? duchy = null, Barony? capital = null)

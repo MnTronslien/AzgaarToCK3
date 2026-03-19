@@ -14,6 +14,7 @@ namespace Converter.Lemur.Entities
         public List<Duchy> Duchies { get; set; } = new List<Duchy>();
 
         public ITitle? DeJureParent { get; set; }
+        public ITitle? DeFactoLiege { get; set; }
         public Character? Holder { get; set; }
 
         public Kingdom(int id, string name, MagickColor? color, List<Duchy>? duchies)

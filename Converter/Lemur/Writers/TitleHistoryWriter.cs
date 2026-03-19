@@ -22,12 +22,12 @@ public static class TitleHistoryWriter
                 foreach (var duchy in kingdom.Duchies)
                 {
                     if (duchy.Holder != null)
-                        sb.AppendLine(TitleEntry(duchy.Ck3_Id(), duchy.Holder.Id, duchy.LiegeId));
+                        sb.AppendLine(TitleEntry(duchy.Ck3_Id(), duchy.Holder.Id, duchy.DeFactoLiege?.Ck3_Id()));
 
                     foreach (var county in duchy.Counties)
                     {
                         if (county.Holder != null)
-                            sb.AppendLine(TitleEntry(county.Ck3_Id(), county.Holder.Id, county.LiegeDuchy.Ck3_Id()));
+                            sb.AppendLine(TitleEntry(county.Ck3_Id(), county.Holder.Id, county.DeFactoLiege!.Ck3_Id()));
                     }
                 }
             }
