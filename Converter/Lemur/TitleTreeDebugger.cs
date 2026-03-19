@@ -3,103 +3,111 @@ using L = Converter.Lemur.Entities;
 namespace Converter.Lemur;
 
 /// <summary>
-/// Diagnostic utility that prints the de facto and de jure title trees to the
-/// console at Debug log level. Pass --log-level debug to see output.
+/// Diagnostic utility that prints de facto and de jure title trees at Debug log level.
+/// Pass --log-level debug to see output.
 /// </summary>
 public static class TitleTreeDebugger
 {
+    private static string Branch(bool isLast) => isLast ? "└── " : "├── ";
+    private static string Indent(bool isLast) => isLast ? "    " : "│   ";
+
+    private static void Each<T>(IEnumerable<T> source, string prefix, Action<T, string, bool> print)
+    {
+        var items = source as IReadOnlyList<T> ?? source.ToList();
+        for (int i = 0; i < items.Count; i++)
+            print(items[i], prefix, i == items.Count - 1);
+    }
+
     // -------------------------------------------------------------------------
     // De Facto tree
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Prints the de facto title tree. Kings are roots; their vassal duchies and
-    /// counties are nested beneath. Independent duchies (those absorbed via
-    /// MergeTinyKingdoms whose AzgaarStateId != parent kingdom.Id) appear as
-    /// separate root trees.
+    /// Prints the de facto title tree. Intact kingdoms are roots with their vassal duchies
+    /// nested beneath. Independent duchies (absorbed state primaries) are separate roots
+    /// with their own counties and any secondary duchies nested beneath.
     /// </summary>
     public static void PrintTrees(L.Map map)
     {
         if (map.Empires is null) return;
-
         Logger.Debug("=== DE FACTO TITLE TREE ===");
 
-        // Kingdom roots
         foreach (var kingdom in map.Kingdoms)
         {
-            Logger.Debug($"[KING] {kingdom.Ck3_Id()} ({kingdom.Name}) -- {FormatHolder(kingdom.Holder)}");
-
-            foreach (var duchy in kingdom.Duchies)
+            Logger.Debug($"{kingdom.Name} [Kingdom]");
+            var vassalDuchies = kingdom.Duchies.Where(d => !d.IsAbsorbed).ToList();
+            Each(vassalDuchies, "", (duchy, p, isLast) =>
             {
-                if (duchy.IsAbsorbed) continue;
-
-                Logger.Debug($"  [DUCHY-VASSAL] {duchy.Ck3_Id()} ({duchy.Name}) -- {FormatHolder(duchy.Holder)}");
-                PrintCounties(duchy, "    ");
-            }
+                Logger.Debug($"{p}{Branch(isLast)}{duchy.Name} [Duchy]");
+                Each(duchy.Counties, p + Indent(isLast), (county, cp, cl) =>
+                    Logger.Debug($"{cp}{Branch(cl)}{county.Name} [County]"));
+            });
         }
 
-        // Independent duchy roots
-        foreach (var kingdom in map.Kingdoms)
-        {
-            foreach (var duchy in kingdom.Duchies)
-            {
-                if (!duchy.IsAbsorbed) continue;
+        var primaryAbsorbed = map.Kingdoms
+            .SelectMany(k => k.Duchies)
+            .Where(d => d.IsAbsorbed && d.PrimaryDuchy == null)
+            .ToList();
 
-                Logger.Debug($"[DUKE-INDEP] {duchy.Ck3_Id()} ({duchy.Name}) -- {FormatHolder(duchy.Holder)}");
-                PrintCounties(duchy, "  ");
+        foreach (var primary in primaryAbsorbed)
+        {
+            Logger.Debug($"{primary.Name} [Duchy]");
+
+            var secondaries = map.Kingdoms
+                .SelectMany(k => k.Duchies)
+                .Where(d => d.PrimaryDuchy == primary)
+                .ToList();
+
+            var ownCounties = primary.Counties.ToList();
+            for (int i = 0; i < ownCounties.Count; i++)
+            {
+                bool isLast = i == ownCounties.Count - 1 && secondaries.Count == 0;
+                Logger.Debug($"{Branch(isLast)}{ownCounties[i].Name} [County]");
+            }
+
+            for (int i = 0; i < secondaries.Count; i++)
+            {
+                bool isLast = i == secondaries.Count - 1;
+                var secondary = secondaries[i];
+                Logger.Debug($"{Branch(isLast)}{secondary.Name} [Duchy]");
+                Each(secondary.Counties, Indent(isLast), (county, p, l) =>
+                    Logger.Debug($"{p}{Branch(l)}{county.Name} [County]"));
             }
         }
 
         Logger.Debug("=== END DE FACTO TREE ===");
     }
 
-    private static void PrintCounties(L.Duchy duchy, string indent)
-    {
-        foreach (var county in duchy.Counties)
-            Logger.Debug($"{indent}[COUNTY] {county.Ck3_Id()} ({county.Name}) -- {FormatHolder(county.Holder)}");
-    }
-
-    private static string FormatHolder(L.Character? holder)
-    {
-        if (holder is null) return "(unowned)";
-        return $"{holder.Id} [{holder.Culture.CK3Key}/{holder.Faith.CK3Key}]";
-    }
-
     // -------------------------------------------------------------------------
-    // De Jure tree (bonus)
+    // De Jure tree
     // -------------------------------------------------------------------------
 
     /// <summary>
     /// Prints the complete de jure hierarchy: Empire > Kingdom > Duchy > County > Barony.
-    /// Each node shows its CK3 ID and current holder if any.
     /// </summary>
     public static void PrintDeJureTrees(L.Map map)
     {
         if (map.Empires is null) return;
-
         Logger.Debug("=== DE JURE TITLE TREE ===");
 
         foreach (var empire in map.Empires)
         {
-            Logger.Debug($"[EMPIRE] {empire.Ck3_Id()} ({empire.Name}) -- {FormatHolder(empire.Holder)}");
-
-            foreach (var kingdom in empire.Kingdoms)
+            Logger.Debug($"{empire.Name} [Empire]");
+            Each(empire.Kingdoms, "", (kingdom, kp, kLast) =>
             {
-                Logger.Debug($"  [KINGDOM] {kingdom.Ck3_Id()} ({kingdom.Name}) -- {FormatHolder(kingdom.Holder)}");
-
-                foreach (var duchy in kingdom.Duchies)
+                Logger.Debug($"{kp}{Branch(kLast)}{kingdom.Name} [Kingdom]");
+                Each(kingdom.Duchies, kp + Indent(kLast), (duchy, dp, dLast) =>
                 {
-                    Logger.Debug($"    [DUCHY] {duchy.Ck3_Id()} ({duchy.Name}) -- {FormatHolder(duchy.Holder)}");
-
-                    foreach (var county in duchy.Counties)
+                    Logger.Debug($"{dp}{Branch(dLast)}{duchy.Name} [Duchy]");
+                    Each(duchy.Counties, dp + Indent(dLast), (county, cp, cLast) =>
                     {
-                        Logger.Debug($"      [COUNTY] {county.Ck3_Id()} ({county.Name}) -- {FormatHolder(county.Holder)}");
-
-                        foreach (var barony in county.Baronies ?? Enumerable.Empty<L.Barony>())
-                            Logger.Debug($"        [BARONY] {barony.Ck3_Id()} ({barony.Name}) -- {FormatHolder(barony.Holder)}");
-                    }
-                }
-            }
+                        Logger.Debug($"{cp}{Branch(cLast)}{county.Name} [County]");
+                        var baronies = county.Baronies ?? new List<L.Barony>();
+                        Each(baronies, cp + Indent(cLast), (barony, bp, bLast) =>
+                            Logger.Debug($"{bp}{Branch(bLast)}{barony.Name} [Barony]"));
+                    });
+                });
+            });
         }
 
         Logger.Debug("=== END DE JURE TREE ===");
