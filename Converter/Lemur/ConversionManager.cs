@@ -123,6 +123,9 @@ namespace Converter.Lemur
 
             CharacterFactory.CreateAndAssignAll(map);
 
+            TitleTreeDebugger.PrintTrees(map);
+            TitleTreeDebugger.PrintDeJureTrees(map);
+
             Logger.Section("Writing CK3 mod files");
 
             if (w.Adjacencies)
