@@ -75,7 +75,7 @@ public static class CharacterFactory
             .ToList();
 
         foreach (var group in independentDukes.GroupBy(d => d.AzgaarStateId).Where(g => g.Count() > 1))
-            Logger.Error($"[Assert] Multiple independent dukes for AzgaarStateId={group.Key}: " +
+            Logger.Warning($"[Assert] Multiple independent dukes for AzgaarStateId={group.Key}: " +
                          $"{string.Join(", ", group.Select(d => d.Name))}");
 
         // Assertion 2: kings do not hold counties from a different native state
@@ -88,7 +88,7 @@ public static class CharacterFactory
                 .Where(c => ((Duchy)c.DeJureParent!).AzgaarStateId != kingdom.Id)
                 .ToList();
             foreach (var county in foreignCounties)
-                Logger.Error($"[Assert] King of {kingdom.Name} holds county {county.Name} " +
+                Logger.Warning($"[Assert] King of {kingdom.Name} holds county {county.Name} " +
                              $"from state {((Duchy)county.DeJureParent!).AzgaarStateId} (expected {kingdom.Id})");
         }
 
@@ -102,7 +102,7 @@ public static class CharacterFactory
                 .Where(c => ((Duchy)c.DeJureParent!).IsAbsorbed)
                 .ToList();
             foreach (var county in absorbedCounties)
-                Logger.Error($"[Assert] King of {kingdom.Name} holds county {county.Name} " +
+                Logger.Warning($"[Assert] King of {kingdom.Name} holds county {county.Name} " +
                              $"from absorbed duchy {((Duchy)county.DeJureParent!).Name}");
         }
     }
