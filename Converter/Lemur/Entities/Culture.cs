@@ -17,8 +17,8 @@ public class Culture
     public ThemeBundle ThemeBundle { get; set; } = null!;
 
     public List<string> Traditions { get; set; } = new();
-    /// <summary>CK3 keys of parent cultures (0, 1, or 2 entries)</summary>
-    public List<string> Parents { get; set; } = new();
+    /// <summary>Direct references to parent cultures (0, 1, or 2 entries)</summary>
+    public List<Culture> Parents { get; set; } = new();
 
     /// <summary>
     /// Creation date for derived/hybrid cultures. Null for foundational cultures (ancient, no created date needed).

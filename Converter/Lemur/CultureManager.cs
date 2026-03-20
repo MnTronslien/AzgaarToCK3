@@ -65,7 +65,7 @@ public static class CultureManager
             var realOrigins = GetRealOrigins(azc.origins);
             foreach (var pid in realOrigins)
                 if (result.TryGetValue(pid, out var parentCulture))
-                    culture.Parents.Add(parentCulture.CK3Key);
+                    culture.Parents.Add(parentCulture);
         }
 
         // Pass 5: assign creation dates
