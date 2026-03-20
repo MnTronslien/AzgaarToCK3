@@ -61,6 +61,50 @@ public static class CharacterFactory
         Logger.Info($"Created {map.Characters.Count} characters " +
                     $"({map.Empires!.SelectMany(e => e.Kingdoms).Count(k => k.Holder != null)} kings, " +
                     $"{map.Empires!.SelectMany(e => e.Kingdoms).SelectMany(k => k.Duchies).Count(d => d.Holder != null)} dukes)");
+
+        RunAssertions(map);
+    }
+
+    private static void RunAssertions(Map map)
+    {
+        // Assertion 1: no two independent dukes share the same AzgaarStateId
+        var independentDukes = map.Empires!
+            .SelectMany(e => e.Kingdoms)
+            .SelectMany(k => k.Duchies)
+            .Where(d => d.Holder != null && d.IsAbsorbed)
+            .ToList();
+
+        foreach (var group in independentDukes.GroupBy(d => d.AzgaarStateId).Where(g => g.Count() > 1))
+            Logger.Error($"[Assert] Multiple independent dukes for AzgaarStateId={group.Key}: " +
+                         $"{string.Join(", ", group.Select(d => d.Name))}");
+
+        // Assertion 2: kings do not hold counties from a different native state
+        foreach (var empire in map.Empires!)
+        foreach (var kingdom in empire.Kingdoms)
+        {
+            if (kingdom.Holder == null) continue;
+            var foreignCounties = kingdom.Holder.HeldTitles
+                .OfType<County>()
+                .Where(c => ((Duchy)c.DeJureParent!).AzgaarStateId != kingdom.Id)
+                .ToList();
+            foreach (var county in foreignCounties)
+                Logger.Error($"[Assert] King of {kingdom.Name} holds county {county.Name} " +
+                             $"from state {((Duchy)county.DeJureParent!).AzgaarStateId} (expected {kingdom.Id})");
+        }
+
+        // Assertion 3: kings do not hold counties from absorbed duchies
+        foreach (var empire in map.Empires!)
+        foreach (var kingdom in empire.Kingdoms)
+        {
+            if (kingdom.Holder == null) continue;
+            var absorbedCounties = kingdom.Holder.HeldTitles
+                .OfType<County>()
+                .Where(c => ((Duchy)c.DeJureParent!).IsAbsorbed)
+                .ToList();
+            foreach (var county in absorbedCounties)
+                Logger.Error($"[Assert] King of {kingdom.Name} holds county {county.Name} " +
+                             $"from absorbed duchy {((Duchy)county.DeJureParent!).Name}");
+        }
     }
 
     /// <summary>
@@ -106,7 +150,7 @@ public static class CharacterFactory
     /// </summary>
     private static IEnumerable<ITitle> GetDeFactoChildren(ITitle title) => title switch
     {
-        Kingdom k  => k.Duchies.Where(d => d.DeFactoLiege == k).Cast<ITitle>(),
+        Kingdom k  => k.Duchies.Where(d => !d.IsAbsorbed && d.DeFactoLiege == k).Cast<ITitle>(),
         Duchy   d  => d.Counties.Where(c => c.DeFactoLiege == d).Cast<ITitle>(),
         _          => Enumerable.Empty<ITitle>()
     };

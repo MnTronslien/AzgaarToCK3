@@ -126,6 +126,7 @@ namespace Converter.Lemur
 
             TitleTreeDebugger.PrintTrees(map);
             TitleTreeDebugger.PrintDeJureTrees(map);
+            TitleTreeDebugger.PrintCharacterDomains(map);
 
             Logger.Section("Writing CK3 mod files");
 
