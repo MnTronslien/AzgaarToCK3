@@ -3,6 +3,7 @@ namespace Converter.Lemur;
 public static class Logger
 {
     private const string Yellow = "\u001b[33m";
+    private const string Green  = "\u001b[92m";
     private const string Red    = "\u001b[31m";
     private const string Cyan   = "\u001b[96m";
     private const string Bold   = "\u001b[1m";
@@ -25,7 +26,15 @@ public static class Logger
         "██║  ██║███████╗╚██████╔╝██║  ██║██║  ██║██║  ██║       ██║   ╚██████╔╝    ╚██████╗██║  ██╗██████╔╝              ███████╗███████╗██║ ╚═╝ ██║╚██████╔╝██║  ██║\n" +
         "╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝       ╚═╝    ╚═════╝      ╚═════╝╚═╝  ╚═╝╚═════╝               ╚══════╝╚══════╝╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═╝";
 
+    private const string SuccessArt =
+        "                                            ▄▄ \n" +
+        "▄█████ ▄▄ ▄▄  ▄▄▄▄  ▄▄▄▄ ▄▄▄▄▄  ▄▄▄▄  ▄▄▄▄  ██ \n" +
+        "▀▀▀▄▄▄ ██ ██ ██▀▀▀ ██▀▀▀ ██▄▄  ███▄▄ ███▄▄  ██ \n" +
+        "█████▀ ▀███▀ ▀████ ▀████ ██▄▄▄ ▄▄██▀ ▄▄██▀  ▄▄ \n" +
+        "                                               ";
+
     public static void Title() => Console.WriteLine($"\n{Yellow}{Bold}{TitleArt}{Reset}\n");
+    public static void Success() => Console.WriteLine($"\n{Green}{Bold}{SuccessArt}{Reset}\n");
 
     public static void Section(string header)
     {

@@ -172,7 +172,7 @@ namespace Converter.Lemur
             if (w.TitleHistory)
                 await TitleHistoryWriter.Write(map, Settings.OutputDirectory);
 
-            Logger.Info("Finished conversion!");
+            Logger.Success();
 
             if (Settings.Instance.GenerateDebugImages)
             {
