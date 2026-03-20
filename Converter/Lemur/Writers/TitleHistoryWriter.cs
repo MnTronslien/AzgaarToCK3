@@ -24,11 +24,12 @@ public static class TitleHistoryWriter
                     if (duchy.Holder != null)
                         sb.AppendLine(TitleEntry(duchy.Ck3_Id(), duchy.Holder.Id, duchy.DeFactoLiege?.Ck3_Id()));
 
+                    // Always write county liege — even without a holder.
+                    // CK3 will auto-spawn a count and route them to the correct liege.
+                    // Without this, CK3 walks the de jure chain and assigns unspecified
+                    // counties to the first titled holder it finds (often the wrong king).
                     foreach (var county in duchy.Counties)
-                    {
-                        if (county.Holder != null)
-                            sb.AppendLine(TitleEntry(county.Ck3_Id(), county.Holder.Id, county.DeFactoLiege!.Ck3_Id()));
-                    }
+                        sb.AppendLine(TitleEntry(county.Ck3_Id(), county.Holder?.Id, county.DeFactoLiege!.Ck3_Id()));
                 }
             }
         }
@@ -39,9 +40,10 @@ public static class TitleHistoryWriter
         Logger.Info($"Wrote 00_lemur_titles.txt");
     }
 
-    private static string TitleEntry(string titleId, string holderId, string? liege)
+    private static string TitleEntry(string titleId, string? holderId, string? liege)
     {
+        var holderClause = holderId != null ? $" holder = {holderId}" : "";
         var liegeClause = liege != null ? $" liege = {liege}" : "";
-        return $"{titleId} = {{ {StartDate} = {{ holder = {holderId}{liegeClause} }} }}";
+        return $"{titleId} = {{ {StartDate} = {{{holderClause}{liegeClause} }} }}";
     }
 }
