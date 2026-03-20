@@ -935,7 +935,7 @@ namespace Converter.Lemur
                         .Where(k => unmergableKingdoms.ContainsKey(k) && unmergableKingdoms[k] == false)
                         .ToList();
 
-                    if (!kingdomsToMerge.Any() || empire.Kingdoms.Count < 2)
+                    if (!kingdomsToMerge.Any())
                     {
                         continue;
                     }
