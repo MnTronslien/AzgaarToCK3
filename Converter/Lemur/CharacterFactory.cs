@@ -54,13 +54,22 @@ public static class CharacterFactory
             DrillDown(duchy, pool, map, claimed);
         }
 
-        // Counties with no holder are left for CK3 to auto-spawn.
-        // TODO: verify after CK3 test run that counties with a liege but no holder
-        //       correctly receive auto-generated rulers. If not, add count generation here.
+        // Phase 3: explicit counts for all remaining holder-less counties.
+        // CK3 does not auto-spawn counts from liege-only history entries — without an
+        // explicit holder the county falls to the nearest titled holder up the de jure chain.
+        var allCounties = map.Empires!
+            .SelectMany(e => e.Kingdoms)
+            .SelectMany(k => k.Duchies)
+            .SelectMany(d => d.Counties);
 
+        foreach (var county in allCounties.Where(c => c.Holder == null))
+            DrillDown(county, new List<County> { county }, map, claimed);
+
+        var allTitles = map.Empires!.SelectMany(e => e.Kingdoms).ToList();
         Logger.Info($"Created {map.Characters.Count} characters " +
-                    $"({map.Empires!.SelectMany(e => e.Kingdoms).Count(k => k.Holder != null)} kings, " +
-                    $"{map.Empires!.SelectMany(e => e.Kingdoms).SelectMany(k => k.Duchies).Count(d => d.Holder != null)} dukes)");
+                    $"({allTitles.Count(k => k.Holder != null)} kings, " +
+                    $"{allTitles.SelectMany(k => k.Duchies).Count(d => d.Holder != null)} dukes, " +
+                    $"{allTitles.SelectMany(k => k.Duchies).SelectMany(d => d.Counties).Count(c => c.Holder != null)} counts)");
 
         RunAssertions(map);
     }
