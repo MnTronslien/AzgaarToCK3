@@ -54,61 +54,27 @@ namespace Converter.Lemur.Entities
         }
 
         /// <summary>
-        /// Get the distribution of cultures in this kingdom by cell count, excluding wildlands
+        /// Get the distribution of cultures in this kingdom by cell count, excluding invalid/removed cultures.
         /// </summary>
-        public Dictionary<int, int> GetCultureDistributionByCells()
+        public Dictionary<int, int> GetCultureDistributionByCells(Map map)
         {
-            var cultureCounts = new Dictionary<int, int>();
+            var counts = new Dictionary<int, int>();
             foreach (var duchy in Duchies)
-            {
-                var duchyCounts = duchy.GetCultureDistributionByCells();
-                foreach (var kvp in duchyCounts)
-                {
-                    if (cultureCounts.ContainsKey(kvp.Key))
-                    {
-                        cultureCounts[kvp.Key] += kvp.Value;
-                    }
-                    else
-                    {
-                        cultureCounts[kvp.Key] = kvp.Value;
-                    }
-                }
-            }
-            return cultureCounts;
+                counts.MergeAdd(duchy.GetCultureDistributionByCells(map));
+            return counts;
         }
 
-        public AzgaarCulture GetDominantCulture(Map map)
+        /// <summary>
+        /// Get the distribution of religions in this kingdom by cell count, excluding invalid/removed religions.
+        /// </summary>
+        public Dictionary<int, int> GetReligionDistributionByCells(Map map)
         {
-            var cultureCounts = GetCultureDistributionByCells();
-
-            // If all cells are wildlands, return wildlands culture
-            if (cultureCounts.Count == 0)
-            {
-                return map.JsonMap.pack.cultures[0];
-            }
-
-            var mostCommon = cultureCounts.OrderByDescending(x => x.Value).First().Key;
-            return map.JsonMap.pack.cultures[mostCommon];
-        }
-
-        public AzgaarReligion GetDominantReligion(Map map)
-        {
-            //Get the most common religion among the duchies in this kingdom
-            Dictionary<AzgaarReligion, int> religionCounts = new Dictionary<AzgaarReligion, int>();
+            var counts = new Dictionary<int, int>();
             foreach (var duchy in Duchies)
-            {
-                var dominantReligion = duchy.GetDominantReligion(map);
-                if (religionCounts.ContainsKey(dominantReligion))
-                {
-                    religionCounts[dominantReligion]++;
-                }
-                else
-                {
-                    religionCounts[dominantReligion] = 1;
-                }
-            }
-            return religionCounts.OrderByDescending(x => x.Value).First().Key;
+                counts.MergeAdd(duchy.GetReligionDistributionByCells(map));
+            return counts;
         }
+
 
         public Dictionary<ITitle, int> GetNeighbours()
         {

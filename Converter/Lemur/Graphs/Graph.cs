@@ -194,8 +194,6 @@ namespace Converter.Lemur.Graphs
         }
         public static List<Graph> PartitionGraph(Graph graph)
         {
-            using var _ = OperationTimer.Start("Partitioning graph");
-
             // Determine the number of partitions for this graph
             int numberOfPartitions = DetermineNumberOfPartitions(graph);
             Logger.Debug($"Partitioning graph {graph}. Ideal # partitions: {numberOfPartitions}");
@@ -274,7 +272,7 @@ namespace Converter.Lemur.Graphs
             var leftovers = graph.GetNodes().Where(x => x.InSubGraph == false).ToList();
             if (leftovers.Count != 0)
             {
-                Logger.Debug($"Handeling leftovers...({string.Join(", ", leftovers.Select(x => x.Name))})");
+                Logger.Debug($"Handling leftover nodes: {string.Join(", ", leftovers.Select(x => x.Name))}");
 
                 //Handle Leftovers - focus on balancing the partitions
                 foreach (var node in leftovers)

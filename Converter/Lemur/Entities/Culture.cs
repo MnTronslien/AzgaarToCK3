@@ -13,10 +13,8 @@ public class Culture
     public string Language { get; set; } = "";
     public string MartialCustom { get; set; } = "martial_custom_male_only";
     public string HeadDetermination { get; set; } = "head_determination_domain";
-    public string NameList { get; set; } = "name_list_lemur_placeholder";
-
-    // GFX bundle (4 strings: coa_gfx, building_gfx, clothing_gfx, unit_gfx)
-    public string[] GfxBundle { get; set; } = [];
+    // Theme bundle — GFX keys + vanilla name list
+    public ThemeBundle ThemeBundle { get; set; } = null!;
 
     public List<string> Traditions { get; set; } = new();
     /// <summary>CK3 keys of parent cultures (0, 1, or 2 entries)</summary>

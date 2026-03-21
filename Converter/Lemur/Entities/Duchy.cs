@@ -7,7 +7,35 @@ namespace Converter.Lemur.Entities
     public class Duchy(int i, List<Cell> cells, string name) : ITitle
     {
 
+        /// <summary>
+        /// Azgaar province ID (normal duchies) or state ID (wasteland-derived duchies).
+        /// Drives CK3 title ID generation and deterministic color hashing. Numeric collisions
+        /// between province and state ID spaces are harmless — the duchy name is always part
+        /// of the CK3 key. Does not represent Azgaar state membership; that is not persisted here.
+        /// </summary>
         public int Id { get; set; } = i;
+
+        /// <summary>
+        /// The Azgaar state this duchy belongs to. Azgaar guarantees all cells in a province
+        /// share the same state, so any cell is authoritative.
+        /// </summary>
+        public int AzgaarStateId => Cells.First().State;
+
+        /// <summary>True if absorbed by MergeTinyKingdoms into a foreign kingdom (AzgaarStateId ≠ parent kingdom.Id); absorbed duchies start independent in title history.</summary>
+        public bool IsAbsorbed => Cells.Any() && AzgaarStateId != ((Kingdom)Parent!).Id;
+
+        /// <summary>
+        /// For secondary absorbed duchies only: the primary duchy that represents this state's duke.
+        /// Counties in secondary duchies declare liege to the primary duchy, not their own.
+        /// Null on primary and intact (non-absorbed) duchies. Set by CharacterFactory.
+        /// </summary>
+        public Duchy? PrimaryDuchy { get; set; }
+
+        /// <summary>
+        /// Pre-computed CK3 liege title key for title history. Null = independent (no liege declared).
+        /// Set by CharacterFactory after holder assignment.
+        /// </summary>
+        public string? LiegeId { get; set; }
 
         public string Name { get; set; } = name;
         public MagickColor? Color { get; set; }
@@ -33,61 +61,27 @@ namespace Converter.Lemur.Entities
         }
 
         /// <summary>
-        /// Get the distribution of cultures in this duchy by cell count, excluding wildlands
+        /// Get the distribution of cultures in this duchy by cell count, excluding invalid/removed cultures.
         /// </summary>
-        public Dictionary<int, int> GetCultureDistributionByCells()
+        public Dictionary<int, int> GetCultureDistributionByCells(Map map)
         {
-            var cultureCounts = new Dictionary<int, int>();
+            var counts = new Dictionary<int, int>();
             foreach (var county in Counties)
-            {
-                var countyCounts = county.GetCultureDistributionByCells();
-                foreach (var kvp in countyCounts)
-                {
-                    if (cultureCounts.ContainsKey(kvp.Key))
-                    {
-                        cultureCounts[kvp.Key] += kvp.Value;
-                    }
-                    else
-                    {
-                        cultureCounts[kvp.Key] = kvp.Value;
-                    }
-                }
-            }
-            return cultureCounts;
+                counts.MergeAdd(county.GetCultureDistributionByCells(map));
+            return counts;
         }
 
-        public AzgaarCulture GetDominantCulture(Map map)
+        /// <summary>
+        /// Get the distribution of religions in this duchy by cell count, excluding invalid/removed religions.
+        /// </summary>
+        public Dictionary<int, int> GetReligionDistributionByCells(Map map)
         {
-            var cultureCounts = GetCultureDistributionByCells();
-
-            // If all cells are wildlands, return wildlands culture
-            if (cultureCounts.Count == 0)
-            {
-                return map.JsonMap.pack.cultures[0];
-            }
-
-            var mostCommon = cultureCounts.OrderByDescending(x => x.Value).First().Key;
-            return map.JsonMap.pack.cultures[mostCommon];
-        }
-
-        public AzgaarReligion GetDominantReligion(Map map)
-        {
-            //Among the counties in this duchy, what is the most common religion?
-            Dictionary<AzgaarReligion, int> religionCounts = new Dictionary<AzgaarReligion, int>();
+            var counts = new Dictionary<int, int>();
             foreach (var county in Counties)
-            {
-                var dominantReligion = county.GetDominantReligion(map);
-                if (religionCounts.ContainsKey(dominantReligion))
-                {
-                    religionCounts[dominantReligion]++;
-                }
-                else
-                {
-                    religionCounts[dominantReligion] = 1;
-                }
-            }
-            return religionCounts.OrderByDescending(x => x.Value).First().Key;
+                counts.MergeAdd(county.GetReligionDistributionByCells(map));
+            return counts;
         }
+
 
         public Dictionary<ITitle, int> GetNeighbours()
         {

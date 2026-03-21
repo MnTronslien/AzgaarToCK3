@@ -116,7 +116,7 @@ public static class HeightmapWriter
         image.GaussianBlur(1, 1);
 
         await image.WriteAsync(outputPath, MagickFormat.Png);
-        Logger.Info($"  heightmap.png drawn ({L.Map.MapWidth}×{L.Map.MapHeight}, land height range={minLandHeight}–{maxLandHeight})");
+        Logger.Info($"  heightmap.png drawn ({L.Map.MapWidth}x{L.Map.MapHeight}, land height range={minLandHeight}-{maxLandHeight})");
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -338,7 +338,7 @@ public static class HeightmapWriter
             packed.Depth = 8;
             await packed.WriteAsync(phPath, MagickFormat.Png);
         }
-        Logger.Info($"  packed_heightmap.png written ({PackedWidth}×{heightmap.PixelHeight})");
+        Logger.Info($"  packed_heightmap.png written ({PackedWidth}x{heightmap.PixelHeight})");
 
         // Write indirection_heightmap.png (RGBA)
         var ihPath = Helper.GetPath(mapDataDir, "indirection_heightmap.png");
@@ -354,7 +354,7 @@ public static class HeightmapWriter
             indirection.Depth = 8;
             await indirection.WriteAsync(ihPath, MagickFormat.Png);
         }
-        Logger.Info($"  indirection_heightmap.png written ({horizontalTiles}×{verticalTiles})");
+        Logger.Info($"  indirection_heightmap.png written ({horizontalTiles}x{verticalTiles})");
 
         // Write heightmap.heightmap config
         var hhPath = Helper.GetPath(mapDataDir, "heightmap.heightmap");

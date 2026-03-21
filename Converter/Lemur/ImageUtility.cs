@@ -230,7 +230,7 @@ namespace Converter.Lemur
             string name = "colorCellsMap",
             System.Drawing.Color background = default)
         {
-            Logger.Info("Drawing cells by couloured groups to image...");
+            Logger.Info("Drawing cells by color group to image...");
             try
             {
                 // Default background to blue (ocean) if not specified

@@ -41,12 +41,12 @@ public static class ProvinceHistoryWriter
             {
                 if (!baroniesProvId.TryGetValue(barony, out int provId)) continue;
 
-                var azgaarReligion = barony.GetDominantReligion(map);
+                var azgaarReligion = ((L.ITitle)barony).GetDominantReligion(map);
                 var faithKey = faiths.TryGetValue(azgaarReligion.i, out var faith)
                     ? faith.CK3Key
                     : FallbackFaith();
 
-                var azgaarCulture = barony.GetDominantCulture(map);
+                var azgaarCulture = ((L.ITitle)barony).GetDominantCulture(map);
                 var cultureKey = (azgaarCulture.i > 0 && cultures.TryGetValue(azgaarCulture.i, out var culture))
                     ? culture.CK3Key
                     : FallbackCulture();

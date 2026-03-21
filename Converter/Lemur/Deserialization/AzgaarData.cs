@@ -162,10 +162,16 @@ namespace Converter.Lemur.Deserialization
             var str = jsonDocument.RootElement.GetRawText();
 
             string escapedStr = str;
-            // Replace 0 with dummy province object
-            if (str[1] == '0')
+            // Replace the sentinel 0 at index 0 with a dummy province object.
+            // Scan past any whitespace after '[' to handle both minified and formatted JSON.
+            int firstToken = 1;
+            while (firstToken < str.Length && char.IsWhiteSpace(str[firstToken])) firstToken++;
+            if (firstToken < str.Length && str[firstToken] == '0')
             {
-                escapedStr = string.Concat(str.AsSpan(0, 1), "{\"i\":0,\"state\":0,\"burg\":0,\"name\":\"\"}", str.AsSpan(2));
+                escapedStr = string.Concat(
+                    str.AsSpan(0, firstToken),
+                    "{\"i\":0,\"state\":0,\"burg\":0,\"name\":\"\"}",
+                    str.AsSpan(firstToken + 1));
             }
 
             var provinces = JsonSerializer.Deserialize<AzgaarProvince[]>(escapedStr, options);
@@ -187,14 +193,16 @@ namespace Converter.Lemur.Deserialization
             var str = jsonDocument.RootElement.GetRawText();
 
             string escapedStr = str;
-            // Replace 0 with dummy burg object
-            if (str[1] == '0')
+            // Replace the sentinel 0 at index 0 with a dummy burg object.
+            // Scan past any whitespace after '[' to handle both minified and formatted JSON.
+            int firstToken = 1;
+            while (firstToken < str.Length && char.IsWhiteSpace(str[firstToken])) firstToken++;
+            if (firstToken < str.Length && str[firstToken] == '0')
             {
                 escapedStr = string.Concat(
-                    str.AsSpan(0, 1),
+                    str.AsSpan(0, firstToken),
                     "{\"i\":0,\"name\":\"\",\"cell\":0,\"x\":0,\"y\":0,\"culture\":0,\"state\":0,\"feature\":0,\"population\":0,\"type\":\"\",\"capital\":0,\"port\":0,\"citadel\":0,\"plaza\":0,\"shanty\":0,\"temple\":0,\"walls\":0,\"removed\":false}",
-                    str.AsSpan(2)
-                );
+                    str.AsSpan(firstToken + 1));
             }
 
             var burgs = JsonSerializer.Deserialize<AzgaarBurg[]>(escapedStr, options);

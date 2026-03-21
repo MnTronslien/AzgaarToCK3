@@ -11,7 +11,8 @@ public static class CharacterWriter
         foreach (var character in map.Characters)
         {
             sb.AppendLine($"{character.Id} = {{");
-            sb.AppendLine($"\tname = \"{character.Name}\"");
+            if (character.Name != null)
+                sb.AppendLine($"\tname = \"{character.Name}\"");
             sb.AppendLine($"\tculture = {character.Culture.CK3Key}");
             sb.AppendLine($"\treligion = {character.Faith.CK3Key}");
             sb.AppendLine($"\t{character.BirthYear}.1.1 = {{");

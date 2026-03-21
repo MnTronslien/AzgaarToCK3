@@ -47,9 +47,22 @@ namespace Converter.Lemur.Entities
         
         public string Ck3_Id();
 
-        public AzgaarCulture GetDominantCulture(Map map);
-        public AzgaarReligion GetDominantReligion(Map map);
+        Dictionary<int, int> GetCultureDistributionByCells(Map map);
+        Dictionary<int, int> GetReligionDistributionByCells(Map map);
 
+        public AzgaarCulture GetDominantCulture(Map map)
+        {
+            var counts = GetCultureDistributionByCells(map);
+            if (counts.Count == 0) return map.JsonMap.pack.cultures[0];
+            return map.JsonMap.pack.cultures[counts.OrderByDescending(x => x.Value).First().Key];
+        }
+
+        public AzgaarReligion GetDominantReligion(Map map)
+        {
+            var counts = GetReligionDistributionByCells(map);
+            if (counts.Count == 0) return map.JsonMap.pack.religions[0];
+            return map.JsonMap.pack.religions[counts.OrderByDescending(x => x.Value).First().Key];
+        }
 
         /// <summary>
         /// Get the neighbours of the title. The key is the neighbour and the value is how often they share a border.

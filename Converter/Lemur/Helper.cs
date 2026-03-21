@@ -74,6 +74,15 @@ public static class Helper
         return $"{prefix}_{clean}_{id}";
     }
 
+    /// <summary>
+    /// Merges <paramref name="source"/> into <paramref name="target"/>, adding values for matching keys.
+    /// </summary>
+    public static void MergeAdd(this Dictionary<int, int> target, Dictionary<int, int> source)
+    {
+        foreach (var kvp in source)
+            target[kvp.Key] = target.GetValueOrDefault(kvp.Key, 0) + kvp.Value;
+    }
+
     public static MagickColor GetColor(int i, int maxI)
     {
         if (maxI >= 16777216)

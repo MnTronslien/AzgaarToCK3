@@ -15,14 +15,14 @@ public static class CultureManager
         "martial_custom_male_only", "martial_custom_equal", "martial_custom_female_only"
     ];
 
-    // 4 non-DLC GFX bundles: [coa_gfx, building_gfx, clothing_gfx, unit_gfx]
-    //TODO: Expand on this - must be more valid declarations. Would like each bundle to be thematically internally coherent.
-    private static readonly string[][] GfxBundles =
+    // Thematically coherent packs: GFX keys + vanilla name list.
+    // Future: expand bundles, add ethnicities block, match to Azgaar namebase string.
+    private static readonly ThemeBundle[] ThemeBundles =
     [
-        ["western_coa_gfx",         "western_building_gfx",   "western_clothing_gfx",   "western_unit_gfx"],
-        ["byzantine_group_coa_gfx", "byzantine_building_gfx", "byzantine_clothing_gfx", "eastern_unit_gfx"],
-        ["mena_coa_gfx",            "african_building_gfx",   "mena_clothing_gfx",       "eastern_unit_gfx"],
-        ["western_coa_gfx",         "western_building_gfx",   "northern_clothing_gfx",  "western_unit_gfx"],
+        new("western",   "western_coa_gfx",         "western_building_gfx",   "western_clothing_gfx",   "western_unit_gfx",  "name_list_english"),
+        new("byzantine", "byzantine_group_coa_gfx",  "byzantine_building_gfx", "byzantine_clothing_gfx", "eastern_unit_gfx",  "name_list_greek"),
+        new("mena",      "mena_coa_gfx",             "african_building_gfx",   "mena_clothing_gfx",      "eastern_unit_gfx",  "name_list_arabic"),
+        new("northern",  "western_coa_gfx",          "western_building_gfx",   "northern_clothing_gfx",  "western_unit_gfx",  "name_list_norse"),
     ];
 
     public static Dictionary<int, Culture> Build(AzgaarCulture[] cultures, int seed)
@@ -43,7 +43,7 @@ public static class CultureManager
                 HexColor    = azc.color ?? "#808080",
                 Ethos        = Ethoses[rng.Next(Ethoses.Length)],
                 MartialCustom = MartialCustoms[rng.Next(MartialCustoms.Length)],
-                GfxBundle    = GfxBundles[rng.Next(GfxBundles.Length)],
+                ThemeBundle  = ThemeBundles[rng.Next(ThemeBundles.Length)],
             };
             result[azc.i] = culture;
         }
@@ -393,3 +393,17 @@ public static class CultureManager
         return available[rng.Next(available.Count)];
     }
 }
+
+/// <summary>
+/// A thematically coherent pack of vanilla base-game CK3 content keys assigned to a culture.
+/// Covers GFX (CoA, buildings, clothing, units) and a name list.
+/// Future: add ethnicities block; support namebase-driven selection.
+/// </summary>
+public record ThemeBundle(
+    string Name,
+    string CoaGfx,
+    string BuildingGfx,
+    string ClothingGfx,
+    string UnitGfx,
+    string NameList
+);
