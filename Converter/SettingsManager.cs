@@ -87,10 +87,26 @@ public class Settings
     public float MajorRiverThreshold { get; set; } = 999999f;  // Very high for testing - all rivers will be minor
 
     /// <summary>
+    /// Target area per sea zone (Azgaar cell-area units). Zone grows until it hits this.
+    /// </summary>
+    public int SeaZoneTargetArea { get; set; } = 50000;
+
+    /// <summary>
+    /// Minimum area for a sea zone. Undersized zones merge or become impassable.
+    /// </summary>
+    public int SeaZoneMinimumArea { get; set; } = 5000;
+
+    /// <summary>
     /// Auto-detect newer .json/.geojson files in the directory and prompt to use them.
     /// If false, always uses the paths specified in InputJsonPath, InputGeojsonPath, and InputRiversGeojsonPath.
     /// </summary>
     public bool AutoDetectInputs { get; set; } = false;
+
+    /// <summary>
+    /// Number of far sea zone strips drawn behind the map to cover corner pixels.
+    /// These prevent black (undefined) pixels that crash CK3's map generator.
+    /// </summary>
+    public int FarSeaZoneCount { get; set; } = 8;
 
     public override string ToString()
     {

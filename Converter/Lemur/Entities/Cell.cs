@@ -14,6 +14,8 @@ namespace Converter.Lemur.Entities
         public required int Culture { get; set; }
         public required int Religion { get; set; }
         public int Biome { get; set; }
+        public int Area { get; set; }
+        public int DistanceToCoast { get; set; }  // 0 = uncomputed/land; ≥1 = sea cell distance
 
         public FeatureType Type { get; set; }
         /// <summary>

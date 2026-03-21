@@ -9,11 +9,7 @@ namespace Converter.Lemur.Entities
 
         public int AzgaarIdProvinceId { get; set; } = 0;
         public string Name { get; set; }
-        public MagickColor Color
-        {
-            get => MagickColor.FromRgba(0, 0, 0, 255); // Always return black
-            set { /* Do nothing */ }
-        }
+        public MagickColor Color { get; set; } = MagickColors.Black;
         public List<Cell> Cells { get; set; }
 
 
