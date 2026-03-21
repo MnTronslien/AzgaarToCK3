@@ -33,7 +33,7 @@ public static class TerrainMaskWriter
             .ToList();
 
         // Compute max height for height-derived masks (hills / mountains).
-        int maxHeight = landCells.Count > 0 ? landCells.Max(c => c.Height) : 1;
+        int maxHeight = landCells.Count > 0 ? landCells.Max(c => c.GeoHeight) : 1;
         if (maxHeight == 0) maxHeight = 1;
 
         var readSettings = new MagickReadSettings
@@ -52,13 +52,13 @@ public static class TerrainMaskWriter
 
         // Height-derived: hills (40–70% of max height)
         var hillsCells = landCells
-            .Where(c => c.Height >= maxHeight * 0.40 && c.Height < maxHeight * 0.70)
+            .Where(c => c.GeoHeight >= maxHeight * 0.40 && c.GeoHeight < maxHeight * 0.70)
             .ToList();
         await WriteMask(hillsCells, map, terrainDir, "hills_01_mask.png", readSettings);
 
         // Height-derived: mountains (>70% of max height)
         var mountainCells = landCells
-            .Where(c => c.Height >= maxHeight * 0.70)
+            .Where(c => c.GeoHeight >= maxHeight * 0.70)
             .ToList();
         await WriteMask(mountainCells, map, terrainDir, "mountain_02_mask.png", readSettings);
 

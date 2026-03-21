@@ -159,6 +159,7 @@ public class WriterFlags
     public bool Characters { get; set; } = true;
     public bool TitleHistory { get; set; } = true;
     public bool ProvinceHistory { get; set; } = true;
+    public bool Heightmap { get; set; } = true;
 }
 
 [JsonSerializable(typeof(Settings))]

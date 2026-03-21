@@ -39,8 +39,8 @@ namespace Converter.Lemur.Rivers
         }
 
         /// <summary>
-        /// Palette-quantizes the image using the CK3 reference file and saves to
-        /// map_data/rivers.png. Also writes a debug copy when Debug is enabled.
+        /// Palette-quantizes the image using the CK3 reference file and saves to map_data/rivers.png. 
+        /// Also writes a debug copy when Debug is enabled.
         /// </summary>
         private static async Task SaveRiversImage(MagickImage riversImage, string debugFileName)
         {
