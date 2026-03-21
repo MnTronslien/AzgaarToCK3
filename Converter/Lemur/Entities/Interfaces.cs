@@ -26,6 +26,8 @@ namespace Converter.Lemur.Entities
 
         public string Name { get; set; }
 
+        public Character? Holder { get; set; }
+
         public MagickColor? Color { get; set; }
 
         public List<Cell> Cells { get; set; }

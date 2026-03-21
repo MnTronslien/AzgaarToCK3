@@ -4,6 +4,11 @@ namespace Converter.Lemur.Entities
 {
     public record Map
     {
+        // IMPORTANT: These must match the TCS heightmap binary dimensions.
+        // StaticFilesWriter copies TCS's packed_heightmap.png / indirection_heightmap.png
+        // unchanged, and the heightmap.heightmap config is hardcoded to these values.
+        // If you ever generate a custom heightmap, update StaticFilesWriter too.
+        // See notes-for-later.md §Heightmap.
         public const int MapWidth = 8192;
         public const int MapHeight = 4096;
         public float XOffset => JsonMap.mapCoordinates.lonW;
@@ -36,6 +41,10 @@ namespace Converter.Lemur.Entities
         public List<SeaZone>? FarSeaZones { get; set; } = new();
 
         public List<IProvince>? AllProvinces { get; set; }
+
+        public List<Character> Characters { get; set; } = new();
+        public List<Culture> Cultures { get; set; } = new();
+        public List<Religion> Religions { get; set; } = new();
 
         public override string ToString()
         {

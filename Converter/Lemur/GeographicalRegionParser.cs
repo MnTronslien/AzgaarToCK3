@@ -40,7 +40,7 @@ public static class GeographicalRegionParser
                         if (IsValidIdentifier(name))
                             current = new GeographicalRegion { Name = name };
                         else
-                            Console.WriteLine($"Warning: GeographicalRegionParser skipped unrecognised identifier '{name}' in {Path.GetFileName(filePath)}");
+                            Logger.Warning($"Warning: GeographicalRegionParser skipped unrecognised identifier '{name}' in {Path.GetFileName(filePath)}");
                     }
                 }
 

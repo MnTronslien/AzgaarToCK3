@@ -12,6 +12,7 @@ namespace Converter.Lemur.Entities
         public MagickColor? Color { get; set; }
         public List<Cell> Cells { get; set; } = cells;
         public ITitle? Parent { get; set; }
+        public Character? Holder { get; set; }
         public List<Barony> Baronies { get; set; } = new List<Barony>();
 
         public List<County> Counties { get; set; } = new List<County>();

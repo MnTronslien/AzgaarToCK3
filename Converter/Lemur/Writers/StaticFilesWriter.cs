@@ -1,9 +1,12 @@
+using Converter.Lemur;
+
 namespace Converter.Lemur.Writers;
 
 public static class StaticFilesWriter
 {
     public static async Task Write(string tcsSandboxPath, string outputDirectory)
     {
+        using var _ = OperationTimer.Start("Writing static files");
         var mapDataDir = Helper.GetPath(outputDirectory, "map_data");
         Directory.CreateDirectory(mapDataDir);
 
@@ -43,22 +46,33 @@ public static class StaticFilesWriter
         // island_region.txt — no islands to declare
         await File.WriteAllTextAsync(Helper.GetPath(mapDataDir, "island_region.txt"), "", enc);
 
-        // positions.txt — empty (CK3 can derive positions from provinces)
-        await File.WriteAllTextAsync(Helper.GetPath(mapDataDir, "positions.txt"), "", enc);
+        // positions.txt — intentionally NOT written. Writing an empty file overrides
+        // TCS's positions.txt and centers all map objects (armies, cities, ports) at
+        // province midpoints. Omitting it lets CK3 fall through to TCS/vanilla data.
 
-        // heightmap.heightmap — 9-line text config referencing the binary PNGs
+        // heightmap.heightmap — config for the TCS binary PNGs we copy verbatim.
+        //
+        // HACK: These are TCS's exact values, hardcoded because we copy TCS's binary
+        // packed_heightmap.png and indirection_heightmap.png without modification.
+        // The config MUST match the actual PNGs — if you ever generate proper heightmaps
+        // from Azgaar elevation data, this entire block needs to be recomputed from the
+        // generated PNGs (tile_size and level_offsets depend on the packed image layout).
+        //
+        // History: we originally wrote different keys (packed_heightmap_size,
+        // heightmap_max_height, sea_level, etc.) which CK3 does not recognize. That was
+        // discovered as crash-analysis decision log entry #10 (H_HEIGHTMAP, 2026-03-02).
+        // See: crash-analysis-shintoism-postvalidate.md and notes-for-later.md §Heightmap.
         await File.WriteAllTextAsync(Helper.GetPath(mapDataDir, "heightmap.heightmap"),
             "heightmap_file=\"map_data/packed_heightmap.png\"\n" +
             "indirection_file=\"map_data/indirection_heightmap.png\"\n" +
             "original_heightmap_size={ 8192 4096 }\n" +
-            "packed_heightmap_size={ 2048 1024 }\n" +
-            "indirection_heightmap_size={ 512 256 }\n" +
-            "heightmap_max_height=25.5\n" +
-            "sea_level=3.8\n" +
-            "min_height=-4.0\n" +
-            "max_height=50.0\n", enc);
+            "tile_size=33\n" +
+            "should_wrap_x=no\n" +
+            "level_offsets={ { 0 0 } { 0 66 } { 0 66 } { 0 66 } { 0 66 } }\n" +
+            "max_compress_level=4\n" +
+            "empty_tile_offset={ 0 0 }\n", enc);
 
-        Console.WriteLine("Wrote static map_data text files (seasons, climate, island_region, positions, heightmap.heightmap)");
+        Logger.Info("Wrote static map_data text files (seasons, climate, island_region, heightmap.heightmap)");
     }
 
     private static void CopyHeightmapBinaries(string tcsSandboxPath, string mapDataDir)
@@ -88,8 +102,8 @@ public static class StaticFilesWriter
 
         if (tcsBase == null)
         {
-            Console.WriteLine("WARNING: TCS mod not found — packed_heightmap.png, indirection_heightmap.png not copied.");
-            Console.WriteLine("         CK3 will crash on map load. Copy these manually from any TCS mod installation.");
+            Logger.Warning("WARNING: TCS mod not found — packed_heightmap.png, indirection_heightmap.png not copied.");
+            Logger.Info("         CK3 will crash on map load. Copy these manually from any TCS mod installation.");
             return;
         }
 
@@ -102,11 +116,11 @@ public static class StaticFilesWriter
             if (File.Exists(src))
             {
                 File.Copy(src, dst, overwrite: true);
-                Console.WriteLine($"Copied {file} from TCS mod");
+                Logger.Info($"Copied {file} from TCS mod");
             }
             else
             {
-                Console.WriteLine($"WARNING: {file} not found in TCS mod at {src}");
+                Logger.Warning($"WARNING: {file} not found in TCS mod at {src}");
             }
         }
     }

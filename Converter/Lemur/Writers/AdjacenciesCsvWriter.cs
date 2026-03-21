@@ -11,6 +11,6 @@ public static class AdjacenciesCsvWriter
         var path = Helper.GetPath(outputDirectory, "map_data", "adjacencies.csv");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         await File.WriteAllLinesAsync(path, [Header, Terminator], Helper.Utf8Bom);
-        Console.WriteLine("Wrote adjacencies.csv (stub — no sea connections yet)");
+        Logger.Info("Wrote adjacencies.csv (stub — no sea connections yet)");
     }
 }

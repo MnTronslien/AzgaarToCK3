@@ -6,6 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace Converter;
 
+public enum LogLevel { Verbose = 0, Debug = 1, Info = 2, Warning = 3, Error = 4 }
+
 public class Settings
 {
     public required string ModsDirectory { get; init; }
@@ -27,7 +29,13 @@ public class Settings
     [JsonIgnore]
     public static string OutputDirectory => Helper.GetPath(Instance.ModsDirectory, Instance.ModName);
 
-    public bool Debug { get; set; } = true;
+    public LogLevel LogLevel { get; set; } = LogLevel.Info;
+    public bool GenerateDebugImages { get; set; } = true;
+    /// <summary>
+    /// Wipe the mod output directory before each conversion to prevent stale file bleed.
+    /// Disable with --no-wipe if you intentionally want incremental output.
+    /// </summary>
+    public bool AutoWipeOutput { get; set; } = true;
 
     // This is based on guestimate observations form CK3
     // Sparsley populated areas often have fewer baronies per county than densely populated areas
@@ -108,6 +116,20 @@ public class Settings
     /// </summary>
     public int FarSeaZoneCount { get; set; } = 8;
 
+    /// <summary>
+    /// Optional path to the Azgaar SVG export. When set, FlatmapWriter renders
+    /// the SVG as flatmap.dds. If null or the file is not found, a biome-colored
+    /// fallback image is generated from cell data instead.
+    /// </summary>
+    public string? AzgaarSvgPath { get; set; } = null;
+
+    /// <summary>
+    /// Per-writer on/off switches. All default to true (current behaviour unchanged).
+    /// Set individual flags to false in settings.json to skip specific writers during
+    /// bisection testing.
+    /// </summary>
+    public WriterFlags Writers { get; set; } = new();
+
     public override string ToString()
     {
         var lines = new List<string>();
@@ -120,8 +142,29 @@ public class Settings
     }
 }
 
+public class WriterFlags
+{
+    public bool DefinitionCsv { get; set; } = true;
+    public bool DefaultMap { get; set; } = true;
+    public bool Adjacencies { get; set; } = true;
+    public bool MapStaticFiles { get; set; } = true;
+    public bool GeographicalRegions { get; set; } = true;
+    public bool LandedTitles { get; set; } = true;
+    public bool ProvinceTerrain { get; set; } = true;
+    public bool MapDefines { get; set; } = true;
+    public bool Religion { get; set; } = true;
+    public bool TerrainMasks { get; set; } = true;
+    public bool Flatmap { get; set; } = true;
+    public bool Locators { get; set; } = true;
+    public bool Characters { get; set; } = true;
+    public bool TitleHistory { get; set; } = true;
+    public bool ProvinceHistory { get; set; } = true;
+}
+
 [JsonSerializable(typeof(Settings))]
-[JsonSourceGenerationOptions(WriteIndented = true, AllowTrailingCommas = true, PropertyNameCaseInsensitive = true)]
+[JsonSerializable(typeof(WriterFlags))]
+[JsonSourceGenerationOptions(WriteIndented = true, AllowTrailingCommas = true,
+    PropertyNameCaseInsensitive = true, UseStringEnumConverter = true)]
 public partial class SettingsJsonContext : JsonSerializerContext { }
 
 public static class SettingsManager

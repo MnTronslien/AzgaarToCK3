@@ -43,11 +43,15 @@ public static class RiverImageValidator
         out List<Point>? invalidPixels,
         out string? message)
     {
-        // Step 1 — Format check
+        // Step 1 — Format check: must be 8-bit indexed palette
         bool isIndexed = image.ColorType is ColorType.Palette or ColorType.PaletteAlpha;
-        message = isIndexed
-            ? null
-            : $"Not color-indexed (found {image.ColorType}). CK3 requires an 8-bit palette PNG.";
+        bool is8Bit = image.Depth == 8;
+        if (!isIndexed)
+            message = $"Not color-indexed (found {image.ColorType}). CK3 requires an 8-bit palette PNG.";
+        else if (!is8Bit)
+            message = $"Palette depth is {image.Depth}-bit. CK3 requires 8-bit — ImageMagick auto-optimises to 1-bit when only 2 colours are present.";
+        else
+            message = null;
 
         var violations = new List<Point>();
         int w = (int)image.Width;

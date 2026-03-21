@@ -1,4 +1,5 @@
 using System.Text;
+using Converter.Lemur;
 
 namespace Converter.Lemur.Graphs
 {
@@ -193,18 +194,15 @@ namespace Converter.Lemur.Graphs
         }
         public static List<Graph> PartitionGraph(Graph graph)
         {
-
+            using var _ = OperationTimer.Start("Partitioning graph");
 
             // Determine the number of partitions for this graph
             int numberOfPartitions = DetermineNumberOfPartitions(graph);
-            if (Settings.Instance.Debug)
-            {
-                Console.WriteLine($"Partitioning graph {graph}. Ideal # partitions: {numberOfPartitions}");
-            }
+            Logger.Debug($"Partitioning graph {graph}. Ideal # partitions: {numberOfPartitions}");
 
             if (numberOfPartitions == 1)
             {
-                Console.WriteLine("Graph is already a single partition");
+                Logger.Debug("Graph is already a single partition");
                 return [graph];
             }
 
@@ -218,7 +216,7 @@ namespace Converter.Lemur.Graphs
                 var undistributedNodesCount = graph.GetNodes().Count(x => !x.InSubGraph && !x.Isolated);
                 if (undistributedNodesCount <= 1)
                 {
-                    Console.WriteLine(undistributedNodesCount == 0 ? "All nodes have been distributed" : "Only one node left, too few to form a new partition");
+                    Logger.Debug(undistributedNodesCount == 0 ? "All nodes have been distributed" : "Only one node left, too few to form a new partition");
                     break;
                 }
 
@@ -235,7 +233,7 @@ namespace Converter.Lemur.Graphs
                 // If this is an isolated node, then this cannot be the basis of a partition. Mark it as isolated and continue
                 if (adjacentNodes.Count == 0)
                 {
-                    if (Settings.Instance.Debug) Console.WriteLine($"The node {mostPopulousNode.Name} is isolated");
+                    Logger.Debug($"The node {mostPopulousNode.Name} is isolated");
                     mostPopulousNode.Isolated = true;
                     continue;
                 }
@@ -271,12 +269,12 @@ namespace Converter.Lemur.Graphs
             }
 
             // Print the initial partitions
-            Console.WriteLine("Initial partitions created");
+            Logger.Debug("Initial partitions created");
 
             var leftovers = graph.GetNodes().Where(x => x.InSubGraph == false).ToList();
             if (leftovers.Count != 0)
             {
-                Console.WriteLine($"Handeling leftovers...({string.Join(", ", leftovers.Select(x => x.Name))})");
+                Logger.Debug($"Handeling leftovers...({string.Join(", ", leftovers.Select(x => x.Name))})");
 
                 //Handle Leftovers - focus on balancing the partitions
                 foreach (var node in leftovers)
@@ -311,10 +309,10 @@ namespace Converter.Lemur.Graphs
             }
 
             // Print the final partitions
-            Console.WriteLine("Final partitions created:");
+            Logger.Debug("Final partitions created:");
             foreach (var partition in partitions)
             {
-                Console.WriteLine(partition);
+                Logger.Debug(partition.ToString());
             }
 
             return partitions;

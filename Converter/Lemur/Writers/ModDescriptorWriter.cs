@@ -17,7 +17,7 @@ public static class ModDescriptorWriter
         Directory.CreateDirectory(modsDirectory);
         await File.WriteAllTextAsync(launcherPath, launcherContent, Helper.Utf8Bom);
 
-        Console.WriteLine($"Wrote descriptor.mod and {modName}.mod");
+        Logger.Info($"Wrote descriptor.mod and {modName}.mod");
     }
 
     private static string BuildDescriptorContent(string modName, bool includePath, string? outputDirectory = null)
@@ -30,17 +30,6 @@ public static class ModDescriptorWriter
             $"}}",
             $"name=\"{modName}\"",
             $"supported_version=\"1.12.*\"",
-            $"replace_path=\"map_data\"",
-            $"replace_path=\"common/landed_titles\"",
-            $"replace_path=\"common/province_terrain\"",
-            $"replace_path=\"common/defines\"",
-            $"replace_path=\"history/titles\"",
-            $"replace_path=\"history/characters\"",
-            $"replace_path=\"history/provinces\"",
-            $"replace_path=\"history/province_mappings\"",
-            $"replace_path=\"common/bookmarks\"",
-            $"replace_path=\"common/bookmark_portraits\"",
-            $"replace_path=\"gfx/map/map_object_data\"",
         };
 
         if (includePath && outputDirectory != null)

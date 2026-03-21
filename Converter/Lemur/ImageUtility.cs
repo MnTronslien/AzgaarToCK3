@@ -52,8 +52,8 @@ namespace Converter.Lemur
                 UseShellExecute = true
             };
             Process.Start(psi);
-            Console.WriteLine($"Opened first image: {Path.GetFileName(firstImage)}");
-            Console.WriteLine($"Note: {_generatedImages.Count} total images available in folder");
+            Logger.Info($"Opened first image: {Path.GetFileName(firstImage)}");
+            Logger.Info($"Note: {_generatedImages.Count} total images available in folder");
         }
 
         public static void ClearImageRegistry()
@@ -63,7 +63,7 @@ namespace Converter.Lemur
 
         public static void OpenImageInExplorer(string path)
         {
-            //Console.WriteLine("Debug is on, opening the image...");
+            //Logger.Info("Debug is on, opening the image...");
             var psi = new ProcessStartInfo
             {
                 FileName = "explorer.exe",
@@ -98,13 +98,13 @@ namespace Converter.Lemur
 
                 cellsMap.Draw(drawables);
 
-                if (Settings.Instance.Debug)
+                if (Settings.Instance.GenerateDebugImages)
                 {
                     var debugRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AzgaarToCK3", "debug");
                     var path = Helper.GetPath(debugRoot, GetDebugFolderName(),"1_cells.png");
                     Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                     await cellsMap.WriteAsync(path);
-                    Console.WriteLine($"Debug: Saved cells image to '{path}'");
+                    Logger.Debug($"Saved cells image to '{path}'");
                     RegisterGeneratedImage(path);
                 }
             }
@@ -120,7 +120,7 @@ namespace Converter.Lemur
 
         public static async Task DrawProvincesImage(Entities.Map map)
         {
-            Console.WriteLine("Drawing provinces image...");
+            Logger.Info("Drawing provinces image...");
             try
             {
                 var settings = new MagickReadSettings()
@@ -174,7 +174,7 @@ namespace Converter.Lemur
                 // Draw any true wilderness cells in black (should be none after AssertEveryLandCellIsAssignedToABurg)
                 if (wildernessCells.Any())
                 {
-                    Console.WriteLine($"Drawing {wildernessCells.Count} wilderness cells in black");
+                    Logger.Info($"Drawing {wildernessCells.Count} wilderness cells in black");
                     drawablesList.Add(GenerateCellPolygons(wildernessCells, MagickColors.Black, map));
                 }
 
@@ -201,18 +201,18 @@ namespace Converter.Lemur
                 // Always save production provinces.png to map_data
                 var productionPath = Helper.GetPath(Settings.OutputDirectory, "map_data", "provinces.png");
                 Directory.CreateDirectory(Path.GetDirectoryName(productionPath)!);
-                Console.WriteLine($"Saving provinces image to '{productionPath}'");
+                Logger.Info($"Saving provinces image to '{productionPath}'");
                 await cellsMap.WriteAsync(productionPath);
-                Console.WriteLine($"Provinces image has been drawn and saved to '{productionPath}'");
+                Logger.Info($"Provinces image has been drawn and saved to '{productionPath}'");
 
                 // If debug enabled, also save as baronies.png in debug folder
-                if (Settings.Instance.Debug)
+                if (Settings.Instance.GenerateDebugImages)
                 {
                     var debugRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AzgaarToCK3", "debug");
                     var debugPath = Helper.GetPath(debugRoot, GetDebugFolderName(),"2_baronies.png");
                     Directory.CreateDirectory(Path.GetDirectoryName(debugPath)!);
                     await cellsMap.WriteAsync(debugPath);
-                    Console.WriteLine($"Debug: Saved baronies image to '{debugPath}'");
+                    Logger.Debug($"Saved baronies image to '{debugPath}'");
                     RegisterGeneratedImage(debugPath);
                 }
 
@@ -230,7 +230,7 @@ namespace Converter.Lemur
             string name = "colorCellsMap",
             System.Drawing.Color background = default)
         {
-            Console.WriteLine("Drawing cells by couloured groups to image...");
+            Logger.Info("Drawing cells by couloured groups to image...");
             try
             {
                 // Default background to blue (ocean) if not specified
@@ -260,7 +260,7 @@ namespace Converter.Lemur
                 // Draw wilderness cells in black first (so they appear as background layer)
                 if (wildernessCells.Any())
                 {
-                    Console.WriteLine($"Drawing {wildernessCells.Count} wilderness cells in black");
+                    Logger.Info($"Drawing {wildernessCells.Count} wilderness cells in black");
                     drawablesList.Add(GenerateCellPolygons(wildernessCells, MagickColors.Black, map));
                 }
 
@@ -275,15 +275,15 @@ namespace Converter.Lemur
 
                 cellsMap.Draw(drawables);
 
-                if (Settings.Instance.Debug)
+                if (Settings.Instance.GenerateDebugImages)
                 {
                     var numberedName = GetNumberedImageName(name);
                     var debugRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AzgaarToCK3", "debug");
                     var path = Helper.GetPath(debugRoot, GetDebugFolderName(), numberedName);
                     Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                    Console.WriteLine($"Debug: Saving {name} image to '{path}'");
+                    Logger.Debug($"Saving {name} image to '{path}'");
                     await cellsMap.WriteAsync(path);
-                    Console.WriteLine($"Debug: {name} image saved to '{path}'");
+                    Logger.Debug($"{name} image saved to '{path}'");
                     RegisterGeneratedImage(path);
                 }
 
@@ -299,7 +299,7 @@ namespace Converter.Lemur
 
         public static async Task DrawSeaZonesImage(Entities.Map map)
         {
-            Console.WriteLine("Drawing sea zones image...");
+            Logger.Info("Drawing sea zones image...");
             try
             {
                 var readSettings = new MagickReadSettings()
@@ -342,13 +342,13 @@ namespace Converter.Lemur
                 }
                 image.Draw(gridDrawables);
 
-                if (Settings.Instance.Debug)
+                if (Settings.Instance.GenerateDebugImages)
                 {
                     var debugRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AzgaarToCK3", "debug");
                     var path = Helper.GetPath(debugRoot, GetDebugFolderName(), "2_sea_zones.png");
                     Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                     await image.WriteAsync(path);
-                    Console.WriteLine($"Debug: Saved sea zones image to '{path}'");
+                    Logger.Debug($"Saved sea zones image to '{path}'");
                     RegisterGeneratedImage(path);
                 }
             }
@@ -359,7 +359,7 @@ namespace Converter.Lemur
             }
         }
 
-        private static Drawables GenerateCellPolygons(IEnumerable<Entities.Cell> cells, MagickColor color, Entities.Map map)
+        internal static Drawables GenerateCellPolygons(IEnumerable<Entities.Cell> cells, MagickColor color, Entities.Map map)
         {
             var drawables = new Drawables();
             foreach (var cell in cells)

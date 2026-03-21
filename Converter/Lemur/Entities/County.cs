@@ -12,6 +12,7 @@ namespace Converter.Lemur.Entities
         public List<Cell> Cells { get; set; }
 
         public ITitle? Parent { get; set; }
+        public Character? Holder { get; set; }
         public List<Barony>? Baronies { get; set; }
 
         public Barony? Capital { get; set; }

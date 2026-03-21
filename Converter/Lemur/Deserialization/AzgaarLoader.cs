@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Converter.Lemur;
 using Converter.Lemur.Entities;
 
 namespace Converter.Lemur.Deserialization
@@ -24,6 +25,7 @@ namespace Converter.Lemur.Deserialization
         /// </summary>
         public static async Task<AzgaarGeoMap> LoadGeoJsonAsync(string path)
         {
+            using var _ = OperationTimer.Start("Loading GeoJSON");
             try
             {
                 var file = await File.ReadAllTextAsync(path);
@@ -36,7 +38,7 @@ namespace Converter.Lemur.Deserialization
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Error loading GeoJSON from {path}: {e.Message}");
+                Logger.Info($"Error loading GeoJSON from {path}: {e.Message}");
                 Debugger.Break();
                 throw;
             }
@@ -47,6 +49,7 @@ namespace Converter.Lemur.Deserialization
         /// </summary>
         public static async Task<AzgaarJsonMap> LoadJsonAsync(string path)
         {
+            using var _ = OperationTimer.Start("Loading JSON");
             try
             {
                 var file = await File.ReadAllTextAsync(path);
@@ -59,7 +62,7 @@ namespace Converter.Lemur.Deserialization
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Error loading JSON from {path}: {e.Message}");
+                Logger.Info($"Error loading JSON from {path}: {e.Message}");
                 Debugger.Break();
                 throw;
             }
@@ -73,6 +76,7 @@ namespace Converter.Lemur.Deserialization
             AzgaarGeoMap geoMap,
             AzgaarJsonMap jsonMap)
         {
+            using var _ = OperationTimer.Start("Building cells");
             Dictionary<int, Entities.Cell> cells = new();
 
             var cellData = geoMap.features; // Each feature represents a single cell
@@ -112,7 +116,7 @@ namespace Converter.Lemur.Deserialization
                 cells.Add(cell.Id, cell);
             }
 
-            Console.WriteLine($"Built {cells.Count} cells from Azgaar data");
+            Logger.Info($"Built {cells.Count} cells from Azgaar data");
             return cells;
         }
 
@@ -124,6 +128,7 @@ namespace Converter.Lemur.Deserialization
             AzgaarJsonMap jsonMap,
             Dictionary<int, Entities.Cell> cells)
         {
+            using var _ = OperationTimer.Start("Building burgs");
             // Skip the 0th entry (always empty in Azgaar data model)
             var burgs = jsonMap.pack.burgs
                 .Skip(1)
@@ -175,7 +180,7 @@ namespace Converter.Lemur.Deserialization
                 );
             }
 
-            Console.WriteLine($"Built {burgs.Count} burgs from Azgaar data");
+            Logger.Info($"Built {burgs.Count} burgs from Azgaar data");
             return burgs;
         }
     }

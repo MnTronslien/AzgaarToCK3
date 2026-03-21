@@ -8,7 +8,7 @@ namespace Converter.Lemur.Rivers
     public static class RiverImageGenerator
     {
         /// <summary>
-        /// Creates the base rivers image: white (land) background with hot-pink ocean polygons.
+        /// Creates the base rivers image: hot-pink background with white land polygons.
         /// Caller is responsible for disposing the returned image.
         /// </summary>
         private static MagickImage CreateBaseRiversImage(Entities.Map map)
@@ -19,17 +19,17 @@ namespace Converter.Lemur.Rivers
                 Height = Entities.Map.MapHeight
             };
 
-            var image = new MagickImage("xc:white", settings);
+            var image = new MagickImage("xc:#ff0080", settings);
 
-            // Draw ocean as hot-pink (CK3 convention: RGB 255, 0, 128 = #ff0080)
-            var oceanColor = new MagickColor(255, 0, 128);
+            // Draw land cells as white
+            var landColor = new MagickColor(255, 255, 255);
             var drawables = new Drawables();
-            foreach (var cell in map.Cells!.Values.Where(c => !Entities.Cell.IsDryLand(c.Type)))
+            foreach (var cell in map.Cells!.Values.Where(c => Entities.Cell.IsDryLand(c.Type)))
             {
                 drawables
                     .DisableStrokeAntialias()
-                    .StrokeColor(oceanColor)
-                    .FillColor(oceanColor)
+                    .StrokeColor(landColor)
+                    .FillColor(landColor)
                     .Polygon(cell.GeoDataCoordinates.Select(n =>
                         Helper.GeoToPixel(n[0], n[1], map)));
             }
@@ -44,27 +44,40 @@ namespace Converter.Lemur.Rivers
         /// </summary>
         private static async Task SaveRiversImage(MagickImage riversImage, string debugFileName)
         {
-            var ck3RiversPath = Path.Combine(
-                Settings.Instance.Ck3Directory, "game", "map_data", "rivers.png");
-            if (File.Exists(ck3RiversPath))
-            {
-                using var paletteRef = new MagickImage(ck3RiversPath);
-                riversImage.Map(paletteRef, new QuantizeSettings { DitherMethod = DitherMethod.No });
-                Console.WriteLine("  Applied CK3 palette from game reference file.");
-            }
-            else
-            {
-                Console.WriteLine($"  WARNING: CK3 rivers.png not found at '{ck3RiversPath}' — auto-quantizing.");
-                riversImage.Quantize(new QuantizeSettings { Colors = 256, DitherMethod = DitherMethod.No });
-            }
-            riversImage.ColorType = ColorType.Palette;
+            // Force PNG palette type (color-type 1 = indexed/palette) before mapping.
+            // This ensures CK3's expected 8-bit indexed format regardless of how many
+            // unique colors are present (e.g. blank rivers image with only 2 colors).
+            riversImage.Settings.SetDefine("png:color-type", "1");
+
+            string[] colormap = [
+                "#00FF00",
+                "#FF0000",
+                "#FFFC00",
+                "#00E1FF",
+                "#00C8FF",
+                "#0096FF",
+                "#0064FF",
+                "#0000FF",
+                "#0000E1",
+                "#0000C8",
+                "#000096",
+                "#000064",
+                "#005500",
+                "#007D00",
+                "#009E00",
+                "#18CE00",
+                "#FF0080",
+                "#FFFFFF",
+            ];
+            riversImage.Map(colormap.Select(n => new MagickColor(n)));
+            Logger.Info($"  Applied hardcoded CK3 rivers colormap ({colormap.Length} entries).");
 
             var outputPath = Helper.GetPath(Settings.OutputDirectory, "map_data", "rivers.png");
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
             await riversImage.WriteAsync(outputPath);
-            Console.WriteLine($"\nRivers image saved to '{outputPath}'");
+            Logger.Info($"\nRivers image saved to '{outputPath}'");
 
-            if (Settings.Instance.Debug)
+            if (Settings.Instance.GenerateDebugImages)
             {
                 var debugRoot = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -77,7 +90,7 @@ namespace Converter.Lemur.Rivers
                 Directory.CreateDirectory(Path.GetDirectoryName(debugPath)!);
                 await riversImage.WriteAsync(debugPath);
                 ImageUtility.RegisterGeneratedImage(debugPath);
-                Console.WriteLine($"Debug: Saved rivers image to '{debugPath}'");
+                Logger.Debug($"Saved rivers image to '{debugPath}'");
             }
         }
 
@@ -87,7 +100,7 @@ namespace Converter.Lemur.Rivers
         /// </summary>
         public static async Task DrawBlankRiversImage(Entities.Map map)
         {
-            Helper.PrintSectionHeader("Drawing Blank Rivers Image (no river pixels)");
+            Logger.Section("Drawing Blank Rivers Image (no river pixels)");
             using var riversImage = CreateBaseRiversImage(map);
             await SaveRiversImage(riversImage, "7_rivers_blank.png");
         }
@@ -98,16 +111,16 @@ namespace Converter.Lemur.Rivers
         /// </summary>
         public static async Task DrawRiversImage(List<River> allRivers, float majorThreshold, Entities.Map map)
         {
-            Helper.PrintSectionHeader("Drawing Rivers Image - Pure A* Approach");
+            Logger.Section("Drawing Rivers Image - Pure A* Approach");
 
             var minorRivers = allRivers
                 .Where(r => !r.IsMajor(majorThreshold))
                 .OrderBy(r => r.ParentId)   // Draw parent rivers first, then tributaries
                 .ThenBy(r => r.Id)          // Deterministic secondary sort
                 .ToList();
-            Console.WriteLine($"Drawing {minorRivers.Count} minor rivers using pure A* pathfinding (parent rivers first)");
-            Console.WriteLine($"No line drawing - exact pixel control with manual SetPixel");
-            Console.WriteLine();
+            Logger.Info($"Drawing {minorRivers.Count} minor rivers using pure A* pathfinding (parent rivers first)");
+            Logger.Info($"No line drawing - exact pixel control with manual SetPixel");
+            Logger.Info(string.Empty);
 
             using var riversImage = CreateBaseRiversImage(map);
 
@@ -126,7 +139,7 @@ namespace Converter.Lemur.Rivers
                 // Get control points from LineString coordinates (mandatory)
                 if (river.ControlPoints == null || river.ControlPoints.Count == 0)
                 {
-                    Console.WriteLine($"SKIPPED: River {river.Id} '{river.Name}' - no control points in GeoJSON");
+                    Logger.Info($"SKIPPED: River {river.Id} '{river.Name}' - no control points in GeoJSON");
                     skippedCount++;
                     continue;
                 }
@@ -140,7 +153,7 @@ namespace Converter.Lemur.Rivers
 
                 if (controlPoints.Count < 2)
                 {
-                    Console.WriteLine($"SKIPPED: River {river.Id} '{river.Name}' - only {controlPoints.Count} control point(s)");
+                    Logger.Info($"SKIPPED: River {river.Id} '{river.Name}' - only {controlPoints.Count} control point(s)");
                     skippedCount++;
                     continue;
                 }
@@ -185,13 +198,13 @@ namespace Converter.Lemur.Rivers
                 string drawnAs  = connectedAsTributary ? "tributary" : "main river";
                 string dataDesc = dataIsTributary         ? "tributary" : "main river";
                 if (connectedAsTributary != dataIsTributary)
-                    Console.WriteLine($"  WARNING: {river.Name} drawn as {drawnAs} but data says {dataDesc} (ParentId={river.ParentId})");
-                else if (Settings.Instance.Debug)
-                    Console.WriteLine($"  {river.Name}: drawn as {drawnAs} (matches data)");
+                    Logger.Warning($"  WARNING: {river.Name} drawn as {drawnAs} but data says {dataDesc} (ParentId={river.ParentId})");
+                else if (Settings.Instance.GenerateDebugImages)
+                    Logger.Info($"  {river.Name}: drawn as {drawnAs} (matches data)");
 
                 if (allActualPixels.Count < 2)
                 {
-                    Console.WriteLine($"SKIPPED: River {river.Id} '{river.Name}' - A* path generation resulted in {allActualPixels.Count} pixel(s)");
+                    Logger.Info($"SKIPPED: River {river.Id} '{river.Name}' - A* path generation resulted in {allActualPixels.Count} pixel(s)");
                     skippedCount++;
                     continue;
                 }
@@ -215,7 +228,7 @@ namespace Converter.Lemur.Rivers
                     {
                         RiverPixelDrawer.SetPixel(riversImage, allActualPixels[^1].X, allActualPixels[^1].Y, junctionColor);
                         string markerInfo2 = "[red junction placed - terminal cell, no bridge]";
-                        Console.WriteLine($"DREW: River {river.Id} '{river.Name}' with {allActualPixels.Count} pixels {markerInfo2}");
+                        Logger.Info($"DREW: River {river.Id} '{river.Name}' with {allActualPixels.Count} pixels {markerInfo2}");
                         riverActualPixels.Add((river, allActualPixels, connectedAsTributary));
                         drawnCount++;
                         continue;
@@ -247,12 +260,12 @@ namespace Converter.Lemur.Rivers
                                 var newPixels = correctionPath.Skip(1).ToList();
                                 var drawn = RiverPixelDrawer.DrawRiverPath(riversImage, newPixels, riverColor);
                                 allActualPixels.AddRange(drawn);
-                                Console.WriteLine($"  {river.Name}: bridged junction to parent body (+{drawn.Count} pixels)");
+                                Logger.Info($"  {river.Name}: bridged junction to parent body (+{drawn.Count} pixels)");
                             }
                         }
                         else
                         {
-                            Console.WriteLine($"  {river.Name}: WARNING - junction could not connect to parent body within 150px");
+                            Logger.Warning($"  {river.Name}: WARNING - junction could not connect to parent body within 150px");
                         }
                     }
 
@@ -260,19 +273,19 @@ namespace Converter.Lemur.Rivers
                 }
 
                 string markerInfo = connectedAsTributary ? "[red junction placed]" : "[green source placed]";
-                Console.WriteLine($"DREW: River {river.Id} '{river.Name}' with {allActualPixels.Count} pixels {markerInfo}");
+                Logger.Info($"DREW: River {river.Id} '{river.Name}' with {allActualPixels.Count} pixels {markerInfo}");
 
                 // Store ACTUAL pixels for validation
                 riverActualPixels.Add((river, allActualPixels, connectedAsTributary));
                 drawnCount++;
             }
 
-            Console.WriteLine($"\nDrew {drawnCount} rivers, skipped {skippedCount} rivers");
+            Logger.Info($"\nDrew {drawnCount} rivers, skipped {skippedCount} rivers");
 
             // Validate ACTUAL pixels from the image
-            if (Settings.Instance.Debug && riverActualPixels.Any())
+            if (Settings.Instance.GenerateDebugImages && riverActualPixels.Any())
             {
-                Helper.PrintSectionHeader("Validating ACTUAL Drawn Pixels");
+                Logger.Section("Validating ACTUAL Drawn Pixels");
 
                 var validations = new List<RiverValidation>();
                 int validCount = 0;
@@ -310,17 +323,17 @@ namespace Converter.Lemur.Rivers
                     else
                     {
                         invalidCount++;
-                        Console.WriteLine($"  {validation}");
+                        Logger.Info($"  {validation}");
                     }
                 }
 
-                Console.WriteLine($"\nValidation Summary:");
-                Console.WriteLine($"  Valid rivers: {validCount}");
-                Console.WriteLine($"  Invalid rivers: {invalidCount}");
+                Logger.Info($"\nValidation Summary:");
+                Logger.Info($"  Valid rivers: {validCount}");
+                Logger.Info($"  Invalid rivers: {invalidCount}");
 
                 if (validations.Any())
                 {
-                    Console.WriteLine($"  Total violations: {validations.Sum(v => v.TotalViolations)}");
+                    Logger.Info($"  Total violations: {validations.Sum(v => v.TotalViolations)}");
                 }
 
                 // Save local views for rivers with violations (first 10)
@@ -331,7 +344,7 @@ namespace Converter.Lemur.Rivers
 
                 if (riversWithViolations.Any())
                 {
-                    Console.WriteLine($"\nSaving local views for {riversWithViolations.Count} rivers with violations...");
+                    Logger.Info($"\nSaving local views for {riversWithViolations.Count} rivers with violations...");
 
                     foreach (var validation in riversWithViolations)
                     {
@@ -379,7 +392,7 @@ namespace Converter.Lemur.Rivers
             localImage.Write(debugPath);
             ImageUtility.RegisterGeneratedImage(debugPath);
 
-            Console.WriteLine($"    Local view: {filename}");
+            Logger.Info($"    Local view: {filename}");
         }
 
         /// <summary>
