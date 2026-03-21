@@ -61,8 +61,9 @@ public static class FaithWriter
 
         foreach (var group in byReligion)
         {
-            bool anyUnreformed = group.Any(f => f.IsUnreformed);
-            var rootFaith = group.OrderBy(f => f.AzgaarId).First();
+            var sortedFaiths = group.OrderBy(f => f.AzgaarId).ToList();
+            var rootFaith = sortedFaiths[0];
+            bool anyUnreformed = sortedFaiths.Any(f => f.IsUnreformed);
 
             lines.Add($"# {rootFaith.Name}");
             lines.Add($"{group.Key} = {{");
@@ -72,7 +73,7 @@ public static class FaithWriter
             lines.Add("");
             lines.Add("\tfaiths = {");
 
-            foreach (var faith in group.OrderBy(f => f.AzgaarId))
+            foreach (var faith in sortedFaiths)
             {
                 var (r, g, b) = ParseHexColor(faith.HexColor);
                 var holySiteKey = $"lemur_site_{faith.AzgaarId}";
@@ -163,27 +164,26 @@ public static class FaithWriter
 
         var lines = new List<string> { "l_english:" };
 
-        var writtenReligions = new HashSet<string>();
+        var cultureById = cultures
+            .Where(c => c.i > 0)
+            .ToDictionary(c => c.i, c => c.name);
 
         foreach (var group in byReligion)
         {
-            var rootFaith = group.OrderBy(f => f.AzgaarId).First();
-            if (writtenReligions.Add(group.Key))
-            {
-                // Religion container name, adjective, and description
-                var cultureName = rootFaith.OriginalCultureId > 0
-                    ? cultures.FirstOrDefault(c => c.i == rootFaith.OriginalCultureId)?.name
-                    : null;
-                var desc = cultureName != null
-                    ? $"The ancient religion of the {cultureName}"
-                    : $"The ancient {rootFaith.Name} religion";
+            var sortedFaiths = group.OrderBy(f => f.AzgaarId).ToList();
+            var rootFaith = sortedFaiths[0];
 
-                lines.Add($" {group.Key}:0 \"{rootFaith.Name}\"");
-                lines.Add($" {group.Key}_adj:0 \"{rootFaith.Name}\"");
-                lines.Add($" {group.Key}_desc:0 \"{desc}\"");
-            }
+            // Religion container name, adjective, and description
+            cultureById.TryGetValue(rootFaith.OriginalCultureId, out var cultureName);
+            var desc = cultureName != null
+                ? $"The ancient religion of the {cultureName}"
+                : $"The ancient {rootFaith.Name} religion";
 
-            foreach (var faith in group.OrderBy(f => f.AzgaarId))
+            lines.Add($" {group.Key}:0 \"{rootFaith.Name}\"");
+            lines.Add($" {group.Key}_adj:0 \"{rootFaith.Name}\"");
+            lines.Add($" {group.Key}_desc:0 \"{desc}\"");
+
+            foreach (var faith in sortedFaiths)
             {
                 lines.Add($" {faith.CK3Key}:0 \"{faith.Name}\"");
                 lines.Add($" {faith.CK3Key}_adj:0 \"{faith.Name}\"");

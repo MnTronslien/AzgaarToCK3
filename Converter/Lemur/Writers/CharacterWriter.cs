@@ -12,7 +12,7 @@ public static class CharacterWriter
         {
             sb.AppendLine($"{character.Id} = {{");
             sb.AppendLine($"\tname = \"{character.Name}\"");
-            sb.AppendLine($"\tculture = {character.Culture.Id}");
+            sb.AppendLine($"\tculture = {character.Culture.CK3Key}");
             sb.AppendLine($"\treligion = {character.Faith.CK3Key}");
             sb.AppendLine($"\t{character.BirthYear}.1.1 = {{");
             sb.AppendLine($"\t\tbirth = \"{character.BirthYear}.1.1\"");

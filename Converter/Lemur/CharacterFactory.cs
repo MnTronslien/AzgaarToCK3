@@ -5,9 +5,9 @@ public static class CharacterFactory
 {
     public static void CreateAndAssignAll(Map map)
     {
-        var culture = new Culture("English");
+        var culture = new Culture { AzgaarId = -1, Name = "English" };
         var faith = new Faith { Name = "Catholic", CK3Key = "catholic" };
-        map.Cultures.Add(culture);
+        map.Cultures[-1] = culture;
         // Use sentinel key -1 for this placeholder faith (real faiths use AzgaarId >= 1)
         map.Faiths[-1] = faith;
 

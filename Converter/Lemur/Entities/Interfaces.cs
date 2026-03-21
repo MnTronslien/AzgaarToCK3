@@ -45,9 +45,7 @@ namespace Converter.Lemur.Entities
         /// </summary>
         public MagickColor? GetColor();
         
-        public string Ck3_Id(){
-            return $"x_{Name}_{Id}";
-        }
+        public string Ck3_Id();
 
         public AzgaarCulture GetDominantCulture(Map map);
         public AzgaarReligion GetDominantReligion(Map map);

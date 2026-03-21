@@ -88,7 +88,14 @@ namespace Converter.Lemur.Deserialization
 
     public record AzgaarState(int i, string name, int[] provinces);
 
-    public record AzgaarCulture(int i, string name);
+    public record AzgaarCulture(
+        int i,
+        string name,
+        string color = "#808080",
+        [property: JsonPropertyName("base")] int NameBaseIndex = 0,
+        [property: JsonConverter(typeof(NullableIntArrayConverter))]
+        int[]? origins = null
+    );
 
     public record AzgaarReligion(
         int i,
