@@ -10,8 +10,11 @@ internal class Program
     static async Task Run(string? jsonPath = null, string? geojsonPath = null, string? riversGeojsonPath = null,
         LogLevel? logLevel = null, bool noImages = false, bool? empireFromCulture = null,
         int? minDuchiesPerKingdom = null, int? minKingdomsPerEmpire = null,
-        bool noRivers = false, bool noWipe = false, string? svgPath = null)
+        bool noRivers = false, bool noWipe = false, string? svgPath = null, string? inputDir = null,
+        int? seed = null, int? tenetCount = null, float? doctrineMutationRate = null)
     {
+        Logger.Section("Welcome to Azgaar to CK3 Converter!");
+
         if (!SettingsManager.TryLoad())
         {
             SettingsManager.CreateDefault();
@@ -27,6 +30,8 @@ internal class Program
             Settings.Instance.AutoWipeOutput = false;
         if (!string.IsNullOrWhiteSpace(svgPath))
             Settings.Instance.AzgaarSvgPath = svgPath;
+        if (!string.IsNullOrWhiteSpace(inputDir))
+            Settings.Instance.InputDirectory = inputDir;
 
         if (!string.IsNullOrWhiteSpace(jsonPath))
         {
@@ -58,6 +63,12 @@ internal class Program
             Settings.Instance.MinimumKingdomsPerEmpire = minKingdomsPerEmpire.Value;
             Logger.Info($"Minimum kingdoms per empire: {minKingdomsPerEmpire.Value}");
         }
+        if (seed.HasValue)
+            Settings.Instance.Seed = seed.Value;
+        if (tenetCount.HasValue)
+            Settings.Instance.TenetCount = tenetCount.Value;
+        if (doctrineMutationRate.HasValue)
+            Settings.Instance.DoctrineMutationRate = doctrineMutationRate.Value;
 
         // Print settings (debug level)
         Logger.Debug(Settings.Instance.ToString());
@@ -67,7 +78,7 @@ internal class Program
 
         Logger.Info(string.Empty);
         Logger.Info("The app has been configured. Feel free to change the settings in 'settings.json' file.");
-        Logger.Info("Check https://github.com/pryvyd9/AzgaarToCK3 for instructions or feedback.");
+        Logger.Info("Check https://github.com/MnTronslien/AzgaarToCK3 for instructions or feedback.");
         Logger.Info(string.Empty);
 
         if (string.IsNullOrWhiteSpace(Settings.Instance.ModName))
@@ -77,6 +88,27 @@ internal class Program
         }
 
         CheckIfShouldOverride();
+
+        // Resolve inputs from --input-dir / InputDirectory if set
+        if (!string.IsNullOrWhiteSpace(Settings.Instance.InputDirectory))
+        {
+            var (dirJson, dirGeojson, dirRivers) = ModManager.FindLatestInputs(Settings.Instance.InputDirectory);
+            if (string.IsNullOrWhiteSpace(jsonPath) && dirJson != null)
+            {
+                Settings.Instance.InputJsonPath = dirJson;
+                Logger.Info($"Auto-resolved JSON from input directory: {dirJson}");
+            }
+            if (string.IsNullOrWhiteSpace(geojsonPath) && dirGeojson != null)
+            {
+                Settings.Instance.InputGeojsonPath = dirGeojson;
+                Logger.Info($"Auto-resolved GeoJSON from input directory: {dirGeojson}");
+            }
+            if (string.IsNullOrWhiteSpace(riversGeojsonPath) && dirRivers != null)
+            {
+                Settings.Instance.InputRiversGeojsonPath = dirRivers;
+                Logger.Info($"Auto-resolved rivers GeoJSON from input directory: {dirRivers}");
+            }
+        }
 
         // Only search for inputs if paths were not provided via command line AND auto-detect is enabled
         if (string.IsNullOrWhiteSpace(jsonPath) && string.IsNullOrWhiteSpace(geojsonPath) &&
@@ -141,6 +173,7 @@ internal class Program
             string? geojsonPath = null;
             string? riversGeojsonPath = null;
             string? svgPath = null;
+            string? inputDir = null;
             LogLevel? logLevel = null;
             bool noImages = false;
             bool noRivers = false;
@@ -148,6 +181,9 @@ internal class Program
             bool? empireFromCulture = null;
             int? minDuchiesPerKingdom = null;
             int? minKingdomsPerEmpire = null;
+            int? seed = null;
+            int? tenetCount = null;
+            float? doctrineMutationRate = null;
 
             // Parse command-line arguments
             for (int i = 0; i < args.Length; i++)
@@ -170,6 +206,11 @@ internal class Program
                 else if (args[i] == "--no-rivers")
                 {
                     noRivers = true;
+                }
+                else if ((args[i] == "--input-dir" || args[i] == "-d") && i + 1 < args.Length)
+                {
+                    inputDir = args[i + 1];
+                    i++;
                 }
                 else if ((args[i] == "--svg" || args[i] == "-s") && i + 1 < args.Length)
                 {
@@ -203,6 +244,21 @@ internal class Program
                 {
                     minKingdomsPerEmpire = int.Parse(args[i + 1]);
                     i++; // Skip the next argument
+                }
+                else if (args[i] == "--seed" && i + 1 < args.Length)
+                {
+                    seed = int.Parse(args[i + 1]);
+                    i++;
+                }
+                else if (args[i] == "--tenet-count" && i + 1 < args.Length)
+                {
+                    tenetCount = int.Parse(args[i + 1]);
+                    i++;
+                }
+                else if (args[i] == "--doctrine-mutation-rate" && i + 1 < args.Length)
+                {
+                    doctrineMutationRate = float.Parse(args[i + 1]);
+                    i++;
                 }
                 else if ((args[i] == "--validate-rivers" || args[i] == "-vr") && i + 1 < args.Length)
                 {
@@ -275,7 +331,7 @@ internal class Program
                 return;
             }
 
-            await Run(jsonPath, geojsonPath, riversGeojsonPath, logLevel, noImages, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire, noRivers, noWipe, svgPath);
+            await Run(jsonPath, geojsonPath, riversGeojsonPath, logLevel, noImages, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire, noRivers, noWipe, svgPath, inputDir, seed, tenetCount, doctrineMutationRate);
         }
         catch (Exception ex)
         {
@@ -294,9 +350,17 @@ internal class Program
         Console.WriteLine("  ConsoleUI <json-path> <geojson-path> <rivers-geojson-path>");
         Console.WriteLine();
         Console.WriteLine("Input Options:");
-        Console.WriteLine("  --json, -j <path>                Path to the input .json file");
-        Console.WriteLine("  --geojson, -g <path>             Path to the input .geojson file (cells)");
-        Console.WriteLine("  --rivers-geojson, -r <path>      Path to the rivers .geojson file (required)");
+        Console.WriteLine("  --input-dir, -d <dir>            Directory to scan for input files (see detection rules below)");
+        Console.WriteLine("  --json, -j <path>                Path to the full data .json file (overrides --input-dir)");
+        Console.WriteLine("  --geojson, -g <path>             Path to the cells .geojson file (overrides --input-dir)");
+        Console.WriteLine("  --rivers-geojson, -r <path>      Path to the rivers .geojson file (overrides --input-dir)");
+        Console.WriteLine();
+        Console.WriteLine("Auto-detection rules (used by --input-dir and AutoDetectInputs):");
+        Console.WriteLine("  Files are ranked newest-first by creation time. The first match wins for each slot.");
+        Console.WriteLine("  Full data  : *.json  — excludes settings.json and ConsoleUI*.json");
+        Console.WriteLine("  Rivers     : *.geojson whose filename contains \"rivers\" or \"river\" (case-insensitive)");
+        Console.WriteLine("  Cells      : *.geojson that does not match the rivers rule");
+        Console.WriteLine("  Tip: name your exports \"<map> Full ...\", \"<map> Cells ...\", \"<map> Rivers ...\"");
         Console.WriteLine();
         Console.WriteLine("Conversion Options:");
         Console.WriteLine("  --no-rivers                      Skip river drawing; write a blank rivers.png (runtime only, not saved)");
@@ -307,6 +371,9 @@ internal class Program
         Console.WriteLine("  --empire-from-culture <bool>     Form empires by culture instead of religion");
         Console.WriteLine("  --min-duchies-per-kingdom <int>  Minimum duchies per kingdom (default: 4)");
         Console.WriteLine("  --min-kingdoms-per-empire <int>  Minimum kingdoms per empire (default: 3)");
+        Console.WriteLine("  --seed <int>                     Global converter seed for all randomised decisions (omit for a new random seed each run)");
+        Console.WriteLine("  --tenet-count <int>              Number of tenets per faith, 1–5 (default: 3)");
+        Console.WriteLine("  --doctrine-mutation-rate <float> Child faith mutation rate 0.0–1.0 (default: 0.3)");
         Console.WriteLine();
         Console.WriteLine("Validation:");
         Console.WriteLine("  --validate-rivers, -vr <path>    Validate a rivers.png against CK3 requirements and exit");
@@ -317,6 +384,8 @@ internal class Program
         Console.WriteLine("  --help, -h                       Show this help message");
         Console.WriteLine();
         Console.WriteLine("Examples:");
+        Console.WriteLine("  ConsoleUI --input-dir C:/TestData --no-rivers");
+        Console.WriteLine("  ConsoleUI -d C:/TestData --rivers-geojson C:/other/rivers.geojson");
         Console.WriteLine("  ConsoleUI --json map.json --geojson map.geojson --rivers-geojson rivers.geojson");
         Console.WriteLine("  ConsoleUI -j map.json -g map.geojson -r rivers.geojson --log-level verbose");
         Console.WriteLine("  ConsoleUI map.json map.geojson rivers.geojson --min-duchies-per-kingdom 3");

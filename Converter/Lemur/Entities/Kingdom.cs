@@ -1,4 +1,5 @@
 using ImageMagick;
+using Converter.Lemur;
 using Converter.Lemur.Deserialization;
 
 namespace Converter.Lemur.Entities
@@ -27,6 +28,8 @@ namespace Converter.Lemur.Entities
                 duchies.ForEach(duchy => duchy.Parent = this);
             }
         }
+
+        public string Ck3_Id() => Helper.ToCk3Id("k", Name, Id);
 
         public List<Cell> GetAllCells()
         {

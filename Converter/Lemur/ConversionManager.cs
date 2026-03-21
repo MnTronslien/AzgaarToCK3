@@ -23,6 +23,13 @@ namespace Converter.Lemur
             var map = await InitializeMapWithAzgaarData();
             Logger.Info($"{map} has been loaded.");
 
+            // Resolve global seed once — stored back into settings so any run can be reproduced
+            if (!Settings.Instance.Seed.HasValue)
+                Settings.Instance.Seed = Random.Shared.Next();
+            Logger.Info($"Converter seed: {Settings.Instance.Seed.Value} (use --seed to reproduce)");
+
+            map.Faiths = FaithManager.Build(map.JsonMap.pack.religions);
+
             // ✅ Visualization checkpoint 1: Raw cells
             await ImageUtility.DrawCells(map.Cells!.Values.ToList(), map);
 
@@ -62,7 +69,7 @@ namespace Converter.Lemur
 
             ComputeDistanceToCoast(map);
             GenerateSeaZones(map);
-            Logger.Info($"Generated {map.SeaZones!.Count} sea zones.");
+           
 
             CreateFarSeaZones(map);
 
@@ -87,7 +94,7 @@ namespace Converter.Lemur
                 await DefaultMapWriter.Write(seaZoneIndices, wastelandIndices, farSeaZoneIndices, Settings.OutputDirectory);
 
             if (w.Adjacencies)
-                await AdjacenciesCsvWriter.Write(Settings.OutputDirectory);
+                await AdjacenciesCsvWriter.Write(Settings.OutputDirectory); //I think this is too soon: We probably wantto do more with adjacencys.
 
             GenerateBaronyAdjacency(map);
             GenerateCounties(map);
@@ -110,7 +117,9 @@ namespace Converter.Lemur
 
             // Write CK3 mod files
             if (w.LandedTitles)
-                await LandedTitlesWriter.Write(map, Settings.OutputDirectory);
+                await Task.WhenAll(
+                    LandedTitlesWriter.Write(map, Settings.OutputDirectory),
+                    TitleLocalizationWriter.Write(map, Settings.OutputDirectory));
             await ModDescriptorWriter.Write(Settings.Instance.ModName, Settings.Instance.ModsDirectory, Settings.OutputDirectory);
             if (w.MapDefines)
                 await MapDefinesWriter.Write(Settings.OutputDirectory);
@@ -126,6 +135,8 @@ namespace Converter.Lemur
                 await HeightmapWriter.Write(map, Settings.OutputDirectory);
             if (w.Religion)
                 await ReligionWriter.Write(Settings.Instance.Ck3Directory, Settings.OutputDirectory);
+            if (w.Faiths)
+                await FaithWriter.Write(map, Settings.OutputDirectory);
             if (w.GeographicalRegions)
                 await GeographicalRegionWriter.Write(map, Settings.OutputDirectory);
             if (w.ProvinceHistory)
@@ -200,6 +211,8 @@ namespace Converter.Lemur
 
         private static void GenerateSeaZones(Map map)
         {
+
+            Logger.Section("Generating sea zones");
             var seaCellsById = map.Cells!.Values
                 .Where(c => !Cell.IsDryLand(c.Type))
                 .ToDictionary(c => c.Id);
@@ -285,8 +298,7 @@ namespace Converter.Lemur
                 else
                 {
                     zone.IsImpassable = true;
-                    if (Settings.Instance.GenerateDebugImages)
-                        Logger.Info($"Sea zone {zone.Name} is isolated and marked impassable (area={zone.TotalArea})");
+                    Logger.Debug($"Sea zone {zone.Name} is isolated and marked impassable (area={zone.TotalArea})"); //BUG: zone.Name is not set at this point, so it will print as empty. Consider assigning temporary IDs to zones earlier for better logging.
                 }
             }
 
@@ -295,17 +307,15 @@ namespace Converter.Lemur
                 seaZones[i].Name = $"sea_{i + 1}";
 
             map.SeaZones = seaZones;
+            Logger.Info($"Generated {map.SeaZones.Count} sea zones after merging undersized zones.");
         }
         private static void AssertEveryLandCellIsAssignedToABurg(Map map)
         {
             //Every cell should at this point either be assigned to a barony or be assigned to the wastelands
             var landCells = map.Cells!.Where(c => IsDryLand(c.Value.Type)).ToList();
 
-            if (Settings.Instance.GenerateDebugImages)
-            {
-                Logger.Section("Asserting that every land cell is assigned to a barony or wasteland");
-                Logger.Info($"There are {landCells.Count} land cells");
-            }
+            Logger.Debug("Asserting that every land cell is assigned to a barony or wasteland");
+            Logger.Debug($"There are {landCells.Count} land cells");
 
             bool listPassable = true;
 
@@ -334,9 +344,9 @@ namespace Converter.Lemur
             {
                 throw new Exception("Not all land cells are assigned to a barony or wasteland");
             }
-            else if (Settings.Instance.GenerateDebugImages)
+            else
             {
-                Logger.Info("All land cells are assigned to a barony or wasteland");
+                Logger.Debug("All land cells are assigned to a barony or wasteland");
             }
 
         }
@@ -355,7 +365,9 @@ namespace Converter.Lemur
 
             map.AllProvinces = allProvinces;
         }
-
+        /// <summary>
+        /// Far Sea Zones are a special category of sea zones that are manually created to cover any area of teh province map that azgaar data does not cover.
+        /// </summary> 
         private static void CreateFarSeaZones(Map map)
         {
             int n = Settings.Instance.FarSeaZoneCount;
@@ -369,7 +381,7 @@ namespace Converter.Lemur
                 };
                 map.FarSeaZones.Add(zone);
             }
-            Logger.Info($"Created {n} far sea zones to cover corner pixels.");
+            Logger.Info($"Created {n} far sea zones to make sure that everything is covered.");
         }
         private static void AssignUniqueColorsToCounties(Map map)
         {
@@ -387,7 +399,8 @@ namespace Converter.Lemur
             //We will do this by duchy
             foreach (Duchy duchy in map.Duchies!)
             {
-                Logger.Info($"Duchy: {duchy.Name}");
+                //Logger.Debug($"Duchy: {duchy.Name}");
+                Logger.Verbose($"Processing Cells for Duchy {duchy.Name} with {duchy.GetAllCells().Count} cells and {duchy.Baronies.Count} baronies");
                 //We start by getting all the baronies in the duchy, we do this by getting all the burgs in the duchy and then getting the baronies from the burgs
                 var baronies = duchy.GetAllCells().Select(c => c.Burg).Where(b => b != null).Select(b => b!.Barony).Distinct();
                 //Sort them on population size decending baroniesInProvince[0].Burg.population
@@ -472,19 +485,14 @@ namespace Converter.Lemur
                 }
 
                 // //if not all countryside cells are assigned, print a warning
-
-                if (Settings.Instance.GenerateDebugImages)
+                if (Settings.Instance.LogLevel <= LogLevel.Info && countrysideCells.Count > 0)
                 {
-                    //list baronies and the number of cells assigned to them
-                    Logger.Info($"Duchy {duchy.Name} has {baronies.Count()} baronies");
-                    foreach (var barony in baronies!)
-                    {
-                        Logger.Info($"{barony.Name} has {barony.Cells.Count} cells");
-                    }
+                    Logger.Info($"{countrysideCells.Count} countryside cells in Duchy {duchy.Name} could not be assigned to a barony. This may be due to isolated islands or water barriers.");
                 }
 
                 //print the response to the console
-                Logger.Info("All cells assigned to baronies");
+                // All cells in this duchy is now assigned to a barony, so we can move on to the next duchy
+                Logger.Info($"Completed Cell assignment for Duchy {duchy.Name}");
                 //list baronies and the number of cells assigned to them
 
             }
@@ -505,8 +513,9 @@ namespace Converter.Lemur
                 //and reverse
                 map.Cells![burg.Value.Cell_id].Burg = burg.Value;
 
-                Logger.Info($"Burg {burg.Value.Name} <<=>> {burg.Value.Cell_id} Cell");
+                Logger.Verbose($"Burg {burg.Value.Name} <<=>> {burg.Value.Cell_id} Cell");
             }
+            Logger.Info($"Cell linking complete: {map.Burgs.Count - 1} burgs linked to cells");
         }
 
         private static async Task<Map> InitializeMapWithAzgaarData()
@@ -564,12 +573,9 @@ namespace Converter.Lemur
             }
             map.Baronies = baronies;
 
-            if (Settings.Instance.GenerateDebugImages)
+            foreach (var barony in baronies)
             {
-                foreach (var barony in baronies)
-                {
-                    Logger.Info($"Barony {barony.Id} {barony.Name}");
-                }
+                Logger.Debug($"Barony {barony.Id} {barony.Name}");
             }
 
             Logger.Info($"Generated {baronies.Count} baronies");
@@ -662,12 +668,9 @@ namespace Converter.Lemur
                 }
             }
 
-            if (Settings.Instance.GenerateDebugImages)
+            foreach (var duchy in duchies)
             {
-                foreach (var duchy in duchies)
-                {
-                    Logger.Info($"Duchy {duchy.Id} {duchy.Name} has {duchy.GetAllCells().Count} cells");
-                }
+                Logger.Debug($"Duchy {duchy.Id} {duchy.Name} has {duchy.GetAllCells().Count} cells");
             }
             Logger.Info($"Generated {duchies.Count} duchies");
         }
@@ -729,10 +732,7 @@ namespace Converter.Lemur
                     }
 
                     var county = new County(IdManager.Instance.GetNextId(), name, baronies: baroniesInPartition, duchy: duchy, capital: baroniesInPartition.First());
-                    if (Settings.Instance.GenerateDebugImages)
-                    {
-                        Logger.Info($"County {county.Name} has {baroniesInPartition.Count} baronies");
-                    }
+                    Logger.Debug($"County {county.Name} has {baroniesInPartition.Count} baronies");
                     counties.Add(county);
                 }
 
@@ -762,12 +762,9 @@ namespace Converter.Lemur
                 map.Empires = ByReligion();
             }
 
-            if (Settings.Instance.GenerateDebugImages)
+            foreach (var empire in map.Empires!)
             {
-                foreach (var empire in map.Empires!)
-                {
-                    Logger.Info($"Empire {empire.Id} {empire.Name}");
-                }
+                Logger.Debug($"Empire {empire.Id} {empire.Name}");
             }
 
 
@@ -891,12 +888,9 @@ namespace Converter.Lemur
 
             }
 
-            if (Settings.Instance.GenerateDebugImages)
+            foreach (var kingdom in kingdoms)
             {
-                foreach (var kingdom in kingdoms)
-                {
-                    Logger.Info($"Kingdom {kingdom.Id} {kingdom.Name} has {kingdom.Duchies.Count} duchies");
-                }
+                Logger.Debug($"Kingdom {kingdom.Id} {kingdom.Name} has {kingdom.Duchies.Count} duchies");
             }
             // Assign the kingdoms to the map
             map.Kingdoms = kingdoms;
@@ -971,13 +965,10 @@ namespace Converter.Lemur
                 }
             } while (mergerOccurred); // Continue looping as long as a merger occurred in the last iteration
 
-            if (Settings.Instance.GenerateDebugImages)
+            Logger.Debug($"Kingdoms after merging:");
+            foreach (var kingdom in map.Kingdoms)
             {
-                Logger.Info($"Kingdoms after merging:");
-                foreach (var kingdom in map.Kingdoms)
-                {
-                    Logger.Info($" - {kingdom.Name} has {kingdom.Duchies.Count} duchies");
-                }
+                Logger.Debug($" - {kingdom.Name} has {kingdom.Duchies.Count} duchies");
             }
         }
 
@@ -1022,13 +1013,10 @@ namespace Converter.Lemur
                 Logger.Info($"Merged {empire.Name} into {mergeTarget.Name}");
             }
 
-            if (Settings.Instance.GenerateDebugImages)
+            Logger.Debug($"Empires after merging:");
+            foreach (var empire in map.Empires)
             {
-                Logger.Info($"Empires after merging:");
-                foreach (var empire in map.Empires)
-                {
-                    Logger.Info($" - {empire.Name} has {empire.Kingdoms.Count} kingdoms");
-                }
+                Logger.Debug($" - {empire.Name} has {empire.Kingdoms.Count} kingdoms");
             }
         }
 
@@ -1051,9 +1039,9 @@ namespace Converter.Lemur
             return null;
         }
 
+        /// <summary> Pure Debugging method to show the sea zones on the map </summary>
         private static async Task ShowSeaZones(Map map)
         {
-            Logger.Section("Visualizing Sea Zones");
             await ImageUtility.DrawSeaZonesImage(map);
         }
 
@@ -1062,7 +1050,6 @@ namespace Converter.Lemur
         /// </summary>
         private static async Task ShowBaronies(Map map)
         {
-            Logger.Section("Visualizing Baronies");
             await ImageUtility.DrawProvincesImage(map);
         }
 
@@ -1120,11 +1107,11 @@ namespace Converter.Lemur
 
         private static void GenerateBaronyAdjacency(Map map)
         {
-            Logger.Section("Generating barony adjacency");
+            Logger.Section("Generating barony adjacency graph from cell graph");
 
             foreach (var barony in map.Baronies!)
             {
-                Logger.Info($"Barony {barony.Name}");
+                Logger.Verbose($"Barony {barony.Name}");
                 //fist get all the cells that the cells in this barony are adjacent to
                 var cells = barony.GetAllCells();
                 var adjacentCells = cells.SelectMany(c => c.Neighbors).Distinct().Select(k => map.Cells![k]).ToList();
@@ -1134,11 +1121,8 @@ namespace Converter.Lemur
                 // Now find all unique baronies that the adjacent cells are in
                 var adjacentBaronies = adjacentCells.Select(c => c.Province as Barony).Where(b => b != null).Distinct().ToList();
 
-                if (Settings.Instance.GenerateDebugImages)
-                {
-                    Logger.Info($"Barony {barony.Name} has {adjacentBaronies.Count} adjacent baronies");
-                }
-                //Add the found baronies to this barony¨s list of adjacent baronies. Can be null if there are no adjacent baronies
+                Logger.Info($"Barony {barony.Name} has {adjacentBaronies.Count} adjacent baronies");
+                //Add the found baronies to this baronys list of adjacent baronies. Can be null if there are no adjacent baronies
                 barony.Neighbors = adjacentBaronies!;
             }
         }

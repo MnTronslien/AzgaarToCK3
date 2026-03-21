@@ -1,5 +1,4 @@
 using System.Text;
-using System.Text.RegularExpressions;
 using Converter.Lemur;
 using L = Converter.Lemur.Entities;
 
@@ -110,17 +109,10 @@ public static class LandedTitlesWriter
     }
 
     /// <summary>
-    /// Converts a name to a valid CK3 identifier.
+    /// Converts a name to a valid CK3 identifier. Delegates to <see cref="Helper.ToCk3Id"/>.
     /// Pattern: {prefix}_{lowercase_underscored_ascii_name}_{id}
     /// Example: ToCk3Id("e", "Roman Empire", 5) → "e_roman_empire_5"
     /// </summary>
-    public static string ToCk3Id(string prefix, string name, int id)
-    {
-        var lower = name.ToLowerInvariant();
-        var underscored = Regex.Replace(lower, @"[\s\-]+", "_");
-        var ascii = Regex.Replace(underscored, @"[^a-z0-9_]", "");
-        var clean = Regex.Replace(ascii, @"_+", "_").Trim('_');
-        if (string.IsNullOrEmpty(clean)) clean = "unnamed";
-        return $"{prefix}_{clean}_{id}";
-    }
+    public static string ToCk3Id(string prefix, string name, int id) =>
+        Helper.ToCk3Id(prefix, name, id);
 }

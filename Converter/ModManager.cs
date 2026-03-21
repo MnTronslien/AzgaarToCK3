@@ -34,16 +34,18 @@ supported_version=""1.12.4""";
         return Directory.Exists(Helper.GetPath(Settings.Instance.ModsDirectory, Settings.Instance.ModName));
     }
 
-    public static (string? jsonName, string? geojsonName, string? riversGeojsonName) FindLatestInputs()
+    public static (string? jsonName, string? geojsonName, string? riversGeojsonName) FindLatestInputs(string? directory = null)
     {
         string? jsonName = null;
         string? geojsonName = null;
         string? riversGeojsonName = null;
 
-        var filesToCheck = new DirectoryInfo(SettingsManager.ExecutablePath)
+        var scanDir = directory ?? SettingsManager.ExecutablePath;
+
+        var filesToCheck = new DirectoryInfo(scanDir)
             .EnumerateFiles()
             .OrderByDescending(n => n.CreationTime)
-            .Select(n => n.Name)
+            .Select(n => Path.Combine(scanDir, n.Name))
             .Where(n => Settings.Instance.InputJsonPath != n &&
                         Settings.Instance.InputGeojsonPath != n &&
                         Settings.Instance.InputRiversGeojsonPath != n);

@@ -6,11 +6,12 @@ public static class CharacterFactory
     public static void CreateAndAssignAll(Map map)
     {
         var culture = new Culture("English");
-        var religion = new Religion("Catholic");
+        var faith = new Faith { Name = "Catholic", CK3Key = "catholic" };
         map.Cultures.Add(culture);
-        map.Religions.Add(religion);
+        // Use sentinel key -1 for this placeholder faith (real faiths use AzgaarId >= 1)
+        map.Faiths[-1] = faith;
 
-        var ruler = new Character("The Lemur", culture, religion);
+        var ruler = new Character("The Lemur", culture, faith);
         map.Characters.Add(ruler);
 
         foreach (var empire in map.Empires!)

@@ -44,7 +44,7 @@ namespace Converter.Lemur.Entities
 
         public List<Character> Characters { get; set; } = new();
         public List<Culture> Cultures { get; set; } = new();
-        public List<Religion> Religions { get; set; } = new();
+        public Dictionary<int, Faith> Faiths { get; set; } = new();
 
         public override string ToString()
         {

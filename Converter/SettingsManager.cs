@@ -111,6 +111,14 @@ public class Settings
     public bool AutoDetectInputs { get; set; } = false;
 
     /// <summary>
+    /// Directory to scan for input files (.json, .geojson, rivers .geojson).
+    /// When set, the converter auto-resolves the latest matching files from this directory.
+    /// Individual --json/--geojson/--rivers-geojson flags always take precedence.
+    /// Null or empty means not set; individual paths are used as-is.
+    /// </summary>
+    public string? InputDirectory { get; set; } = null;
+
+    /// <summary>
     /// Number of far sea zone strips drawn behind the map to cover corner pixels.
     /// These prevent black (undefined) pixels that crash CK3's map generator.
     /// </summary>
@@ -122,6 +130,23 @@ public class Settings
     /// fallback image is generated from cell data instead.
     /// </summary>
     public string? AzgaarSvgPath { get; set; } = null;
+
+    /// <summary>
+    /// Global seed for all non-deterministic decisions in the converter (doctrine/tenet selection,
+    /// colour assignment, any future randomised steps). Null = fresh random seed each run.
+    /// Set once at pipeline start; logged so any run can be reproduced with --seed.
+    /// </summary>
+    public int? Seed { get; set; } = null;
+
+    /// <summary>Number of tenets per faith (1–5). Default: 3.</summary>
+    public int TenetCount { get; set; } = 3;
+
+    /// <summary>
+    /// Probability (0.0–1.0) that a child faith mutates each doctrine/tenet slot
+    /// away from its parent's value. 0 = identical to parent, 1 = fully random.
+    /// Default: 0.3 (30% chance to mutate each slot).
+    /// </summary>
+    public float DoctrineMutationRate { get; set; } = 0.3f;
 
     /// <summary>
     /// Per-writer on/off switches. All default to true (current behaviour unchanged).
@@ -153,6 +178,7 @@ public class WriterFlags
     public bool ProvinceTerrain { get; set; } = true;
     public bool MapDefines { get; set; } = true;
     public bool Religion { get; set; } = true;
+    public bool Faiths { get; set; } = true;
     public bool TerrainMasks { get; set; } = true;
     public bool Flatmap { get; set; } = true;
     public bool Locators { get; set; } = true;

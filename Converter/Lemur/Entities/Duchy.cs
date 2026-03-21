@@ -1,4 +1,5 @@
 using ImageMagick;
+using Converter.Lemur;
 using Converter.Lemur.Deserialization;
 
 namespace Converter.Lemur.Entities
@@ -24,10 +25,7 @@ namespace Converter.Lemur.Entities
             return Cells;
         }
 
-        public string Ck3_Id()
-        {
-            return $"d_{Name}_{Id}";
-        }
+        public string Ck3_Id() => Helper.ToCk3Id("d", Name, Id);
 
         public MagickColor? GetColor()
         {
