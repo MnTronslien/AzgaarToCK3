@@ -12,23 +12,12 @@ namespace Converter.Lemur.Entities
         public MagickColor? Color { get; set; }
         public List<Cell> Cells { get; set; }
 
-        public ITitle? Parent { get; set; }
+        public ITitle? DeJureParent { get; set; }
+        public ITitle? DeFactoLiege { get; set; }
         public Character? Holder { get; set; }
         public List<Barony>? Baronies { get; set; }
 
         public Barony? Capital { get; set; }
-
-        private Duchy? _liegeDuchy;
-        /// <summary>
-        /// The duchy this county declares liege to in title history.
-        /// Defaults to own parent duchy; overridden for counties in secondary absorbed duchies.
-        /// Set by CharacterFactory after holder assignment.
-        /// </summary>
-        public Duchy LiegeDuchy
-        {
-            get => _liegeDuchy ?? (Duchy)Parent!;
-            set => _liegeDuchy = value;
-        }
 
         //constructor
         public County(int id, string name, List<Barony>? baronies = null, Duchy? duchy = null, Barony? capital = null)
@@ -39,7 +28,7 @@ namespace Converter.Lemur.Entities
             {
                 Baronies = baronies;
                 Cells = Baronies.SelectMany(barony => barony.GetAllCells()).ToList();
-                baronies.ForEach(barony => barony.Parent = this);
+                baronies.ForEach(barony => barony.DeJureParent = this);
             }
             else
             {
@@ -47,8 +36,8 @@ namespace Converter.Lemur.Entities
             }
             if (duchy != null)
             {
-                Parent = duchy;
-                ((Duchy)Parent).Counties.Add(this);
+                DeJureParent = duchy;
+                ((Duchy)DeJureParent).Counties.Add(this);
             }
 
         }
@@ -106,7 +95,7 @@ namespace Converter.Lemur.Entities
                 foreach (var neighbour in barony.Neighbors)
                 {
                     //Get the county of the neibghbour
-                    var neighbourCounty = neighbour.Parent as County;
+                    var neighbourCounty = neighbour.DeJureParent as County;
 
                     //If the county is already in the dictionary, increment the value
                     if (adjacentCounties.ContainsKey(neighbourCounty))

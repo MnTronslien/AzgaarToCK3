@@ -221,7 +221,7 @@ public static class FaithWriter
         // Primary: find the barony that owns the origin cell
         if (faith.OriginCellId > 0 && cellIdToBarony.TryGetValue(faith.OriginCellId, out var originBarony))
         {
-            if (originBarony.Parent is L.County county)
+            if (originBarony.DeJureParent is L.County county)
                 return county.Id;
         }
 

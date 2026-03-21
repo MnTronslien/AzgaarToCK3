@@ -20,7 +20,7 @@ public static class LandedTitlesWriter
             baroniesProvId[baronies[i]] = i + 1;
 
         // Track orphan kingdoms (no parent empire) — wrap in a synthetic empire
-        var orphanKingdoms = map.Kingdoms.Where(k => k.Parent == null).ToList();
+        var orphanKingdoms = map.Kingdoms.Where(k => k.DeJureParent == null).ToList();
         if (orphanKingdoms.Any())
         {
             sb.AppendLine("e_orphan_0 = {");

@@ -23,7 +23,8 @@ namespace Converter.Lemur.Entities
         public AzgaarCulture Culture { get; set; }
         public AzgaarReligion Religion { get; set; }
 
-        public ITitle? Parent { get; set; }
+        public ITitle? DeJureParent { get; set; }
+        public ITitle? DeFactoLiege { get; set; }
         public Character? Holder { get; set; }
 
         public string Ck3_Id() => Helper.ToCk3Id("e", Name, Id);
@@ -95,7 +96,7 @@ namespace Converter.Lemur.Entities
                     }
 
                     // The neighbour is from another empire, so we update the count
-                    var empire = neighbour.Parent; // Can be null for orphan kingdoms
+                    var empire = neighbour.DeJureParent; // Can be null for orphan kingdoms
 
                     // Skip orphan kingdoms (no parent empire)
                     if (empire == null)

@@ -30,7 +30,7 @@ public static class TitleTreeDebugger
     public static void PrintTrees(L.Map map)
     {
         if (map.Empires is null) return;
-        Logger.Debug("=== DE FACTO TITLE TREE ===");
+        Logger.Section("DE FACTO TITLE TREE");
 
         foreach (var kingdom in map.Kingdoms)
         {
@@ -46,7 +46,7 @@ public static class TitleTreeDebugger
 
         var primaryAbsorbed = map.Kingdoms
             .SelectMany(k => k.Duchies)
-            .Where(d => d.IsAbsorbed && d.PrimaryDuchy == null)
+            .Where(d => d.IsAbsorbed && d.DeFactoLiege == null)
             .ToList();
 
         foreach (var primary in primaryAbsorbed)
@@ -55,7 +55,7 @@ public static class TitleTreeDebugger
 
             var secondaries = map.Kingdoms
                 .SelectMany(k => k.Duchies)
-                .Where(d => d.PrimaryDuchy == primary)
+                .Where(d => d.DeFactoLiege == primary)
                 .ToList();
 
             var ownCounties = primary.Counties.ToList();
@@ -75,8 +75,66 @@ public static class TitleTreeDebugger
             }
         }
 
-        Logger.Debug("=== END DE FACTO TREE ===");
     }
+
+    // -------------------------------------------------------------------------
+    // Character domain tree
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// For each character, prints a small tree of the titles they directly hold,
+    /// labelled by their highest-rank title. Use --log-level debug to see output.
+    /// </summary>
+    public static void PrintCharacterDomains(L.Map map)
+    {
+        if (map.Empires is null) return;
+        Logger.Section("CHARACTER DOMAINS");
+
+        foreach (var character in map.Characters)
+        {
+            // Highest-rank held title determines the label
+            var topTitle = character.HeldTitles
+                .OrderBy(t => TitleSortOrder(t))
+                .FirstOrDefault();
+
+            var label = topTitle != null
+                ? $"{character.Id} [{TierName(topTitle)} · {topTitle.Name}]"
+                : $"{character.Id} [no titles]";
+
+            Logger.Debug(label);
+
+            // Print held titles sorted by tier, skipping the top title used as the label
+            var rest = character.HeldTitles
+                .OrderBy(t => TitleSortOrder(t))
+                .Skip(1)
+                .ToList();
+
+            Each(rest, "", (title, p, isLast) =>
+                Logger.Debug($"{p}{Branch(isLast)}{title.Name} [{TierName(title)}]"));
+        }
+
+    }
+
+    /// <summary>
+    /// Sort key: lower = higher rank. Empire sorts before Kingdom sorts before Duchy etc.
+    /// </summary>
+    private static int TitleSortOrder(L.ITitle t) => t switch
+    {
+        L.Empire  _ => 0,
+        L.Kingdom _ => 1,
+        L.Duchy   _ => 2,
+        L.County  _ => 3,
+        _           => 4
+    };
+
+    private static string TierName(L.ITitle t) => t switch
+    {
+        L.Empire  _ => "Empire",
+        L.Kingdom _ => "Kingdom",
+        L.Duchy   _ => "Duchy",
+        L.County  _ => "County",
+        _           => "Title"
+    };
 
     // -------------------------------------------------------------------------
     // De Jure tree
@@ -88,7 +146,7 @@ public static class TitleTreeDebugger
     public static void PrintDeJureTrees(L.Map map)
     {
         if (map.Empires is null) return;
-        Logger.Debug("=== DE JURE TITLE TREE ===");
+        Logger.Section("DE JURE TITLE TREE");
 
         foreach (var empire in map.Empires)
         {
@@ -110,6 +168,5 @@ public static class TitleTreeDebugger
             });
         }
 
-        Logger.Debug("=== END DE JURE TREE ===");
     }
 }

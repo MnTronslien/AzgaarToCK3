@@ -58,7 +58,7 @@ public static class CultureWriter
 
             if (culture.Parents.Count > 0)
             {
-                lines.Add($"\tparents = {{ {string.Join(" ", culture.Parents)} }}");
+                lines.Add($"\tparents = {{ {string.Join(" ", culture.Parents.Select(p => p.CK3Key))} }}");
             }
 
             lines.Add("\ttraditions = {");

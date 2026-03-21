@@ -14,7 +14,7 @@ public static class TitleLocalizationWriter
 
         var lines = new List<string> { "l_english:" };
 
-        bool hasOrphans = map.Kingdoms.Any(k => k.Parent == null);
+        bool hasOrphans = map.Kingdoms.Any(k => k.DeJureParent == null);
         if (hasOrphans)
             lines.Add(" e_orphan_0:0 \"Unaffiliated Kingdoms\"");
 
@@ -26,7 +26,7 @@ public static class TitleLocalizationWriter
         }
 
         // Orphan kingdoms and their children
-        WriteKingdomsLoc(lines, map.Kingdoms.Where(k => k.Parent == null));
+        WriteKingdomsLoc(lines, map.Kingdoms.Where(k => k.DeJureParent == null));
 
         var path = Helper.GetPath(dir, "lemur_titles_l_english.yml");
         await File.WriteAllLinesAsync(path, lines, Helper.Utf8Bom);

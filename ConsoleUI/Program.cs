@@ -13,7 +13,7 @@ internal class Program
         bool noRivers = false, bool noWipe = false, string? svgPath = null, string? inputDir = null,
         int? seed = null, int? tenetCount = null, float? doctrineMutationRate = null)
     {
-        Logger.Section("Welcome to Azgaar to CK3 Converter!");
+        Logger.Title();
 
         if (!SettingsManager.TryLoad())
         {

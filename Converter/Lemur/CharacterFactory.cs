@@ -1,156 +1,77 @@
 namespace Converter.Lemur;
 using Converter.Lemur.Entities;
 
+/// <summary>
+/// Creates and assigns characters to titles using a top-down de facto drill-down.
+///
+/// Algorithm:
+///   Phase 1 — For each de facto tree root (DeFactoLiege == null, highest tier first),
+///              drill down through de facto children to one county. The root holder also
+///              holds every intermediate title along the drill-down path.
+///   Phase 2 — Assign holders to any remaining titles that appear in county de facto chains
+///              but were not reached by Phase 1 (e.g. vassal duchies the king didn't drill into).
+///
+/// Counties without holders are left for CK3 to auto-spawn at game start.
+/// </summary>
 public static class CharacterFactory
 {
-    private const int KingDemesne  = 3;
-    private const int DukeDemesne  = 2;
-    private const int CountDemesne = 1;
-
     public static void CreateAndAssignAll(Map map)
     {
         var claimed = new HashSet<County>();
 
-        // Step 1 — Kings for intact kingdoms (all duchies share the kingdom's AzgaarStateId)
-        foreach (var empire in map.Empires!)
+        // Phase 1: de facto roots, top-down (kingdoms before independent duchies)
+        var roots = CollectRoots(map);
+        foreach (var root in roots)
         {
-            foreach (var kingdom in empire.Kingdoms)
+            if (root.Holder != null) continue;
+            var pool = CollectCountiesUnder(root).Where(c => !claimed.Contains(c)).ToList();
+            if (pool.Count == 0)
             {
-                bool intact = kingdom.Duchies.All(d => !d.IsAbsorbed);
-                if (!intact) continue;
-
-                var king = MakeCharacter(kingdom, map);
-                map.Characters.Add(king);
-                kingdom.Holder = king;
-                king.HeldTitles.Add(kingdom);
-
-                var pool = kingdom.Duchies
-                    .SelectMany(d => d.Counties)
-                    .Where(c => !claimed.Contains(c))
-                    .ToList();
-                ClaimCounties(king, pool, KingDemesne, claimed);
+                Logger.Warning($"[CharacterFactory] {root.Ck3_Id()} has no available counties — skipping.");
+                continue;
             }
+            DrillDown(root, pool, map, claimed);
         }
 
-        // Step 2 — Independent dukes: one per absorbed state (group by AzgaarStateId)
-        foreach (var empire in map.Empires!)
+        // Phase 2: remaining titles in county de facto chains that Phase 1 didn't reach
+        var duchiesNeedingHolders = map.Empires!
+            .SelectMany(e => e.Kingdoms)
+            .SelectMany(k => k.Duchies)
+            .SelectMany(d => d.Counties)
+            .Select(c => c.DeFactoLiege)
+            .OfType<Duchy>()
+            .Distinct()
+            .Where(d => d.Holder == null);
+
+        foreach (var duchy in duchiesNeedingHolders)
         {
-            foreach (var kingdom in empire.Kingdoms)
+            var pool = duchy.Counties.Where(c => !claimed.Contains(c)).ToList();
+            if (pool.Count == 0)
             {
-                var absorbedGroups = kingdom.Duchies
-                    .Where(d => d.IsAbsorbed)
-                    .GroupBy(d => d.AzgaarStateId);
-
-                foreach (var group in absorbedGroups)
-                {
-                    // Primary = most counties; tie-break by Id for determinism
-                    var primary = group
-                        .OrderByDescending(d => d.Counties.Count)
-                        .ThenBy(d => d.Id)
-                        .First();
-
-                    foreach (var secondary in group.Where(d => d != primary))
-                        secondary.PrimaryDuchy = primary;
-
-                    var duke = MakeCharacter(primary, map);
-                    map.Characters.Add(duke);
-                    primary.Holder = duke;
-                    duke.HeldTitles.Add(primary);
-
-                    // Pool from all duchies in the group
-                    var pool = group
-                        .SelectMany(d => d.Counties)
-                        .Where(c => !claimed.Contains(c))
-                        .ToList();
-                    ClaimCounties(duke, pool, DukeDemesne, claimed);
-                }
+                Logger.Warning($"[CharacterFactory] {duchy.Ck3_Id()} has no available counties — skipping.");
+                continue;
             }
+            DrillDown(duchy, pool, map, claimed);
         }
 
-        // Step 3 — Counts for all remaining unclaimed counties
-        foreach (var empire in map.Empires!)
-        {
-            foreach (var kingdom in empire.Kingdoms)
-            {
-                foreach (var duchy in kingdom.Duchies)
-                {
-                    foreach (var county in duchy.Counties)
-                    {
-                        if (claimed.Contains(county)) continue;
+        // Phase 3: explicit counts for all remaining holder-less counties.
+        // CK3 does not auto-spawn counts from liege-only history entries — without an
+        // explicit holder the county falls to the nearest titled holder up the de jure chain.
+        var allCounties = map.Empires!
+            .SelectMany(e => e.Kingdoms)
+            .SelectMany(k => k.Duchies)
+            .SelectMany(d => d.Counties);
 
-                        var count = MakeCharacter(county, map);
-                        map.Characters.Add(count);
-                        county.Holder = count;
-                        count.HeldTitles.Add(county);
-                        claimed.Add(county);
-                    }
-                }
-            }
-        }
+        foreach (var county in allCounties.Where(c => c.Holder == null))
+            DrillDown(county, new List<County> { county }, map, claimed);
 
-        // Step 4 — Commit liege decisions to entity graph so writers only serialize
-        foreach (var empire in map.Empires!)
-        {
-            foreach (var kingdom in empire.Kingdoms)
-            {
-                foreach (var duchy in kingdom.Duchies)
-                {
-                    duchy.LiegeId = duchy.IsAbsorbed ? null : kingdom.Ck3_Id();
-
-                    if (duchy.PrimaryDuchy != null)
-                        foreach (var county in duchy.Counties)
-                            county.LiegeDuchy = duchy.PrimaryDuchy;
-                }
-            }
-        }
+        var allTitles = map.Empires!.SelectMany(e => e.Kingdoms).ToList();
+        Logger.Info($"Created {map.Characters.Count} characters " +
+                    $"({allTitles.Count(k => k.Holder != null)} kings, " +
+                    $"{allTitles.SelectMany(k => k.Duchies).Count(d => d.Holder != null)} dukes, " +
+                    $"{allTitles.SelectMany(k => k.Duchies).SelectMany(d => d.Counties).Count(c => c.Holder != null)} counts)");
 
         RunAssertions(map);
-        Logger.Info($"Created {map.Characters.Count} characters " +
-                    $"({map.Empires!.SelectMany(e => e.Kingdoms).Count(k => k.Holder != null)} kings, " +
-                    $"{map.Empires!.SelectMany(e => e.Kingdoms).SelectMany(k => k.Duchies).Count(d => d.Holder != null)} dukes, " +
-                    $"{map.Empires!.SelectMany(e => e.Kingdoms).SelectMany(k => k.Duchies).SelectMany(d => d.Counties).Count(c => c.Holder != null && c.Holder != c.Parent?.Holder)} counts)");
-    }
-
-    /// <summary>
-    /// Assigns up to <paramref name="n"/> counties from <paramref name="pool"/> to
-    /// <paramref name="character"/>. The most-populous county is claimed first (capital),
-    /// then remaining counties in descending population order.
-    /// </summary>
-    private static void ClaimCounties(Character character, List<County> pool, int n, HashSet<County> claimed)
-    {
-        if (pool.Count == 0) return;
-
-        // Capital = county whose highest-population barony has the most population
-        // TODO: use actual capital burg flag once de jure capitals bug is fixed
-        var capital = pool
-            .OrderByDescending(c => c.Baronies!.Max(b => (double)(b.burg?.Population ?? 0)))
-            .First();
-
-        var rest = pool
-            .Where(c => c != capital)
-            .OrderByDescending(c => c.Baronies!.Sum(b => (double)(b.burg?.Population ?? 0)))
-            .ToList();
-
-        var toAssign = new List<County>(n) { capital };
-        toAssign.AddRange(rest.Take(n - 1));
-
-        foreach (var county in toAssign)
-        {
-            county.Holder = character;
-            character.HeldTitles.Add(county);
-            claimed.Add(county);
-        }
-    }
-
-    private static Character MakeCharacter(ITitle title, Map map)
-    {
-        var azCulture = title.GetDominantCulture(map);
-        var culture = map.Cultures.GetValueOrDefault(azCulture.i) ?? map.Cultures.Values.First();
-
-        var azFaith = title.GetDominantReligion(map);
-        var faith = map.Faiths.GetValueOrDefault(azFaith.i) ?? map.Faiths.Values.First();
-
-        return new Character(culture, faith);
     }
 
     private static void RunAssertions(Map map)
@@ -163,23 +84,134 @@ public static class CharacterFactory
             .ToList();
 
         foreach (var group in independentDukes.GroupBy(d => d.AzgaarStateId).Where(g => g.Count() > 1))
-            Logger.Error($"Assert fail: multiple independent dukes for AzgaarStateId={group.Key}: " +
+            Logger.Warning($"[Assert] Multiple independent dukes for AzgaarStateId={group.Key}: " +
                          $"{string.Join(", ", group.Select(d => d.Name))}");
 
-        // Assertion 2: kings do not hold counties outside their kingdom's native state
+        // Assertion 2: kings do not hold counties from a different native state
         foreach (var empire in map.Empires!)
+        foreach (var kingdom in empire.Kingdoms)
         {
-            foreach (var kingdom in empire.Kingdoms)
-            {
-                if (kingdom.Holder == null) continue;
-                var badCounties = kingdom.Holder.HeldTitles
-                    .OfType<County>()
-                    .Where(c => ((Duchy)c.Parent!).AzgaarStateId != kingdom.Id)
-                    .ToList();
-                foreach (var county in badCounties)
-                    Logger.Error($"Assert fail: king of {kingdom.Name} holds county {county.Name} " +
-                                 $"from state {((Duchy)county.Parent!).AzgaarStateId} (expected {kingdom.Id})");
-            }
+            if (kingdom.Holder == null) continue;
+            var foreignCounties = kingdom.Holder.HeldTitles
+                .OfType<County>()
+                .Where(c => ((Duchy)c.DeJureParent!).AzgaarStateId != kingdom.Id)
+                .ToList();
+            foreach (var county in foreignCounties)
+                Logger.Warning($"[Assert] King of {kingdom.Name} holds county {county.Name} " +
+                             $"from state {((Duchy)county.DeJureParent!).AzgaarStateId} (expected {kingdom.Id})");
         }
+
+        // Assertion 3: kings do not hold counties from absorbed duchies
+        foreach (var empire in map.Empires!)
+        foreach (var kingdom in empire.Kingdoms)
+        {
+            if (kingdom.Holder == null) continue;
+            var absorbedCounties = kingdom.Holder.HeldTitles
+                .OfType<County>()
+                .Where(c => ((Duchy)c.DeJureParent!).IsAbsorbed)
+                .ToList();
+            foreach (var county in absorbedCounties)
+                Logger.Warning($"[Assert] King of {kingdom.Name} holds county {county.Name} " +
+                             $"from absorbed duchy {((Duchy)county.DeJureParent!).Name}");
+        }
+    }
+
+    /// <summary>
+    /// Returns de facto tree roots (DeFactoLiege == null) ordered highest tier first.
+    /// Currently: kingdoms, then independent duchies.
+    /// When DeFactoHierarchyBuilder sets kingdom.DeFactoLiege = empire, empires will
+    /// automatically appear as roots here and be processed before kingdoms.
+    /// </summary>
+    private static IEnumerable<ITitle> CollectRoots(Map map)
+    {
+        // Kingdoms whose DeFactoLiege is null are roots (no empire de facto hierarchy yet)
+        var kingdoms = map.Empires!
+            .SelectMany(e => e.Kingdoms)
+            .Where(k => k.DeFactoLiege == null && k.Duchies.Any(d => d.Counties.Count > 0))
+            .Cast<ITitle>();
+
+        // Independent duchy roots (absorbed primaries: DeFactoLiege == null)
+        var independentDuchies = map.Empires!
+            .SelectMany(e => e.Kingdoms)
+            .SelectMany(k => k.Duchies)
+            .Where(d => d.DeFactoLiege == null && d.Counties.Count > 0)
+            .Cast<ITitle>();
+
+        return kingdoms.Concat(independentDuchies);
+    }
+
+    /// <summary>
+    /// Collects all counties reachable from <paramref name="root"/> via de facto children.
+    /// Tier-agnostic: uses GetDeFactoChildren at each level.
+    /// </summary>
+    private static IEnumerable<County> CollectCountiesUnder(ITitle root)
+    {
+        if (root is County county) return new[] { county };
+
+        return GetDeFactoChildren(root)
+            .SelectMany(CollectCountiesUnder);
+    }
+
+    /// <summary>
+    /// Returns the immediate de facto children of a title.
+    /// Generalised: adding kingdom→empire in DeFactoHierarchyBuilder will automatically
+    /// make this work for empire roots without any changes here.
+    /// </summary>
+    private static IEnumerable<ITitle> GetDeFactoChildren(ITitle title) => title switch
+    {
+        Kingdom k  => k.Duchies.Where(d => !d.IsAbsorbed && d.DeFactoLiege == k).Cast<ITitle>(),
+        Duchy   d  => d.Counties.Where(c => c.DeFactoLiege == d).Cast<ITitle>(),
+        _          => Enumerable.Empty<ITitle>()
+    };
+
+    /// <summary>
+    /// Creates a character for <paramref name="root"/>, then drills down through de facto
+    /// children to pick the best county, assigning the character to every unheld title
+    /// along the path (so a king who drills into duchy D and county C holds all three).
+    /// </summary>
+    private static void DrillDown(ITitle root, List<County> pool, Map map, HashSet<County> claimed)
+    {
+        var capital = PickCapital(pool);
+        var character = MakeCharacter(root, map);
+
+        // Build path from capital up to root via DeFactoLiege chain, then reverse.
+        // e.g. kingdom root: [duchy, county] — assigns character to kingdom + duchy + county.
+        var path = new List<ITitle>();
+        ITitle? current = capital;
+        while (current != null && current != root)
+        {
+            path.Add(current);
+            current = current.DeFactoLiege;
+        }
+        path.Reverse();
+
+        Assign(character, root, map);
+        foreach (var title in path)
+            if (title.Holder == null)
+                Assign(character, title, map);
+
+        claimed.Add(capital);
+    }
+
+    private static County PickCapital(List<County> pool) =>
+        pool.OrderByDescending(c => c.Baronies!.Max(b => (double?)b.burg?.Population ?? 0)).First();
+
+    private static void Assign(Character character, ITitle title, Map map)
+    {
+        title.Holder = character;
+        character.HeldTitles.Add(title);
+        if (!map.Characters.Contains(character))
+            map.Characters.Add(character);
+    }
+
+    private static Character MakeCharacter(ITitle title, Map map)
+    {
+        var azCulture = title.GetDominantCulture(map);
+        var culture = map.Cultures.GetValueOrDefault(azCulture.i) ?? map.Cultures.Values.First();
+
+        var azFaith = title.GetDominantReligion(map);
+        var faith = map.Faiths.GetValueOrDefault(azFaith.i) ?? map.Faiths.Values.First();
+
+        return new Character(culture, faith);
     }
 }

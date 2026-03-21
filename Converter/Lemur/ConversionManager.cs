@@ -121,10 +121,12 @@ namespace Converter.Lemur
             await ShowKingdoms(map);
             await ShowEmpires(map);
 
+            DeFactoHierarchyBuilder.Build(map);
             CharacterFactory.CreateAndAssignAll(map);
 
             TitleTreeDebugger.PrintTrees(map);
             TitleTreeDebugger.PrintDeJureTrees(map);
+            TitleTreeDebugger.PrintCharacterDomains(map);
 
             Logger.Section("Writing CK3 mod files");
 
@@ -171,7 +173,7 @@ namespace Converter.Lemur
             if (w.TitleHistory)
                 await TitleHistoryWriter.Write(map, Settings.OutputDirectory);
 
-            Logger.Info("Finished conversion!");
+            Logger.Success();
 
             if (Settings.Instance.GenerateDebugImages)
             {
@@ -882,7 +884,7 @@ namespace Converter.Lemur
                         continue;
                     }
                     empire.Kingdoms.Add(kingdom);
-                    kingdom.Parent = empire;
+                    kingdom.DeJureParent = empire;
                 }
                 else
                 {
@@ -895,7 +897,7 @@ namespace Converter.Lemur
                         continue;
                     }
                     empire.Kingdoms.Add(kingdom);
-                    kingdom.Parent = empire;
+                    kingdom.DeJureParent = empire;
                 }
 
             }
@@ -933,7 +935,7 @@ namespace Converter.Lemur
                         .Where(k => unmergableKingdoms.ContainsKey(k) && unmergableKingdoms[k] == false)
                         .ToList();
 
-                    if (!kingdomsToMerge.Any() || empire.Kingdoms.Count < 2)
+                    if (!kingdomsToMerge.Any())
                     {
                         continue;
                     }
@@ -941,16 +943,26 @@ namespace Converter.Lemur
                     var TinyKingdom = kingdomsToMerge.First();
                     var adjacentKingdoms = TinyKingdom.GetNeighbours();
 
+                    Logger.Verbose($"[MergeTiny] Evaluating {TinyKingdom.Name} ({TinyKingdom.Duchies.Count} duchies). All raw neighbours:");
+                    foreach (var (k, v) in adjacentKingdoms.OrderByDescending(x => x.Value))
+                    {
+                        bool inEmpire = empire.Kingdoms.Contains(k);
+                        bool sharedAncestry = SharesAncestry(TinyKingdom, (Kingdom)k, map);
+                        Logger.Verbose($"  {((Kingdom)k).Name}: border={v} inEmpire={inEmpire} sharedAncestry={sharedAncestry}");
+                    }
+
                     if (!adjacentKingdoms.Any())
                     {
                         unmergableKingdoms[TinyKingdom] = true;
                         continue;
                     }
 
-                    // Filter out non-empire kingdoms and sort by shared border
+                    // Include same-empire kingdoms and cross-empire kingdoms that share cultural/religious ancestry.
+                    // Primary sort: border count (descending). Tiebreaker: shared ancestry (0) before none (1).
                     var sortedAdjacentKingdoms = adjacentKingdoms
-                        .Where(k => empire.Kingdoms.Contains(k.Key))
+                        .Where(k => empire.Kingdoms.Contains(k.Key) || SharesAncestry(TinyKingdom, (Kingdom)k.Key, map))
                         .OrderByDescending(k => k.Value)
+                        .ThenBy(k => SharesAncestry(TinyKingdom, (Kingdom)k.Key, map) ? 0 : 1)
                         .Select(k => k.Key)
                         .ToList();
 
@@ -961,10 +973,12 @@ namespace Converter.Lemur
                     }
 
                     Kingdom mergeTarget = sortedAdjacentKingdoms.First() as Kingdom;
+                    Logger.Debug($"[MergeTiny] {TinyKingdom.Name} → {mergeTarget.Name} (border={adjacentKingdoms[mergeTarget]});" +
+                        $" candidates: {string.Join(", ", sortedAdjacentKingdoms.Select(k => $"{k.Name}={adjacentKingdoms[k]}[{(empire.Kingdoms.Contains(k) ? "same" : "cross")}]"))})");
                     mergeTarget.Duchies.AddRange(TinyKingdom.Duchies);
                     foreach (var duchy in TinyKingdom.Duchies)
                     {
-                        duchy.Parent = mergeTarget;
+                        duchy.DeJureParent = mergeTarget;
                     }
                     // Remove the tiny kingdom from the empire
                     empire.Kingdoms.Remove(TinyKingdom);
@@ -982,6 +996,42 @@ namespace Converter.Lemur
             {
                 Logger.Debug($" - {kingdom.Name} has {kingdom.Duchies.Count} duchies");
             }
+        }
+
+        private static bool SharesAncestry(Kingdom a, Kingdom b, Map map)
+        {
+            if (Settings.Instance.EmpireFromCulture)
+            {
+                var cultureA = map.Cultures.GetValueOrDefault(((ITitle)a).GetDominantCulture(map).i);
+                var cultureB = map.Cultures.GetValueOrDefault(((ITitle)b).GetDominantCulture(map).i);
+                if (cultureA == null || cultureB == null) return false;
+                return GetCultureAncestors(cultureA).Overlaps(GetCultureAncestors(cultureB));
+            }
+            else
+            {
+                var faithA = map.Faiths.GetValueOrDefault(((ITitle)a).GetDominantReligion(map).i);
+                var faithB = map.Faiths.GetValueOrDefault(((ITitle)b).GetDominantReligion(map).i);
+                if (faithA == null || faithB == null) return false;
+                return GetFaithAncestors(faithA).Overlaps(GetFaithAncestors(faithB));
+            }
+        }
+
+        private static HashSet<Culture> GetCultureAncestors(Culture c, HashSet<Culture>? visited = null)
+        {
+            visited ??= new HashSet<Culture>();
+            if (!visited.Add(c)) return visited; // cycle guard
+            foreach (var parent in c.Parents)
+                GetCultureAncestors(parent, visited);
+            return visited;
+        }
+
+        private static HashSet<Faith> GetFaithAncestors(Faith f)
+        {
+            var visited = new HashSet<Faith>();
+            var current = f;
+            while (current != null && visited.Add(current))
+                current = current.Parent;
+            return visited;
         }
 
         private static void MergeTinyEmpires(Map map)
@@ -1017,7 +1067,7 @@ namespace Converter.Lemur
                 mergeTarget.Kingdoms.AddRange(empire.Kingdoms);
                 foreach (var kingdom in empire.Kingdoms)
                 {
-                    kingdom.Parent = mergeTarget;
+                    kingdom.DeJureParent = mergeTarget;
                 }
                 // Remove the tiny empire from the map
                 map.Empires.Remove(empire);
