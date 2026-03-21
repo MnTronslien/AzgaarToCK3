@@ -34,19 +34,19 @@ supported_version=""1.12.4""";
         return Directory.Exists(Helper.GetPath(Settings.Instance.ModsDirectory, Settings.Instance.ModName));
     }
 
-    public static (string? jsonName, string? geojsonName) FindLatestInputs()
+    public static (string? jsonName, string? geojsonName, string? riversGeojsonName) FindLatestInputs()
     {
         string? jsonName = null;
         string? geojsonName = null;
+        string? riversGeojsonName = null;
 
         var filesToCheck = new DirectoryInfo(SettingsManager.ExecutablePath)
             .EnumerateFiles()
             .OrderByDescending(n => n.CreationTime)
             .Select(n => n.Name)
-            .Where(n => Settings.Instance.InputJsonPath != n && Settings.Instance.InputGeojsonPath != n);
-
-        //var filesToCheck = Directory.EnumerateFiles(SettingsManager.ExecutablePath)
-        //    .Where(n => Settings.Instance.InputJsonPath != n && Settings.Instance.InputGeojsonPath != n);
+            .Where(n => Settings.Instance.InputJsonPath != n &&
+                        Settings.Instance.InputGeojsonPath != n &&
+                        Settings.Instance.InputRiversGeojsonPath != n);
 
         foreach (var f in filesToCheck)
         {
@@ -60,16 +60,25 @@ supported_version=""1.12.4""";
             }
             else if (f.EndsWith(".geojson"))
             {
-                geojsonName = f;
+                var fileName = Path.GetFileName(f).ToLower();
+                // Check if it's a rivers geojson (contains "rivers" in the name)
+                if (fileName.Contains("rivers") || fileName.Contains("river"))
+                {
+                    riversGeojsonName = f;
+                }
+                else
+                {
+                    geojsonName = f;
+                }
             }
 
-            if (jsonName is not null && geojsonName is not null)
+            if (jsonName is not null && geojsonName is not null && riversGeojsonName is not null)
             {
                 break;
             }
         }
 
-        return (jsonName, geojsonName);
+        return (jsonName, geojsonName, riversGeojsonName);
     }
 
     private static async Task<Map> LoadMap()

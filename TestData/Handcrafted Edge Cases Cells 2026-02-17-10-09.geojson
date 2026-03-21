@@ -546,7 +546,7 @@
         "province": 9,
         "culture": 1,
         "religion": 1,
-        "neighbors": [20, 19, 17, 4, 6, 7, 8]
+        "neighbors": [17, 4, 6, 7, 8, 20, 19]
       }
     },
     {
@@ -574,7 +574,7 @@
         "province": 9,
         "culture": 1,
         "religion": 1,
-        "neighbors": [36, 34, 17, 18, 20]
+        "neighbors": [17, 34, 36, 18, 20]
       }
     },
     {
@@ -603,7 +603,7 @@
         "province": 9,
         "culture": 1,
         "religion": 1,
-        "neighbors": [37, 36, 19, 18, 8, 21]
+        "neighbors": [8, 21, 36, 18, 19, 37]
       }
     },
     {
@@ -691,7 +691,7 @@
         "province": 39,
         "culture": 1,
         "religion": 1,
-        "neighbors": [59, 38, 22, 25, 26, 39]
+        "neighbors": [25, 26, 22, 39, 59, 38]
       }
     },
     {
@@ -718,7 +718,7 @@
         "province": 38,
         "culture": 1,
         "religion": 1,
-        "neighbors": [38, 37, 21, 22]
+        "neighbors": [21, 22, 37, 38]
       }
     },
     {
@@ -1042,7 +1042,7 @@
         "province": 0,
         "culture": 1,
         "religion": 6,
-        "neighbors": [36, 56, 55, 53, 32, 34]
+        "neighbors": [32, 34, 53, 36, 55, 56]
       }
     },
     {
@@ -1101,7 +1101,7 @@
         "province": 38,
         "culture": 1,
         "religion": 1,
-        "neighbors": [38, 57, 36, 20, 21, 24]
+        "neighbors": [21, 24, 36, 20, 57, 38]
       }
     },
     {
@@ -1123,7 +1123,7 @@
       },
       "properties": {
         "id": 38,
-        "height": 484,
+        "height": 441,
         "biome": 12,
         "type": "island",
         "population": 1723,
@@ -1160,7 +1160,7 @@
         "province": 39,
         "culture": 1,
         "religion": 1,
-        "neighbors": [40, 59, 23, 26, 41, 60]
+        "neighbors": [41, 60, 26, 23, 40, 59]
       }
     },
     {
@@ -1188,7 +1188,7 @@
         "province": 0,
         "culture": 1,
         "religion": 1,
-        "neighbors": [100, 98, 59, 39, 60]
+        "neighbors": [60, 100, 39, 98, 59]
       }
     },
     {
@@ -1595,7 +1595,7 @@
         "province": 8,
         "culture": 1,
         "religion": 6,
-        "neighbors": [53, 91, 90, 89, 33]
+        "neighbors": [33, 89, 53, 90, 91]
       }
     },
     {
@@ -1702,7 +1702,7 @@
       },
       "properties": {
         "id": 58,
-        "height": 961,
+        "height": 900,
         "biome": 12,
         "type": "island",
         "population": 1402,
@@ -2643,7 +2643,7 @@
         "province": 8,
         "culture": 1,
         "religion": 1,
-        "neighbors": [141, 138, 87, 89, 54, 91]
+        "neighbors": [87, 141, 138, 89, 54, 91]
       }
     },
     {
@@ -2673,7 +2673,7 @@
         "province": 8,
         "culture": 1,
         "religion": 6,
-        "neighbors": [93, 142, 141, 90, 54, 53, 92]
+        "neighbors": [142, 141, 54, 93, 53, 92, 90]
       }
     },
     {
@@ -2758,7 +2758,7 @@
         "province": 5,
         "culture": 1,
         "religion": 6,
-        "neighbors": [95, 144, 93, 56, 96]
+        "neighbors": [144, 93, 56, 95, 96]
       }
     },
     {
@@ -2786,7 +2786,7 @@
         "province": 5,
         "culture": 1,
         "religion": 6,
-        "neighbors": [146, 145, 144, 94, 96]
+        "neighbors": [145, 144, 94, 146, 96]
       }
     },
     {
@@ -2877,7 +2877,7 @@
         "province": 0,
         "culture": 1,
         "religion": 1,
-        "neighbors": [151, 99, 97, 59, 40, 100]
+        "neighbors": [151, 100, 40, 99, 59, 97]
       }
     },
     {
@@ -2906,7 +2906,7 @@
         "province": 0,
         "culture": 1,
         "religion": 1,
-        "neighbors": [152, 150, 149, 97, 98, 151]
+        "neighbors": [152, 151, 98, 150, 149, 97]
       }
     },
     {
@@ -2936,7 +2936,7 @@
         "province": 0,
         "culture": 1,
         "religion": 1,
-        "neighbors": [151, 98, 40, 60, 61, 62, 102]
+        "neighbors": [61, 62, 102, 60, 151, 40, 98]
       }
     },
     {
@@ -4254,7 +4254,7 @@
         "province": 5,
         "culture": 1,
         "religion": 1,
-        "neighbors": [191, 190, 145, 95, 96, 147]
+        "neighbors": [190, 191, 145, 95, 147, 96]
       }
     },
     {
@@ -4282,7 +4282,7 @@
         "province": 5,
         "culture": 1,
         "religion": 1,
-        "neighbors": [148, 191, 146, 96, 97]
+        "neighbors": [191, 146, 96, 148, 97]
       }
     },
     {
@@ -4303,7 +4303,7 @@
       },
       "properties": {
         "id": 148,
-        "height": 1156,
+        "height": 1089,
         "biome": 12,
         "type": "island",
         "population": 1554,
@@ -4331,7 +4331,7 @@
       },
       "properties": {
         "id": 149,
-        "height": 1156,
+        "height": 1089,
         "biome": 9,
         "type": "island",
         "population": 5965,
@@ -4339,7 +4339,7 @@
         "province": 5,
         "culture": 1,
         "religion": 1,
-        "neighbors": [150, 193, 148, 97, 99]
+        "neighbors": [193, 99, 150, 148, 97]
       }
     },
     {
@@ -4368,7 +4368,7 @@
         "province": 0,
         "culture": 1,
         "religion": 1,
-        "neighbors": [194, 193, 149, 99, 152, 195]
+        "neighbors": [193, 194, 195, 152, 99, 149]
       }
     },
     {
@@ -9149,7 +9149,7 @@
       },
       "properties": {
         "id": 315,
-        "height": 289,
+        "height": 256,
         "biome": 8,
         "type": "island",
         "population": 12617,
@@ -9868,7 +9868,7 @@
       },
       "properties": {
         "id": 340,
-        "height": 324,
+        "height": 289,
         "biome": 8,
         "type": "island",
         "population": 13636,
@@ -10490,7 +10490,7 @@
       },
       "properties": {
         "id": 361,
-        "height": 289,
+        "height": 256,
         "biome": 8,
         "type": "island",
         "population": 20436,
@@ -12582,7 +12582,7 @@
         "province": 0,
         "culture": 0,
         "religion": 0,
-        "neighbors": [409, 434, 458, 431, 430, 408]
+        "neighbors": [431, 430, 408, 409, 458, 434]
       }
     },
     {
@@ -13338,7 +13338,7 @@
         "province": 0,
         "culture": 0,
         "religion": 0,
-        "neighbors": [435, 460, 487, 485, 457, 458, 434]
+        "neighbors": [457, 485, 458, 487, 435, 434, 460]
       }
     },
     {
@@ -13396,7 +13396,7 @@
         "province": 0,
         "culture": 0,
         "religion": 0,
-        "neighbors": [439, 462, 491, 460, 437]
+        "neighbors": [439, 491, 460, 462, 437]
       }
     },
     {
@@ -14572,7 +14572,7 @@
       },
       "properties": {
         "id": 502,
-        "height": 289,
+        "height": 256,
         "biome": 12,
         "type": "island",
         "population": 1693,
@@ -14720,7 +14720,7 @@
       },
       "properties": {
         "id": 507,
-        "height": 576,
+        "height": 529,
         "biome": 12,
         "type": "island",
         "population": 1638,
@@ -14749,7 +14749,7 @@
       },
       "properties": {
         "id": 508,
-        "height": 576,
+        "height": 529,
         "biome": 12,
         "type": "island",
         "population": 1518,
@@ -14757,7 +14757,7 @@
         "province": 40,
         "culture": 0,
         "religion": 0,
-        "neighbors": [545, 503, 506, 507, 510, 505]
+        "neighbors": [545, 503, 507, 506, 510, 505]
       }
     },
     {
@@ -15337,7 +15337,7 @@
         "province": 0,
         "culture": 0,
         "religion": 0,
-        "neighbors": [529, 572, 574, 571, 527, 490, 491]
+        "neighbors": [572, 574, 571, 529, 527, 491, 490]
       }
     },
     {
@@ -15365,7 +15365,7 @@
         "province": 0,
         "culture": 0,
         "religion": 0,
-        "neighbors": [493, 532, 572, 528, 491]
+        "neighbors": [572, 532, 528, 493, 491]
       }
     },
     {
@@ -16579,7 +16579,7 @@
         "province": 0,
         "culture": 0,
         "religion": 0,
-        "neighbors": [528, 574, 570, 526, 527]
+        "neighbors": [574, 570, 526, 528, 527]
       }
     },
     {

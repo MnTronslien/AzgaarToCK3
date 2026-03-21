@@ -14,7 +14,7 @@ namespace Converter.Lemur.Entities
         // Now using Azgaar DTOs instead of upstream types
         public AzgaarGeoMap? GeoMap { get; set; }
 
-        //TODO: Rivers public GeoMapRivers Rivers { get; set; }
+        public List<River>? Rivers { get; set; }
         public required AzgaarJsonMap JsonMap { get; set; }
         public required Settings Settings { get; set; }
 

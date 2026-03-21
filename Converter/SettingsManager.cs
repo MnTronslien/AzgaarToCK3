@@ -14,6 +14,7 @@ public class Settings
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
     public string InputJsonPath { get; set; }
     public string InputGeojsonPath { get; set; }
+    public string InputRiversGeojsonPath { get; set; }
     public string ModName { get; set; }
 #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
     public bool? ShouldOverride { get; set; } = null;
@@ -73,6 +74,23 @@ public class Settings
     /// Empires below this number will be merged into adjacent larger empires.
     /// </summary>
     public int MinimumKingdomsPerEmpire { get; set; } = 3;
+
+    /// <summary>
+    /// Enable river generation from Azgaar data.
+    /// </summary>
+    public bool EnableRivers { get; set; } = true;
+
+    /// <summary>
+    /// Discharge threshold for major rivers. Rivers with discharge >= this value are considered major/navigable.
+    /// For testing purposes, set this very high (e.g. 999999) to treat all rivers as minor.
+    /// </summary>
+    public float MajorRiverThreshold { get; set; } = 999999f;  // Very high for testing - all rivers will be minor
+
+    /// <summary>
+    /// Auto-detect newer .json/.geojson files in the directory and prompt to use them.
+    /// If false, always uses the paths specified in InputJsonPath, InputGeojsonPath, and InputRiversGeojsonPath.
+    /// </summary>
+    public bool AutoDetectInputs { get; set; } = false;
 
     public override string ToString()
     {

@@ -4,6 +4,24 @@ using System.Text.Json.Serialization;
 namespace Converter.Lemur.Deserialization
 {
     /// <summary>
+    /// Reads a JSON value that may be either a boolean (true/false) or an integer (0/1)
+    /// and converts it to int. Azgaar exports changed some fields from 0/1 to true/false
+    /// between versions.
+    /// </summary>
+    public class BoolOrIntConverter : JsonConverter<int>
+    {
+        public override int Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.True) return 1;
+            if (reader.TokenType == JsonTokenType.False) return 0;
+            return reader.GetInt32();
+        }
+
+        public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options)
+            => writer.WriteNumberValue(value);
+    }
+
+    /// <summary>
     /// Clean DTOs for Azgaar JSON structure - no upstream dependencies
     /// These records match the Azgaar data model directly for deserialization
     /// </summary>
@@ -22,7 +40,8 @@ namespace Converter.Lemur.Deserialization
         int feature,        // Burg feature ID (ID of a landmass)
         float population,   // Burg population in population points
         string type,        // Burg type
-        int capital,        // 1 if burg is a capital, 0 if not
+        [property: JsonConverter(typeof(BoolOrIntConverter))]
+        int capital,        // 1 if burg is a capital, 0 if not (newer Azgaar exports use true/false)
         int port,           // If burg is not a port, then 0, otherwise feature ID of the water body
         int citadel,        // 1 if burg has a castle, 0 if not
         int plaza,          // 1 if burg has a marketplace, 0 if not
@@ -41,6 +60,22 @@ namespace Converter.Lemur.Deserialization
     public record AzgaarCulture(int i, string name);
 
     public record AzgaarReligion(int i, string name);
+
+    public record AzgaarRiver(
+        int i,              // River ID
+        int source,         // Source cell ID
+        int mouth,          // Mouth cell ID
+        float discharge,    // Flow volume (key metric)
+        float length,       // Total river length
+        float width,        // Width at mouth
+        float sourceWidth,  // Width at source
+        float widthFactor,  // Width interpolation factor
+        int parent,         // Parent river ID (0 if main river)
+        int[] cells,        // Ordered list of cell IDs river passes through
+        int basin,          // Watershed/basin ID
+        string name,        // River name
+        string type         // "River" or "Fork" (tributary)
+    );
 
     public record AzgaarMapCoordinates(
         float latT,  // Total latitude range
@@ -131,6 +166,8 @@ namespace Converter.Lemur.Deserialization
         public AzgaarCulture[] cultures { get; set; } = Array.Empty<AzgaarCulture>();
 
         public AzgaarReligion[] religions { get; set; } = Array.Empty<AzgaarReligion>();
+
+        public AzgaarRiver[] rivers { get; set; } = Array.Empty<AzgaarRiver>();
     }
 
     /// <summary>
@@ -171,5 +208,39 @@ namespace Converter.Lemur.Deserialization
     /// </summary>
     public record AzgaarGeoMap(
         GeoJsonFeature[] features
+    );
+
+    // ========== River GeoJSON DTOs ==========
+
+    public record RiverGeometry(
+        string type,        // "LineString"
+        float[][] coordinates  // Array of [x, y] coordinate pairs
+    );
+
+    public record RiverFeatureProperties(
+        int id,
+        int source,
+        int mouth,
+        int parent,
+        int basin,
+        float widthFactor,
+        float sourceWidth,
+        float discharge,
+        string name,
+        string type  // "River" or "Fork"
+    );
+
+    public record RiverFeature(
+        string type,  // "Feature"
+        RiverGeometry geometry,
+        RiverFeatureProperties properties
+    );
+
+    /// <summary>
+    /// Top-level structure for rivers GeoJSON export from Azgaar
+    /// </summary>
+    public record RiverGeoJson(
+        string type,  // "FeatureCollection"
+        RiverFeature[] features
     );
 }
