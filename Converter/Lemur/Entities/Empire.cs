@@ -1,4 +1,5 @@
 using ImageMagick;
+using Converter.Lemur.Deserialization;
 
 namespace Converter.Lemur.Entities
 {
@@ -18,8 +19,8 @@ namespace Converter.Lemur.Entities
         public MagickColor? Color { get; set; }
         public List<Cell> Cells { get; set; } = new List<Cell>();
         public List<Kingdom> Kingdoms { get; set; } = new List<Kingdom>();
-        public Culture Culture { get; set; }
-        public Religion Religion { get; set; }
+        public AzgaarCulture Culture { get; set; }
+        public AzgaarReligion Religion { get; set; }
 
         public ITitle? Parent { get; set; }
 
@@ -47,30 +48,48 @@ namespace Converter.Lemur.Entities
             return Color ?? Kingdoms.FirstOrDefault()?.GetColor();
         }
 
-        public Culture GetDominantCulture(Map map)
+        /// <summary>
+        /// Get the distribution of cultures in this empire by cell count, excluding wildlands
+        /// </summary>
+        public Dictionary<int, int> GetCultureDistributionByCells()
         {
-            //Accoring to the kingdoms in this empire, what is the most common culture?
-            Dictionary<Culture, int> cultureCounts = new Dictionary<Culture, int>();
+            var cultureCounts = new Dictionary<int, int>();
             foreach (var kingdom in Kingdoms)
             {
-                var dominantCulture = kingdom.GetDominantCulture(map);
-                if (cultureCounts.ContainsKey(dominantCulture))
+                var kingdomCounts = kingdom.GetCultureDistributionByCells();
+                foreach (var kvp in kingdomCounts)
                 {
-                    cultureCounts[dominantCulture]++;
-                }
-                else
-                {
-                    cultureCounts[dominantCulture] = 1;
+                    if (cultureCounts.ContainsKey(kvp.Key))
+                    {
+                        cultureCounts[kvp.Key] += kvp.Value;
+                    }
+                    else
+                    {
+                        cultureCounts[kvp.Key] = kvp.Value;
+                    }
                 }
             }
-            return cultureCounts.OrderByDescending(x => x.Value).First().Key;
-
+            return cultureCounts;
         }
 
-        public Religion GetDominantReligion(Map map)
+        public AzgaarCulture GetDominantCulture(Map map)
+        {
+            var cultureCounts = GetCultureDistributionByCells();
+
+            // If all cells are wildlands, return wildlands culture
+            if (cultureCounts.Count == 0)
+            {
+                return map.JsonMap.pack.cultures[0];
+            }
+
+            var mostCommon = cultureCounts.OrderByDescending(x => x.Value).First().Key;
+            return map.JsonMap.pack.cultures[mostCommon];
+        }
+
+        public AzgaarReligion GetDominantReligion(Map map)
         {
             //According to the kingdoms in this empire, what is the most common religion?
-            Dictionary<Religion, int> religionCounts = new Dictionary<Religion, int>();
+            Dictionary<AzgaarReligion, int> religionCounts = new Dictionary<AzgaarReligion, int>();
             foreach (var kingdom in Kingdoms)
             {
                 var dominantReligion = kingdom.GetDominantReligion(map);
@@ -104,9 +123,16 @@ namespace Converter.Lemur.Entities
                     {
                         continue;
                     }
-        
+
                     // The neighbour is from another empire, so we update the count
-                    var empire = neighbour.Parent; // Assuming each kingdom has a parent empire
+                    var empire = neighbour.Parent; // Can be null for orphan kingdoms
+
+                    // Skip orphan kingdoms (no parent empire)
+                    if (empire == null)
+                    {
+                        continue;
+                    }
+
                     if (!neighbouringEmpires.ContainsKey(empire))
                     {
                         neighbouringEmpires[empire] = localNeighbours[neighbour];

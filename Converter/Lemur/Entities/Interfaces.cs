@@ -1,4 +1,5 @@
 using ImageMagick;
+using Converter.Lemur.Deserialization;
 
 namespace Converter.Lemur.Entities
 {
@@ -46,8 +47,8 @@ namespace Converter.Lemur.Entities
             return $"x_{Name}_{Id}";
         }
 
-        public Culture GetDominantCulture(Map map);
-        public Religion GetDominantReligion(Map map);
+        public AzgaarCulture GetDominantCulture(Map map);
+        public AzgaarReligion GetDominantReligion(Map map);
 
 
         /// <summary>

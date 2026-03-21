@@ -1,4 +1,5 @@
 using ImageMagick;
+using Converter.Lemur.Deserialization;
 
 namespace Converter.Lemur.Entities
 {
@@ -32,29 +33,48 @@ namespace Converter.Lemur.Entities
             return Color ?? Counties.FirstOrDefault()?.GetColor();
         }
 
-        public Culture GetDominantCulture(Map map)
+        /// <summary>
+        /// Get the distribution of cultures in this duchy by cell count, excluding wildlands
+        /// </summary>
+        public Dictionary<int, int> GetCultureDistributionByCells()
         {
-            //Among the ocunties in this duchy, what is the most common culture?
-            Dictionary<Culture, int> cultureCounts = new Dictionary<Culture, int>();
+            var cultureCounts = new Dictionary<int, int>();
             foreach (var county in Counties)
             {
-                var dominantCulture = county.GetDominantCulture(map);
-                if (cultureCounts.ContainsKey(dominantCulture))
+                var countyCounts = county.GetCultureDistributionByCells();
+                foreach (var kvp in countyCounts)
                 {
-                    cultureCounts[dominantCulture]++;
-                }
-                else
-                {
-                    cultureCounts[dominantCulture] = 1;
+                    if (cultureCounts.ContainsKey(kvp.Key))
+                    {
+                        cultureCounts[kvp.Key] += kvp.Value;
+                    }
+                    else
+                    {
+                        cultureCounts[kvp.Key] = kvp.Value;
+                    }
                 }
             }
-            return cultureCounts.OrderByDescending(x => x.Value).First().Key;
+            return cultureCounts;
         }
 
-        public Religion GetDominantReligion(Map map)
+        public AzgaarCulture GetDominantCulture(Map map)
+        {
+            var cultureCounts = GetCultureDistributionByCells();
+
+            // If all cells are wildlands, return wildlands culture
+            if (cultureCounts.Count == 0)
+            {
+                return map.JsonMap.pack.cultures[0];
+            }
+
+            var mostCommon = cultureCounts.OrderByDescending(x => x.Value).First().Key;
+            return map.JsonMap.pack.cultures[mostCommon];
+        }
+
+        public AzgaarReligion GetDominantReligion(Map map)
         {
             //Among the counties in this duchy, what is the most common religion?
-            Dictionary<Religion, int> religionCounts = new Dictionary<Religion, int>();
+            Dictionary<AzgaarReligion, int> religionCounts = new Dictionary<AzgaarReligion, int>();
             foreach (var county in Counties)
             {
                 var dominantReligion = county.GetDominantReligion(map);

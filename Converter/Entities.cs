@@ -27,8 +27,12 @@ public class PackProvinceJsonConverter : JsonConverter<PackProvince[]>
         using var jsonDocument = JsonDocument.ParseValue(ref reader);
         var str = jsonDocument.RootElement.GetRawText();
 
-        // replace 0 with empty province.
-        var escapedStr = string.Concat(str.AsSpan(0, 1), "{}", str.AsSpan(2));
+        string escapedStr = str;
+        // replace 0 with dummy province object.
+        if (str[1] == '0')
+        {
+            escapedStr = string.Concat(str.AsSpan(0, 1), "{\"i\":0,\"state\":0,\"burg\":0,\"name\":\"\"}", str.AsSpan(2));
+        }
 
         var provinces = JsonSerializer.Deserialize(escapedStr, PackProinvceArrayJsonContext.Default.PackProvinceArray);
 

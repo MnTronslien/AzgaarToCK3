@@ -1,4 +1,5 @@
 using ImageMagick;
+using Converter.Lemur.Deserialization;
 
 namespace Converter.Lemur.Entities
 {
@@ -50,12 +51,17 @@ namespace Converter.Lemur.Entities
         {
             return Color;
         }
-        //Get the dominant culture of the barony by counting the number of cells with each culture and returning the most common
-        public Culture GetDominantCulture(Map map)
+        /// <summary>
+        /// Get the distribution of cultures in this barony by cell count, excluding wildlands (culture 0)
+        /// </summary>
+        public Dictionary<int, int> GetCultureDistributionByCells()
         {
             var cultureCounts = new Dictionary<int, int>();
             foreach (var cell in Cells)
             {
+                // Skip wildlands culture (culture 0)
+                if (cell.Culture == 0) continue;
+
                 if (cultureCounts.ContainsKey(cell.Culture))
                 {
                     cultureCounts[cell.Culture]++;
@@ -65,11 +71,25 @@ namespace Converter.Lemur.Entities
                     cultureCounts[cell.Culture] = 1;
                 }
             }
+            return cultureCounts;
+        }
+
+        //Get the dominant culture of the barony by counting the number of cells with each culture and returning the most common (excluding wildlands)
+        public AzgaarCulture GetDominantCulture(Map map)
+        {
+            var cultureCounts = GetCultureDistributionByCells();
+
+            // If all cells are wildlands, return wildlands culture
+            if (cultureCounts.Count == 0)
+            {
+                return map.JsonMap.pack.cultures[0];
+            }
+
             var mostCommon = cultureCounts.Aggregate((l, r) => l.Value > r.Value ? l : r).Key;
             return map.JsonMap.pack.cultures[mostCommon];
         }
 
-        public Religion GetDominantReligion(Map map)
+        public AzgaarReligion GetDominantReligion(Map map)
         {
             var religionCounts = new Dictionary<int, int>();
             foreach (var cell in Cells)

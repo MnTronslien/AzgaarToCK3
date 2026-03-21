@@ -2,28 +2,56 @@ using System.Numerics;
 
 namespace Converter.Lemur.Entities
 {
-    public class Burg(Converter.Burg burg)
+    public class Burg
     {
-        public int id { get; set; } = burg.i;
-        public string Name { get; set; } = burg.name;
+        public int id { get; set; }
+        public string Name { get; set; }
         public Cell? Cell;
 
-        public int Cell_id { get; set; } = burg.cell;
-        public Vector2 Position { get; set; } = new Vector2(burg.x, burg.y);
-        public int Culture { get; set; } = burg.culture;
-        public int State { get; set; } = burg.state;
-        public int Feature { get; set; } = burg.feature;
-        public float Population { get; set; } = burg.population;
-        public string Type { get; set; } = burg.type;
-        public bool Capital { get; set; } = burg.capital == 1;
-        public bool Port { get; set; } = burg.port == 1;
-        public bool Citadel { get; set; } = burg.citadel == 1;
-        public bool Plaza { get; set; } = burg.plaza == 1;
-        public bool Shanty { get; set; } = burg.shanty == 1;
-        public bool Temple { get; set; } = burg.temple == 1;
-        public bool Walls { get; set; } = burg.walls == 1;
-        public bool Removed { get; set; } = burg.removed;
+        public int Cell_id { get; set; }
+        public Vector2 Position { get; set; }
+        public int Culture { get; set; }
+        public int State { get; set; }
+        public int Feature { get; set; }
+        public float Population { get; set; }
+        public string Type { get; set; }
+        public bool Capital { get; set; }
+        public bool Port { get; set; }
+        public bool Citadel { get; set; }
+        public bool Plaza { get; set; }
+        public bool Shanty { get; set; }
+        public bool Temple { get; set; }
+        public bool Walls { get; set; }
+        public bool Removed { get; set; }
         public Barony Barony { get; set; }
+
+        /// <summary>
+        /// Clean constructor taking individual fields - no upstream dependencies
+        /// </summary>
+        public Burg(
+            int i, string name, int cell_id, float x, float y,
+            int culture, int state, int feature, float population,
+            string type, bool capital, bool port, bool citadel,
+            bool plaza, bool shanty, bool temple, bool walls, bool removed)
+        {
+            id = i;
+            Name = name;
+            Cell_id = cell_id;
+            Position = new Vector2(x, y);
+            Culture = culture;
+            State = state;
+            Feature = feature;
+            Population = population;
+            Type = type;
+            Capital = capital;
+            Port = port;
+            Citadel = citadel;
+            Plaza = plaza;
+            Shanty = shanty;
+            Temple = temple;
+            Walls = walls;
+            Removed = removed;
+        }
 
         //To string
         public override string ToString()
