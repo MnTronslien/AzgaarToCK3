@@ -359,6 +359,84 @@ namespace Converter.Lemur
             }
         }
 
+        /// <summary>
+        /// Debug image: overlays all locator types on the county map.
+        /// Each type is a different colour so placement and spread are easy to inspect.
+        /// Colour legend:
+        ///   Yellow       = buildings
+        ///   Orange       = special_building
+        ///   Red          = siege
+        ///   Cyan         = combat
+        ///   LimeGreen    = activities
+        ///   White        = unit_stack (barony)
+        ///   LightGray    = unit_stack (wasteland)
+        ///   DeepSkyBlue  = unit_stack (sea zone)
+        /// Saved as 8_locators.png in the debug folder.
+        /// </summary>
+        public static async Task DrawAllLocatorsDebugImage(Entities.Map map)
+        {
+            try
+            {
+                var debugRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AzgaarToCK3", "debug");
+                var countiesPath = Helper.GetPath(debugRoot, GetDebugFolderName(), "3_counties.png");
+                if (!File.Exists(countiesPath))
+                {
+                    Logger.Warning("DrawAllLocatorsDebugImage: 3_counties.png not found, skipping");
+                    return;
+                }
+
+                using var image = new MagickImage(countiesPath);
+                const int radius = 8;
+                var dots = new Drawables();
+
+                double h = Entities.Map.MapHeight;
+                foreach (var barony in map.Baronies!)
+                {
+                    var (bx, bz)   = Writers.LocatorWriter.BurgNudgedTowardCentroid(barony, map);
+                    var (px, pz)   = Writers.LocatorWriter.PerpendicularTowardCentroid(barony, map);
+                    var (cx, cz)   = Writers.LocatorWriter.ComputeCentroid(barony.Cells, map);
+
+                    var burgPixel = Helper.BurgToPixel(barony.burg.Position.X, barony.burg.Position.Y, map);
+
+                    // All positions are in CK3 world Z (increases northward); convert to image Y (h - worldZ)
+                    Dot(dots, MagickColors.Yellow,       radius, burgPixel.X,    h - burgPixel.Y);
+                    Dot(dots, MagickColors.Orange,       radius, bx - px * 10,   h - (bz - pz * 10));
+                    Dot(dots, MagickColors.Red,          radius, bx,             h - bz);
+                    Dot(dots, MagickColors.Cyan,         radius, cx + 15,        h - (cz + 10));
+                    Dot(dots, new MagickColor("#00FF00"), radius, cx - 10,       h - (cz + 15));
+                    Dot(dots, MagickColors.White,        radius, cx,             h - cz);
+                }
+                foreach (var wasteland in map.Wastelands!)
+                {
+                    var (cx, cz) = Writers.LocatorWriter.ComputeCentroid(wasteland.Cells, map);
+                    Dot(dots, MagickColors.LightGray,    radius, cx, h - cz);
+                }
+                foreach (var sea in map.SeaZones!.Concat(map.FarSeaZones!))
+                {
+                    var (cx, cz) = Writers.LocatorWriter.ComputeCentroid(sea.Cells, map);
+                    Dot(dots, MagickColors.DeepSkyBlue,  radius, cx, h - cz);
+                }
+
+                image.Draw(dots);
+
+                var path = Helper.GetPath(debugRoot, GetDebugFolderName(), "8_locators.png");
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                await image.WriteAsync(path);
+                Logger.Debug($"Saved all-locators debug image to '{path}'");
+                RegisterGeneratedImage(path);
+            }
+            catch (Exception ex)
+            {
+                Logger.Warning($"DrawAllLocatorsDebugImage failed: {ex.Message}");
+            }
+        }
+
+        private static void Dot(Drawables dots, MagickColor fill, int radius, double x, double z)
+        {
+            dots.StrokeColor(MagickColors.Black).StrokeWidth(1).FillColor(fill)
+                .Circle(x, z, x + radius, z);
+        }
+
         internal static Drawables GenerateCellPolygons(IEnumerable<Entities.Cell> cells, MagickColor color, Entities.Map map)
         {
             var drawables = new Drawables();

@@ -17,6 +17,17 @@ public static class Helper
         return new PointD((lon - map.XOffset) * map.XRatio, Map.MapHeight - (lat - map.YOffset) * map.YRatio);
     }
 
+    /// <summary>
+    /// Converts Azgaar burg pixel coordinates (burg.Position.X/Y) to CK3 map pixel coordinates.
+    /// Azgaar burgs store canvas pixel positions, not geo coordinates — use this, not GeoToPixel.
+    /// </summary>
+    public static PointD BurgToPixel(float x, float y, Entities.Map map)
+    {
+        double xRatio = (double)Entities.Map.MapWidth / map.JsonMap.info.width;
+        double yRatio = (double)Entities.Map.MapHeight / map.JsonMap.info.height;
+        return new PointD(x * xRatio, Entities.Map.MapHeight - y * yRatio);
+    }
+
     public static string GeoToString(float[][] geo)
     {
         return $"({geo[0][0]} , {geo[0][1]})";

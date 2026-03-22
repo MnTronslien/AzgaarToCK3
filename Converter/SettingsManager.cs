@@ -97,12 +97,12 @@ public class Settings
     /// <summary>
     /// Target area per sea zone (Azgaar cell-area units). Zone grows until it hits this.
     /// </summary>
-    public int SeaZoneTargetArea { get; set; } = 50000;
+    public int SeaZoneTargetArea { get; set; } = 25000;
 
     /// <summary>
     /// Minimum area for a sea zone. Undersized zones merge or become impassable.
     /// </summary>
-    public int SeaZoneMinimumArea { get; set; } = 5000;
+    public int SeaZoneMinimumArea { get; set; } = 2500;
 
     /// <summary>
     /// Auto-detect newer .json/.geojson files in the directory and prompt to use them.
