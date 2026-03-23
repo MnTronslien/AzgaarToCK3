@@ -25,4 +25,23 @@ public class Culture
     /// Written as `created = DATE` in culture history.
     /// </summary>
     public string? CreationDate { get; set; } = null;
+
+    /// <summary>Ethnicity weights for the CK3 `ethnicities` block. Weights sum to 100.</summary>
+    public List<(int Weight, string Key)> Ethnicity { get; set; } = [];
+
+    /// <summary>
+    /// Assign a random ethnicity distribution from the given phenotype keys.
+    /// Generates random weights, normalises to sum exactly 100, and stores them.
+    /// </summary>
+    public void AssignEthnicity(string[] keys, Random rng)
+    {
+        var raw = keys.Select(_ => rng.Next(1, 101)).ToArray();
+        int total = raw.Sum();
+        var weights = raw.Select(w => (int)Math.Round((double)w / total * 100)).ToList();
+        // Fix integer rounding so weights always sum to exactly 100
+        int diff = 100 - weights.Sum();
+        int maxIdx = weights.IndexOf(weights.Max());
+        weights[maxIdx] += diff;
+        Ethnicity = keys.Zip(weights, (k, w) => (w, k)).ToList();
+    }
 }

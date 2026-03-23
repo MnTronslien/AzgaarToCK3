@@ -12,6 +12,18 @@ public static class Helper
     /// <summary>UTF-8 encoding without BOM — required by CK3 for map_data/definition.csv.</summary>
     public static readonly Encoding Utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
+    /// <summary>
+    /// Deterministic seed mixing for seeding <see cref="Random"/> instances.
+    /// Unlike <see cref="System.HashCode.Combine"/>, this is stable across process runs.
+    /// .NET's HashCode uses a per-AppDomain random seed, making HashCode.Combine non-deterministic.
+    /// </summary>
+    public static int MixSeeds(int a, int b) =>
+        unchecked(a * 1664525 + b * 22695477 + 1013904223);
+
+    /// <inheritdoc cref="MixSeeds(int,int)"/>
+    public static int MixSeeds(int a, int b, int c) =>
+        unchecked(MixSeeds(a, b) * 1664525 + c * 22695477 + 1013904223);
+
     public static PointD GeoToPixel(float lon, float lat, Entities.Map map)
     {
         return new PointD((lon - map.XOffset) * map.XRatio, Map.MapHeight - (lat - map.YOffset) * map.YRatio);

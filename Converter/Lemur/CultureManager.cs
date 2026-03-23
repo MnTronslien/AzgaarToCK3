@@ -15,8 +15,27 @@ public static class CultureManager
         "martial_custom_male_only", "martial_custom_equal", "martial_custom_female_only"
     ];
 
+    // 14 phenotype sets — all keys are valid vanilla base-game ethnicity keys.
+    private static readonly string[][] EthnicitySets =
+    [
+        ["caucasian_blond", "caucasian_brown_hair", "caucasian_dark_hair", "caucasian_ginger"],
+        ["caucasian_northern_blond", "caucasian_northern_brown_hair", "caucasian_northern_dark_hair", "caucasian_northern_ginger"],
+        ["mediterranean", "mediterranean_byzantine"],
+        ["slavic_blond", "slavic_brown_hair", "slavic_dark_hair", "slavic_ginger"],
+        ["slavic_northern_blond", "slavic_northern_brown_hair", "slavic_northern_dark_hair", "slavic_northern_ginger"],
+        ["arab"],
+        ["african", "east_african"],
+        ["asian_han_chinese", "asian_japanese", "asian_manchu_korean"],
+        ["asian_mongol", "turkic", "turkic_west"],
+        ["indian", "south_indian"],
+        ["asian", "asian_tibetan", "asian_malay", "asian_austronesian"],
+        ["circumpolar_blonde_hair", "circumpolar_brown_hair", "circumpolar_dark_hair"],
+        ["caucasian_blond", "caucasian_brown_hair", "slavic_blond", "slavic_dark_hair"],
+        ["papuan"],
+    ];
+
     // Thematically coherent packs: GFX keys + vanilla name list.
-    // Future: expand bundles, add ethnicities block, match to Azgaar namebase string.
+    // Future: expand bundles, match to Azgaar namebase string.
     private static readonly ThemeBundle[] ThemeBundles =
     [
         new("western",   "western_coa_gfx",         "western_building_gfx",   "western_clothing_gfx",   "western_unit_gfx",  "name_list_english"),
@@ -35,7 +54,7 @@ public static class CultureManager
         {
             if (azc.i == 0) continue;
 
-            var rng = new Random(HashCode.Combine(seed, azc.i));
+            var rng = new Random(Helper.MixSeeds(seed, azc.i));
             var culture = new Culture
             {
                 AzgaarId    = azc.i,
@@ -45,6 +64,7 @@ public static class CultureManager
                 MartialCustom = MartialCustoms[rng.Next(MartialCustoms.Length)],
                 ThemeBundle  = ThemeBundles[rng.Next(ThemeBundles.Length)],
             };
+            culture.AssignEthnicity(EthnicitySets[rng.Next(EthnicitySets.Length)], rng);
             result[azc.i] = culture;
         }
 
@@ -119,7 +139,7 @@ public static class CultureManager
             if (!result.TryGetValue(id, out var culture)) continue;
 
             var origins = parentIds[id];
-            var rng = new Random(HashCode.Combine(seed, id, 42)); // different salt for pillars
+            var rng = new Random(Helper.MixSeeds(seed, id, 42)); // different salt for pillars
 
             if (origins.Length == 0)
             {
@@ -222,7 +242,7 @@ public static class CultureManager
             if (!result.TryGetValue(id, out var culture)) continue;
 
             var origins = parentIds[id];
-            var rng = new Random(HashCode.Combine(seed, id, 99)); // distinct salt
+            var rng = new Random(Helper.MixSeeds(seed, id, 99)); // distinct salt
 
             if (origins.Length == 0)
             {

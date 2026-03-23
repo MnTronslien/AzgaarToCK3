@@ -87,7 +87,7 @@ public static class FaithManager
 
     private static void AssignDoctrinesAndTenets(Faith faith, int seed, int tenetCount, float mutationRate)
     {
-        var rng = new Random(HashCode.Combine(seed, faith.AzgaarId));
+        var rng = new Random(Helper.MixSeeds(seed, faith.AzgaarId));
         faith.Doctrines = PickDoctrines(faith, rng, mutationRate);
         faith.Tenets    = PickTenets(faith, rng, tenetCount, mutationRate);
     }
