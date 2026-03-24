@@ -40,6 +40,11 @@ public static class LandedTitlesWriter
             var (er, eg, eb) = TitleColor(empire.Id);
             sb.AppendLine($"{empId} = {{");
             sb.AppendLine($"\tcolor = {{ {er} {eg} {eb} }}");
+            var capitalKingdom = empire.Capital != null
+                ? empire.Kingdoms.FirstOrDefault(k => k.Duchies.Any(d => d.Baronies.Contains(empire.Capital)))
+                : null;
+            if (capitalKingdom != null)
+                sb.AppendLine($"\tcapital = {ToCk3Id("k", capitalKingdom.Name, capitalKingdom.Id)}");
             foreach (var kingdom in empire.Kingdoms)
                 WriteKingdom(sb, kingdom, baroniesProvId);
             sb.AppendLine("}");
@@ -63,6 +68,11 @@ public static class LandedTitlesWriter
         var (kr, kg, kb) = TitleColor(kingdom.Id);
         sb.AppendLine($"\t{kId} = {{");
         sb.AppendLine($"\t\tcolor = {{ {kr} {kg} {kb} }}");
+        var capitalDuchy = kingdom.Capital != null
+            ? kingdom.Duchies.FirstOrDefault(d => d.Baronies.Contains(kingdom.Capital))
+            : null;
+        if (capitalDuchy != null)
+            sb.AppendLine($"\t\tcapital = {ToCk3Id("d", capitalDuchy.Name, capitalDuchy.Id)}");
         foreach (var duchy in kingdom.Duchies)
             WriteDuchy(sb, duchy, baroniesProvId);
         sb.AppendLine($"\t}}");
@@ -74,7 +84,15 @@ public static class LandedTitlesWriter
         var (dr, dg, db) = TitleColor(duchy.Id);
         sb.AppendLine($"\t\t{dId} = {{");
         sb.AppendLine($"\t\t\tcolor = {{ {dr} {dg} {db} }}");
-        foreach (var county in duchy.Counties)
+        var capitalCounty = duchy.Capital != null
+            ? duchy.Counties.FirstOrDefault(c => c.Baronies?.Contains(duchy.Capital) == true)
+            : null;
+        if (capitalCounty != null)
+            sb.AppendLine($"\t\t\tcapital = {ToCk3Id("c", capitalCounty.Name, capitalCounty.Id)}");
+        var counties = capitalCounty != null
+            ? new[] { capitalCounty }.Concat(duchy.Counties.Where(c => c != capitalCounty))
+            : duchy.Counties.AsEnumerable();
+        foreach (var county in counties)
             WriteCounty(sb, county, baroniesProvId);
         sb.AppendLine($"\t\t}}");
     }
@@ -85,7 +103,10 @@ public static class LandedTitlesWriter
         var (cr, cg, cb) = TitleColor(county.Id);
         sb.AppendLine($"\t\t\t{cId} = {{");
         sb.AppendLine($"\t\t\t\tcolor = {{ {cr} {cg} {cb} }}");
-        foreach (var barony in county.Baronies!)
+        var baronies = county.Capital != null
+            ? new[] { county.Capital }.Concat(county.Baronies!.Where(b => b != county.Capital))
+            : county.Baronies!.AsEnumerable();
+        foreach (var barony in baronies)
         {
             if (!baroniesProvId.TryGetValue(barony, out int provId)) continue;
             var bId = ToCk3Id("b", barony.Name, barony.Id);
