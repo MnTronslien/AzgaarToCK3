@@ -19,11 +19,10 @@ public static class DeFactoHierarchyBuilder
 
             // Absorbed duchies: one independent duke per state group.
             // Pick primary (most counties; tie-break by Id), mark the rest as secondary.
-            // TODO: primary should be the duchy containing the Azgaar state capital burg
-            //       (de jure capital of the old kingdom). Blocked by de jure capitals bug.
             foreach (var group in kingdom.Duchies.Where(d => d.IsAbsorbed).GroupBy(d => d.AzgaarStateId))
             {
-                var primary = group.OrderByDescending(d => d.Counties.Count).ThenBy(d => d.Id).First();
+                var primary = group.FirstOrDefault(d => d.Capital != null && d.Capital.burg.State == group.Key)
+                           ?? group.OrderByDescending(d => d.Counties.Count).ThenBy(d => d.Id).First();
                 // primary.DeFactoLiege stays null = independent
                 foreach (var secondary in group.Where(d => d != primary))
                     secondary.DeFactoLiege = primary;
