@@ -187,6 +187,11 @@ public static class CultureManager
                 // Hybrid ethos: from one of the parents
                 culture.Ethos = (rng.Next(2) == 0 ? parentA?.Ethos : parentB?.Ethos) ?? Ethoses[rng.Next(Ethoses.Length)];
                 culture.MartialCustom = (rng.Next(2) == 0 ? parentA?.MartialCustom : parentB?.MartialCustom) ?? MartialCustoms[rng.Next(MartialCustoms.Length)];
+                // Hybrid ethnicity: blend both parents' distributions
+                var ea = parentA?.Ethnicity ?? [];
+                var eb = parentB?.Ethnicity ?? [];
+                if (ea.Count > 0 || eb.Count > 0)
+                    culture.Ethnicity = Culture.BlendEthnicities(ea, eb);
             }
 
             // Enqueue children

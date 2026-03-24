@@ -44,4 +44,31 @@ public class Culture
         weights[maxIdx] += diff;
         Ethnicity = keys.Zip(weights, (k, w) => (w, k)).ToList();
     }
+
+    /// <summary>
+    /// Blend two ethnicity lists into one. Shared keys have their weights summed;
+    /// unique keys are kept as-is. Result is normalised to sum exactly 100.
+    /// Returns the non-empty list unchanged if the other is empty.
+    /// </summary>
+    public static List<(int Weight, string Key)> BlendEthnicities(
+        List<(int Weight, string Key)> a,
+        List<(int Weight, string Key)> b)
+    {
+        if (a.Count == 0) return b;
+        if (b.Count == 0) return a;
+
+        var merged = a.ToDictionary(e => e.Key, e => e.Weight);
+        foreach (var (weight, key) in b)
+        {
+            if (merged.ContainsKey(key)) merged[key] += weight;
+            else                         merged[key]  = weight;
+        }
+
+        int total   = merged.Values.Sum();
+        var keys    = merged.Keys.ToList();
+        var weights = merged.Values.Select(w => (int)Math.Round((double)w / total * 100)).ToList();
+        int diff    = 100 - weights.Sum();
+        weights[weights.IndexOf(weights.Max())] += diff;
+        return keys.Zip(weights, (k, w) => (w, k)).ToList();
+    }
 }
