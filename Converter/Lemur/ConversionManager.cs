@@ -97,6 +97,9 @@ namespace Converter.Lemur
             GenerateBaronyAdjacency(map);
             GenerateCounties(map);
 
+            map.HolySites = HolySiteFactory.Build(map);
+            Logger.Info($"Built {map.HolySites.Count} holy sites.");
+
             // ✅ Visualization checkpoint 3: Counties
             await ShowCounties(map);
 

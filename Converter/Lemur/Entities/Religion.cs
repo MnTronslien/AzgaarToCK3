@@ -27,4 +27,7 @@ public class Faith
     // Assigned by DoctrineAssigner after faith graph is built
     public List<string> Doctrines { get; set; } = [];  // one per required doctrine group (21 entries)
     public List<string> Tenets { get; set; } = [];      // 1–5 tenets
+
+    // Set by HolySiteFactory.Build() — first entry is the primary site
+    public List<HolySite> HolySites { get; set; } = [];
 }

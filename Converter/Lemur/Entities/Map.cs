@@ -46,6 +46,8 @@ namespace Converter.Lemur.Entities
         public Dictionary<int, Culture> Cultures { get; set; } = new();
         public Dictionary<int, Faith> Faiths { get; set; } = new();
 
+        public List<HolySite> HolySites { get; set; } = new();
+
         public override string ToString()
         {
             // Return the name of the map and the number of cells in the packed map

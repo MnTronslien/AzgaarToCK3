@@ -422,7 +422,7 @@ public static class CultureManager
 /// <summary>
 /// A thematically coherent pack of vanilla base-game CK3 content keys assigned to a culture.
 /// Covers GFX (CoA, buildings, clothing, units) and a name list.
-/// Future: add ethnicities block; support namebase-driven selection.
+/// Future: match bundle to Azgaar nameBase string for thematic coherence.
 /// </summary>
 public record ThemeBundle(
     string Name,
