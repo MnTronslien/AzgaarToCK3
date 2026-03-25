@@ -53,6 +53,33 @@ This keeps the map politically fragmented in a way that reflects the Azgaar data
 
 ---
 
+## Theme bundles
+
+A **theme bundle** is the converter's internal concept for a coherent cultural aesthetic package. Each culture is assigned one theme bundle, which determines the visual and naming style CK3 uses for that culture's rulers, buildings, armies, and coats of arms.
+
+A bundle groups five CK3 GFX keys and a name list:
+
+| Component | Controls |
+|-----------|---------|
+| `coa_gfx` | Coat of arms style |
+| `building_gfx` | Building appearance on the map |
+| `clothing_gfx` | Ruler portrait clothing |
+| `unit_gfx` | Army unit appearance |
+| Name list | Pool CK3 draws character names from |
+
+Bundles are currently assigned randomly per culture (seeded). The following bundles are available — this list is a snapshot and will expand over time:
+
+| Bundle | Clothing | Units | Names |
+|--------|----------|-------|-------|
+| `western` | Western European | Western | English |
+| `byzantine` | Byzantine | Eastern | Greek |
+| `mena` | Middle Eastern / North African | Eastern | Arabic |
+| `northern` | Norse / Northern European | Western | Norse |
+
+Future work: bundle selection driven by Azgaar's `nameBase` field so cultures with a Norse namebase automatically receive the `northern` bundle, Arabic → `mena`, etc.
+
+---
+
 ## Fine-tuning your Azgaar map
 
 The converter works from any default Azgaar map. These areas benefit from deliberate choices in Azgaar — none are required.

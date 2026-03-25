@@ -36,7 +36,7 @@ On first run you'll be prompted for your CK3 install path, mods directory, and a
 ./ConsoleUI -d "..." --no-rivers
 ```
 
-**Reproducible output** — pass a seed to get the same cultures and faiths every run:
+**Reproducible output** — pass a seed to get the same cultures and faiths every run. The seed controls culture pillars, traditions, theme bundles, phenotype distributions, and faith doctrines. Title generation and character names are fully deterministic regardless of seed (CK3 assigns names from culture name lists at game start).
 ```
 ./ConsoleUI -d "..." --seed 12345
 ```
