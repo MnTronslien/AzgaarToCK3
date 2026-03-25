@@ -525,8 +525,8 @@ namespace Converter.Lemur
         {
             Logger.Section("Linking cells to burgs");
 
-            //For each burg (skip 0'eth) find the cell it is referenceing by cell id and assign it to the burg
-            foreach (var burg in map.Burgs!.Skip(1))
+            // map.Burgs contains only real burgs (ids 1..N) — no dummy at 0, no Skip needed
+            foreach (var burg in map.Burgs!)
             {
                 if (burg.Value.Removed)
                 {
@@ -538,7 +538,7 @@ namespace Converter.Lemur
 
                 Logger.Verbose($"Burg {burg.Value.Name} <<=>> {burg.Value.Cell_id} Cell");
             }
-            Logger.Info($"Cell linking complete: {map.Burgs.Count - 1} burgs linked to cells");
+            Logger.Info($"Cell linking complete: {map.Burgs.Count} burgs linked to cells");
         }
 
         private static async Task<Map> InitializeMapWithAzgaarData()
@@ -573,8 +573,9 @@ namespace Converter.Lemur
         {
             Logger.Section("Generating baronies");
             // Next we instanciate a list of baronies. Since we know the final size of the list we can pre allocate the memory
-            List<Barony> baronies = new(map.Burgs!.Count - 1);
-            foreach (var burg in map.Burgs.Skip(1)) //0'eth entry is always empty (See Azgaar data model)
+            List<Barony> baronies = new(map.Burgs!.Count);
+            // map.Burgs contains only real burgs (ids 1..N) — no dummy at 0, no filter needed
+            foreach (var burg in map.Burgs)
             {
                 if (burg.Value.Removed)
                 {
