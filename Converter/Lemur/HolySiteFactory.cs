@@ -4,23 +4,16 @@ namespace Converter.Lemur;
 
 public static class HolySiteFactory
 {
-    // Thematic modifier groups. Each entry is (key, value).
-    private static readonly List<List<(string Key, string Value)>> Groups =
+    // Thematic modifier groups. Each entry is (name, modifiers).
+    private static readonly (string Name, List<(string Key, string Value)> Modifiers)[] Groups =
     [
-        // Piety
-        [("monthly_piety_gain_mult", "0.1"), ("clergy_opinion", "5"), ("same_faith_opinion", "5")],
-        // Wisdom
-        [("learning", "1"), ("learning_per_piety_level", "1"), ("monthly_lifestyle_xp_gain_mult", "0.15")],
-        // War
-        [("martial", "1"), ("prowess", "1"), ("knight_effectiveness_mult", "0.1"), ("defender_advantage", "5")],
-        // Trade
-        [("stewardship", "1"), ("tax_mult", "0.05"), ("development_growth_factor", "0.1")],
-        // Diplomacy
-        [("diplomacy", "1"), ("vassal_opinion", "3"), ("direct_vassal_opinion", "5"), ("same_culture_opinion", "5")],
-        // Mysticism
-        [("stress_loss_mult", "0.1"), ("health", "0.1"), ("fertility", "0.1"), ("monthly_piety_gain_mult", "0.15")],
-        // Expansion
-        [("different_faith_opinion", "5"), ("different_culture_opinion", "5"), ("title_creation_cost_mult", "-0.15")],
+        ("Piety",     [("monthly_piety_gain_mult", "0.1"), ("clergy_opinion", "5"), ("same_faith_opinion", "5")]),
+        ("Wisdom",    [("learning", "1"), ("learning_per_piety_level", "1"), ("monthly_lifestyle_xp_gain_mult", "0.15")]),
+        ("War",       [("martial", "1"), ("prowess", "1"), ("knight_effectiveness_mult", "0.1"), ("defender_advantage", "5")]),
+        ("Trade",     [("stewardship", "1"), ("tax_mult", "0.05"), ("development_growth_factor", "0.1")]),
+        ("Diplomacy", [("diplomacy", "1"), ("vassal_opinion", "3"), ("direct_vassal_opinion", "5"), ("same_culture_opinion", "5")]),
+        ("Mysticism", [("stress_loss_mult", "0.1"), ("health", "0.1"), ("fertility", "0.1"), ("monthly_piety_gain_mult", "0.15")]),
+        ("Expansion", [("different_faith_opinion", "5"), ("different_culture_opinion", "5"), ("title_creation_cost_mult", "-0.15")]),
     ];
 
     public static List<HolySite> Build(Map map)
@@ -39,12 +32,15 @@ public static class HolySiteFactory
             if (!siteByCounty.TryGetValue(countyKey, out var site))
             {
                 var barony = FindBarony(county);
+                var (modifiers, groupName) = AssignModifiers(map.Settings.Seed ?? 0, siteIndex);
                 site = new HolySite
                 {
-                    Key      = $"lemur_site_{siteIndex}",
-                    County   = county,
-                    Barony   = barony,
-                    Modifiers = AssignModifiers(map.Settings.Seed ?? 0, siteIndex),
+                    Key         = $"lemur_site_{siteIndex}",
+                    County      = county,
+                    Barony      = barony,
+                    Modifiers   = modifiers,
+                    GroupName   = groupName,
+                    OriginFaith = faith,
                 };
                 siteByCounty[countyKey] = site;
                 sites.Add(site);
@@ -91,8 +87,10 @@ public static class HolySiteFactory
             if (best.county != null) return best.county;
         }
 
-        // Last resort: first county
-        return map.Counties?.FirstOrDefault();
+        // No valid county found — skip this faith rather than assigning an unrelated county.
+        // (Faiths with no cells and no valid origin cell, e.g. Wildlands Spirits, should not
+        // claim a holy site. They will still receive all other sites via the second pass.)
+        return null;
     }
 
     private static Barony? FindBarony(County county)
@@ -103,27 +101,27 @@ public static class HolySiteFactory
             .FirstOrDefault();
     }
 
-    private static List<(string Key, string Value)> AssignModifiers(int seed, int siteIndex)
+    private static (List<(string Key, string Value)> Modifiers, string GroupName) AssignModifiers(int seed, int siteIndex)
     {
         var rng = new Random(seed ^ (siteIndex * 1_000_003));
 
         // Step 1: pick a thematic group uniformly
-        var group = Groups[rng.Next(Groups.Count)];
+        var (groupName, groupModifiers) = Groups[rng.Next(Groups.Length)];
 
         // Step 2: pick modifier count — 30% → 1, 50% → 2, 20% → 3
         int roll = rng.Next(100);
         int count = roll < 30 ? 1 : roll < 80 ? 2 : 3;
-        count = Math.Min(count, group.Count);
+        count = Math.Min(count, groupModifiers.Count);
 
         // Step 3: sample without replacement
-        var indices = Enumerable.Range(0, group.Count).ToList();
+        var indices = Enumerable.Range(0, groupModifiers.Count).ToList();
         var result = new List<(string Key, string Value)>(count);
         for (int i = 0; i < count; i++)
         {
             int pick = rng.Next(indices.Count);
-            result.Add(group[indices[pick]]);
+            result.Add(groupModifiers[indices[pick]]);
             indices.RemoveAt(pick);
         }
-        return result;
+        return (result, groupName);
     }
 }

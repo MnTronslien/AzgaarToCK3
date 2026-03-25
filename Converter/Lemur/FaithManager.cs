@@ -10,11 +10,20 @@ public static class FaithManager
         Logger.Section("Building faiths");
         var faiths = new Dictionary<int, Faith>();
 
-        // Pass 1: construct Faith objects (skip sentinel index 0 and removed entries)
+        // Pre-compute which religion IDs have at least one active (non-removed) child,
+        // so zero-cell parent faiths needed for doctrine inheritance are not pruned.
+        var hasActiveChildren = religions
+            .Where(r => r.i != 0 && r.removed == 0
+                        && r.origins != null && r.origins.Length > 0 && r.origins[0] != 0)
+            .Select(r => r.origins![0])
+            .ToHashSet();
+
+        // Pass 1: construct Faith objects (skip sentinel, removed, and empty with no children)
         foreach (var r in religions)
         {
             if (r.i == 0) continue;
             if (r.removed != 0) continue;
+            if (r.cells == 0 && !hasActiveChildren.Contains(r.i)) continue;
 
             int rootId = FindRoot(r.i, religions);
             faiths[r.i] = new Faith

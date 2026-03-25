@@ -181,18 +181,51 @@ public static class FaithWriter
             lines.Add($" {group.Key}_adj:0 \"{rootFaith.Name}\"");
             lines.Add($" {group.Key}_desc:0 \"{desc}\"");
 
+            // Religion-level placeholder keys (inherited by all child faiths)
+            lines.Add($" {group.Key}_house_of_worship:0 \"temple\"");
+            lines.Add($" {group.Key}_house_of_worship_plural:0 \"temples\"");
+            lines.Add($" {group.Key}_religious_symbol:0 \"holy symbol\"");
+            lines.Add($" {group.Key}_religious_text:0 \"holy texts\"");
+            lines.Add($" {group.Key}_positive_afterlife:0 \"paradise\"");
+            lines.Add($" {group.Key}_negative_afterlife:0 \"the underworld\"");
+            lines.Add($" {group.Key}_priest_male:0 \"priest\"");
+            lines.Add($" {group.Key}_priest_male_plural:0 \"priests\"");
+            lines.Add($" {group.Key}_priest_female:0 \"priestess\"");
+            lines.Add($" {group.Key}_priest_female_plural:0 \"priestesses\"");
+            lines.Add($" {group.Key}_bishop:0 \"high priest\"");
+            lines.Add($" {group.Key}_bishop_plural:0 \"high priests\"");
+            lines.Add($" {group.Key}_devotee_male:0 \"devotee\"");
+            lines.Add($" {group.Key}_devotee_male_plural:0 \"devotees\"");
+            lines.Add($" {group.Key}_devotee_female:0 \"devotee\"");
+            lines.Add($" {group.Key}_devotee_female_plural:0 \"devotees\"");
+            lines.Add($" {group.Key}_religious_head_title:0 \"High Priest\"");
+            lines.Add($" {group.Key}_religious_head_title_name:0 \"High Priesthood\"");
+
             foreach (var faith in sortedFaiths)
             {
                 lines.Add($" {faith.CK3Key}:0 \"{faith.Name}\"");
                 lines.Add($" {faith.CK3Key}_adj:0 \"{faith.Name}\"");
                 if (!string.IsNullOrEmpty(faith.Deity))
-                    lines.Add($" {faith.CK3Key}_HighGodName:0 \"{faith.Deity}\"");
+                {
+                    lines.Add($" {faith.CK3Key}_high_god_name:0 \"{faith.Deity}\"");
+                    lines.Add($" {faith.CK3Key}_high_god_name_possessive:0 \"{faith.Deity}'s\"");
+                }
+                lines.Add($" {faith.CK3Key}_adherent:0 \"{faith.Name}\"");
+                lines.Add($" {faith.CK3Key}_adherent_plural:0 \"{faith.Name} followers\"");
+                lines.Add($" {faith.CK3Key}_desc:0 \"The {faith.Name} faith.\"");
             }
         }
 
         // One loc entry per unique holy site (deduplicated — sites are already unique)
         foreach (var site in sites.OrderBy(s => s.Key))
-            lines.Add($" {site.ModifierNameKey}:0 \"Holy Site\"");
+        {
+            var deity = site.OriginFaith?.Deity;
+            var effectName = string.IsNullOrEmpty(deity)
+                ? $"Blessing of {site.GroupName}"
+                : $"Blessing of {site.GroupName} from {deity}";
+            lines.Add($" {site.NameKey}:0 \"{site.County.Name}\"");
+            lines.Add($" {site.ModifierNameKey}:0 \"{effectName}\"");
+        }
 
         var path = Helper.GetPath(dir, "lemur_faiths_l_english.yml");
         await File.WriteAllLinesAsync(path, lines, Helper.Utf8Bom);
