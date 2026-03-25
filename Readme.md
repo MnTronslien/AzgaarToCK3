@@ -1,6 +1,6 @@
 # AzgaarToCK3
 
-**The Lemur Converter** turns your [Azgaar's Fantasy Map Generator](https://pryvyd9.github.io/Fantasy-Map-Generator/) world into a fully playable Crusader Kings III mod — no manual fine-tuning required to start playing.
+**The Lemur Converter** turns your [Azgaar's Fantasy Map Generator](https://azgaar.github.io/Fantasy-Map-Generator/) world into a fully playable Crusader Kings III mod — no manual fine-tuning required to start playing.
 
 ![In-game screenshot of a converted map]()
 
@@ -38,7 +38,7 @@ Where CK3 needs structure Azgaar doesn't have — counties and empires — the c
 - [.NET 8 Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)
 - Crusader Kings III `1.12.5`
 - [Total Conversion Sandbox](https://steamcommunity.com/sharedfiles/filedetails/?id=2524797018) mod (Steam Workshop)
-- [Azgaar's Fantasy Map Generator](https://pryvyd9.github.io/Fantasy-Map-Generator/) — use this version for better sea zones. **Do not use its built-in "Export for CK3" button** — that targets a different converter.
+- [Azgaar's Fantasy Map Generator](https://azgaar.github.io/Fantasy-Map-Generator/) — default settings work out of the box. An [alternate build](https://pryvyd9.github.io/Fantasy-Map-Generator/) produces better sea zones; if you use it, **do not use its built-in "Export for CK3" button** — that targets a different converter.
 
 ---
 
