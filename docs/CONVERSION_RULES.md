@@ -27,6 +27,16 @@ Azgaar has no direct equivalent for CK3 counties or empires. The converter creat
 
 **Empires** group kingdoms by shared culture or faith (controlled by the `EmpireFromCulture` setting), then apply the same consolidation process described below.
 
+The images below show the same map at each tier — each colour is a distinct title:
+
+| Counties | Duchies |
+|----------|---------|
+| ![Counties](images/pipeline_counties.png) | ![Duchies](images/pipeline_duchies.png) |
+
+| Kingdoms | Empires |
+|----------|---------|
+| ![Kingdoms](images/pipeline_kingdoms.png) | ![Empires](images/pipeline_empires.png) |
+
 ---
 
 ## De Jure Consolidation

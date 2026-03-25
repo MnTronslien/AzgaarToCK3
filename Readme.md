@@ -2,7 +2,7 @@
 
 **The Lemur Converter** turns your [Azgaar's Fantasy Map Generator](https://azgaar.github.io/Fantasy-Map-Generator/) world into a fully playable Crusader Kings III mod — no manual fine-tuning required to start playing.
 
-![In-game screenshot of a converted map]()
+![Empire-level view of a converted 100k-point Azgaar map](docs/images/pipeline_empires.png)
 
 ---
 
@@ -17,6 +17,8 @@ Most converters treat your Azgaar map as a rough sketch to approximate. This one
 
 Where CK3 needs structure Azgaar doesn't have — counties and empires — the converter infers them algorithmically from population data. Predictable, not arbitrary.
 
+![Barony-level density of a converted 100k-point Azgaar map](docs/images/pipeline_baronies.png)
+
 **Same input, same output.** Determinism is a core design goal. Pass `--seed <N>` and every run produces the same world. The title hierarchy is entirely rule-based; the only randomness is in culture and faith fields where Azgaar simply doesn't carry enough data to fill every CK3-specific slot — and even that is seeded.
 
 **What gets generated:**
@@ -28,8 +30,6 @@ Where CK3 needs structure Azgaar doesn't have — counties and empires — the c
 | **Characters** | Rulers per title with correct culture and faith; feudal hierarchy wired up |
 | **Rivers** | The first Azgaar converter to draw rivers — A\* pathfinding, correct tributary connections |
 
-![Culture screen showing generated cultures]()
-![Faith screen showing generated faiths]()
 
 ---
 
