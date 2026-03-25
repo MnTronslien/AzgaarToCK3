@@ -23,7 +23,7 @@ Where CK3 needs structure Azgaar doesn't have — counties and empires — the c
 
 | | |
 |---|---|
-| **Cultures** | Full CK3 culture system following your Azgaar family tree — heritage and language flow down lineages, traditions drift over generations, hybrid cultures blend both parents first then mutate. 41 verified base-game traditions, GFX bundles, phenotype distributions. Azgaar cultures with more than two parents use the first two. |
+| **Cultures** | Full CK3 culture system following your Azgaar family tree — heritage and language flow down lineages, traditions drift over generations, hybrid cultures blend both parents first then mutate. 41 verified base-game traditions, GFX bundles, phenotype distributions. |
 | **Faiths** | Doctrines and tenets follow the Azgaar religion tree — child faiths inherit from their parent then mutate slot-by-slot. Holy sites with modifiers, full localization. |
 | **Characters** | Rulers per title with correct culture and faith; feudal hierarchy wired up |
 | **Rivers** | The first Azgaar converter to draw rivers — A\* pathfinding, correct tributary connections |
