@@ -40,11 +40,12 @@ public static class LandedTitlesWriter
             var (er, eg, eb) = TitleColor(empire.Id);
             sb.AppendLine($"{empId} = {{");
             sb.AppendLine($"\tcolor = {{ {er} {eg} {eb} }}");
-            var capitalKingdom = empire.Capital != null
-                ? empire.Kingdoms.FirstOrDefault(k => k.Duchies.Any(d => d.Baronies.Contains(empire.Capital)))
+            var empireCapitalCounty = empire.Capital != null
+                ? empire.Kingdoms.SelectMany(k => k.Duchies).SelectMany(d => d.Counties)
+                    .FirstOrDefault(c => c.Baronies?.Contains(empire.Capital) == true)
                 : null;
-            if (capitalKingdom != null)
-                sb.AppendLine($"\tcapital = {ToCk3Id("k", capitalKingdom.Name, capitalKingdom.Id)}");
+            if (empireCapitalCounty != null)
+                sb.AppendLine($"\tcapital = {ToCk3Id("c", empireCapitalCounty.Name, empireCapitalCounty.Id)}");
             foreach (var kingdom in empire.Kingdoms)
                 WriteKingdom(sb, kingdom, baroniesProvId);
             sb.AppendLine("}");
@@ -68,11 +69,12 @@ public static class LandedTitlesWriter
         var (kr, kg, kb) = TitleColor(kingdom.Id);
         sb.AppendLine($"\t{kId} = {{");
         sb.AppendLine($"\t\tcolor = {{ {kr} {kg} {kb} }}");
-        var capitalDuchy = kingdom.Capital != null
-            ? kingdom.Duchies.FirstOrDefault(d => d.Baronies.Contains(kingdom.Capital))
+        var kingdomCapitalCounty = kingdom.Capital != null
+            ? kingdom.Duchies.SelectMany(d => d.Counties)
+                .FirstOrDefault(c => c.Baronies?.Contains(kingdom.Capital) == true)
             : null;
-        if (capitalDuchy != null)
-            sb.AppendLine($"\t\tcapital = {ToCk3Id("d", capitalDuchy.Name, capitalDuchy.Id)}");
+        if (kingdomCapitalCounty != null)
+            sb.AppendLine($"\t\tcapital = {ToCk3Id("c", kingdomCapitalCounty.Name, kingdomCapitalCounty.Id)}");
         foreach (var duchy in kingdom.Duchies)
             WriteDuchy(sb, duchy, baroniesProvId);
         sb.AppendLine($"\t}}");
