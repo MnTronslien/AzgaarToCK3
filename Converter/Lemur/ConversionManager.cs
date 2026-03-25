@@ -119,6 +119,8 @@ namespace Converter.Lemur
             if (culledEmpires > 0)
                 Logger.Info($"Culled {culledEmpires} empire(s) with 0 kingdoms after merge.");
 
+            AssignCapitals(map);
+
             // ✅ Visualization checkpoint 4: Final hierarchy
             await ShowDuchies(map);
             await ShowKingdoms(map);
@@ -523,8 +525,8 @@ namespace Converter.Lemur
         {
             Logger.Section("Linking cells to burgs");
 
-            //For each burg (skip 0'eth) find the cell it is referenceing by cell id and assign it to the burg
-            foreach (var burg in map.Burgs!.Skip(1))
+            // map.Burgs contains only real burgs (ids 1..N) — no dummy at 0, no Skip needed
+            foreach (var burg in map.Burgs!)
             {
                 if (burg.Value.Removed)
                 {
@@ -536,7 +538,7 @@ namespace Converter.Lemur
 
                 Logger.Verbose($"Burg {burg.Value.Name} <<=>> {burg.Value.Cell_id} Cell");
             }
-            Logger.Info($"Cell linking complete: {map.Burgs.Count - 1} burgs linked to cells");
+            Logger.Info($"Cell linking complete: {map.Burgs.Count} burgs linked to cells");
         }
 
         private static async Task<Map> InitializeMapWithAzgaarData()
@@ -571,8 +573,9 @@ namespace Converter.Lemur
         {
             Logger.Section("Generating baronies");
             // Next we instanciate a list of baronies. Since we know the final size of the list we can pre allocate the memory
-            List<Barony> baronies = new(map.Burgs!.Count - 1);
-            foreach (var burg in map.Burgs.Skip(1)) //0'eth entry is always empty (See Azgaar data model)
+            List<Barony> baronies = new(map.Burgs!.Count);
+            // map.Burgs contains only real burgs (ids 1..N) — no dummy at 0, no filter needed
+            foreach (var burg in map.Burgs)
             {
                 if (burg.Value.Removed)
                 {
@@ -742,15 +745,17 @@ namespace Converter.Lemur
                     var baroniesInPartition = baronyNodes.Where(bn => partition.adjacencyList.ContainsKey(bn.Node)).Select(bn => bn.Barony).ToList();
                     //Create a county from the baronies:
 
-                    //We do this by:
-                    // 1. Determine the name of the county.
-                    string name = baroniesInPartition.Where(b => b.burg.Capital).Select(b => b.Name).FirstOrDefault()!;
-                    if (name == null || name == "")
-                    {
-                        name = baroniesInPartition.OrderByDescending(b => b.burg.Population).First().Name;
-                    }
+                    // Pick county capital:
+                    // Priority 1 — barony whose burg is the Azgaar province capital (province.burg)
+                    // Priority 2 — most populous barony
+                    var provinces = map.JsonMap.pack.provinces;
+                    var provCapBurgId = duchy.Id > 0 && duchy.Id < provinces.Length ? provinces[duchy.Id].burg : 0;
+                    var capital = (provCapBurgId > 0
+                        ? baroniesInPartition.FirstOrDefault(b => b.burg.id == provCapBurgId)
+                        : null)
+                        ?? baroniesInPartition.OrderByDescending(b => b.burg.Population).First();
 
-                    var county = new County(IdManager.Instance.GetNextId(), name, baronies: baroniesInPartition, duchy: duchy, capital: baroniesInPartition.First());
+                    var county = new County(IdManager.Instance.GetNextId(), capital.Name, baronies: baroniesInPartition, duchy: duchy, capital: capital);
                     Logger.Debug($"County {county.Name} has {baroniesInPartition.Count} baronies");
                     counties.Add(county);
                 }
@@ -912,6 +917,49 @@ namespace Converter.Lemur
             // Assign the kingdoms to the map
             map.Kingdoms = kingdoms;
 
+        }
+
+        private static void AssignCapitals(Map map)
+        {
+            using var _ = OperationTimer.Start("Assigning capitals");
+            var provinces = map.JsonMap.pack.provinces;
+
+            // Duchy capitals: province capital burg (province.burg), fallback to most populous barony
+            foreach (var duchy in map.Duchies!)
+            {
+                if (!duchy.Baronies.Any()) continue;
+                var provCapBurgId = duchy.Id > 0 && duchy.Id < provinces.Length ? provinces[duchy.Id].burg : 0;
+                duchy.Capital = (provCapBurgId > 0
+                    ? duchy.Baronies.FirstOrDefault(b => b.burg.id == provCapBurgId)
+                    : null)
+                    ?? duchy.Baronies.OrderByDescending(b => b.burg.Population).FirstOrDefault();
+            }
+
+            // Kingdom capitals: the one burg in the state with burg.Capital == true (state capital)
+            foreach (var kingdom in map.Kingdoms!)
+            {
+                kingdom.Capital = map.Baronies!
+                    .FirstOrDefault(b => b.burg.Capital && b.burg.State == kingdom.Id);
+                // Fallback: capital of most populous duchy
+                if (kingdom.Capital == null)
+                    kingdom.Capital = kingdom.Duchies
+                        .OrderByDescending(d => d.Baronies.Sum(b => b.burg.Population))
+                        .FirstOrDefault()?.Capital;
+            }
+
+            // Empire capitals: capital of the most populous child kingdom
+            foreach (var empire in map.Empires!)
+            {
+                empire.Capital = empire.Kingdoms
+                    .OrderByDescending(k => k.Duchies
+                        .SelectMany(d => d.Baronies)
+                        .Sum(b => b.burg.Population))
+                    .FirstOrDefault()?.Capital;
+            }
+
+            Logger.Info("Assigned capitals. Sample duchy capitals:");
+            foreach (var duchy in map.Duchies.Take(5))
+                Logger.Info($"  {duchy.Name} → {duchy.Capital?.Name ?? "null"}");
         }
 
         private static void MergeTinyKingdoms(Map map)

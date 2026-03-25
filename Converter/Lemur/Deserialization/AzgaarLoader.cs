@@ -121,15 +121,24 @@ namespace Converter.Lemur.Deserialization
         }
 
         /// <summary>
-        /// Build Lemur Burg dictionary from Azgaar JSON data
-        /// Creates clean Lemur.Burg objects without wrapping upstream types
+        /// Build Lemur Burg dictionary from Azgaar JSON data.
+        /// Creates clean Lemur.Burg objects without wrapping upstream types.
+        ///
+        /// DATA NORMALIZATION:
+        /// Azgaar uses 1-indexed arrays throughout its data model. Index 0 is always a
+        /// sentinel/dummy — never a real burg. We skip it here; the resulting dictionary
+        /// contains only real burgs (ids 1..N), keyed by their Azgaar burg id.
+        ///
+        /// If burg data ever looks wrong (missing burgs, bad cell links, unexpected ids),
+        /// check the source Azgaar JSON first — this is more likely a data issue than
+        /// a logic issue.
         /// </summary>
         public static Dictionary<int, Entities.Burg> BuildBurgs(
             AzgaarJsonMap jsonMap,
             Dictionary<int, Entities.Cell> cells)
         {
             using var _ = OperationTimer.Start("Building burgs");
-            // Skip the 0th entry (always empty in Azgaar data model)
+            // Skip index 0: Azgaar sentinel, never a real burg — see DATA NORMALIZATION note above
             var burgs = jsonMap.pack.burgs
                 .Skip(1)
                 .Select(azBurg => new Entities.Burg(
@@ -153,32 +162,7 @@ namespace Converter.Lemur.Deserialization
                     removed: azBurg.removed
                 ))
                 .ToDictionary(burg => burg.id);
-
-            // Add the 0th burg (dummy entry) if needed for compatibility
-            if (jsonMap.pack.burgs.Length > 0)
-            {
-                var dummyBurg = jsonMap.pack.burgs[0];
-                burgs[0] = new Entities.Burg(
-                    i: dummyBurg.i,
-                    name: dummyBurg.name,
-                    cell_id: dummyBurg.cell,
-                    x: dummyBurg.x,
-                    y: dummyBurg.y,
-                    culture: dummyBurg.culture,
-                    state: dummyBurg.state,
-                    feature: dummyBurg.feature,
-                    population: dummyBurg.population,
-                    type: dummyBurg.type,
-                    capital: dummyBurg.capital == 1,
-                    port: dummyBurg.port == 1,
-                    citadel: dummyBurg.citadel == 1,
-                    plaza: dummyBurg.plaza == 1,
-                    shanty: dummyBurg.shanty == 1,
-                    temple: dummyBurg.temple == 1,
-                    walls: dummyBurg.walls == 1,
-                    removed: dummyBurg.removed
-                );
-            }
+            // No dummy re-insertion — map.Burgs contains only real burgs (ids 1..N)
 
             Logger.Info($"Built {burgs.Count} burgs from Azgaar data");
             return burgs;

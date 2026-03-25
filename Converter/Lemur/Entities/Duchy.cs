@@ -33,6 +33,7 @@ public string Name { get; set; } = name;
         public List<Barony> Baronies { get; set; } = new List<Barony>();
 
         public List<County> Counties { get; set; } = new List<County>();
+        public Barony? Capital { get; set; }
 
 
         public List<Cell> GetAllCells()
