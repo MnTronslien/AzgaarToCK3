@@ -35,7 +35,7 @@ Where CK3 needs structure Azgaar doesn't have — counties and empires — the c
 
 ## Requirements
 
-- [.NET 8 Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)
+- [.NET 8 Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/8.0) — required to run the current build; future release packages may ship self-contained
 - Crusader Kings III `1.12.5`
 - [Total Conversion Sandbox](https://steamcommunity.com/sharedfiles/filedetails/?id=2524797018) mod (Steam Workshop)
 - [Azgaar's Fantasy Map Generator](https://azgaar.github.io/Fantasy-Map-Generator/) — default settings work out of the box. An [alternate build](https://pryvyd9.github.io/Fantasy-Map-Generator/) produces better sea zones; if you use it, **do not use its built-in "Export for CK3" button** — that targets a different converter.
@@ -44,14 +44,15 @@ Where CK3 needs structure Azgaar doesn't have — counties and empires — the c
 
 ## Quick start
 
-1. In Azgaar, export two files: **GeoJSON cells** and **JSON full data**
+1. In Azgaar, export: **GeoJSON cells**, **JSON full data**, and optionally **Rivers** (GeoJSON)
 2. Run the converter pointing at the folder containing those files:
    ```
    ./ConsoleUI -d "path/to/your/export/folder"
    ```
-3. Enable the generated mod in your CK3 playset and launch
+3. On first run you'll be prompted for your CK3 path, mods directory, and mod name — these are saved and not asked again
+4. Enable the generated mod in your CK3 playset and launch
 
-That's it. See the [Usage Guide](docs/USAGE.md) for CLI options, seed control, and debug output.
+See the [Usage Guide](docs/USAGE.md) for CLI options, seed control, and debug output.
 
 ---
 

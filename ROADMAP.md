@@ -14,6 +14,7 @@ For bug reports and feature requests, see the [Issues tab](https://github.com/Mn
 - De jure capitals set at all tiers; baronies and counties ordered capital-first
 - Heightmap generated from Azgaar elevation data (all 4 CK3 files)
 - Minor rivers drawn via A\* pathfinding with correct tributary connections
+- Map object locators (buildings, sieges, combat, unit stacks) placed at Azgaar burg positions, nudged inland from coastlines
 
 ### Cultures
 - All 4 CK3 culture pillars: heritage, language, ethos, martial custom
@@ -37,10 +38,7 @@ For bug reports and feature requests, see the [Issues tab](https://github.com/Mn
 
 ## Known bugs
 
-| Bug | Impact |
-|-----|--------|
-| Faith `_adj` keys broken in-game | Adjective form of faith names doesn't resolve — root cause under investigation |
-| Holy site assignment at scale | Every faith receives every holy site. Fine for typical maps (10–30 faiths); may cause UI/performance issues for large maps with 100+ faiths |
+See the [Issues tab](https://github.com/MnTronslien/AzgaarToCK3/issues).
 
 ---
 
@@ -55,20 +53,17 @@ Minor rivers draw correctly. Major/navigable rivers — the kind that create cro
 **Sea crossing adjacencies not generated.**
 `adjacencies.csv` is empty. Explicit strait and river crossing connections are absent; naval movement works through sea zone pixels only.
 
-**All rulers start as subjects, not independent.**
-When kingdoms are grouped into a shared empire, their rulers should start independent. This isn't wired up yet — you'll need to manually release them in-game if you want a fragmented start.
+**No one holds empire titles at game start.**
+Empires exist as de jure structure only. Kings and dukes start independent; the empire tier is unclaimed.
 
 **Ruler demesne sizes are hardcoded.**
-Kings hold 3 counties, dukes 2, counts 1. No setting to adjust this yet.
+All rulers hold 1 county (weak kings by default). No setting to scale this up yet.
 
 **Culture GFX bundles are assigned randomly.**
 Azgaar cultures carry a `nameBase` field implying a real-world analogue. The converter currently ignores it. When implemented, a Norse-namebase culture will get Norse graphics.
 
 **All provinces use the Western texture set.**
 CK3 has regional textures (Mediterranean, Steppe, MENA, etc.). Every province currently uses Western regardless of biome.
-
-**Building and combat locators use TCS fallback positions.**
-The icons for buildings, sieges, and combat events are placed using Total Conversion Sandbox positions — correct layout, wrong map. They won't crash the game.
 
 ---
 
@@ -78,7 +73,6 @@ The icons for buildings, sieges, and combat events are placed using Total Conver
 - Major river processing
 - `adjacencies.csv` — sea and strait crossing connections
 - Per-region graphical regions from biome/climate data
-- Correct locator files from province centroids
 - GFX bundle selection from Azgaar `nameBase`
 - Independent rulers for absorbed titles at game start
 - Configurable ruler demesne sizes (`RulerStrength` setting)
@@ -93,5 +87,4 @@ The icons for buildings, sieges, and combat events are placed using Total Conver
 
 ## Not planned
 
-- **Multiplayer checksum bypass** — use [UMMS](https://steamcommunity.com/sharedfiles/filedetails/?id=3227254722) for multiplayer
 - **CK3 map editor steps** — the goal is to make manual map editor work unnecessary; it is not a supported workflow
