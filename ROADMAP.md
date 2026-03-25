@@ -18,9 +18,10 @@ For bug reports and feature requests, see the [Issues tab](https://github.com/Mn
 
 ### Cultures
 - All 4 CK3 culture pillars: heritage, language, ethos, martial custom
+- Heritage and language flow down the Azgaar lineage tree; ethos and traditions mutate slot-by-slot over generations
+- Hybrid cultures blend both parents' pillars and phenotype distributions before applying mutation
 - 41 verified base-game traditions (no DLC dependency)
 - GFX bundles: clothing, building, unit, coat-of-arms graphics
-- Phenotype distributions; hybrid cultures blend parent distributions
 - Deterministic per seed
 
 ### Faiths
