@@ -72,3 +72,4 @@ The converter is under active development. Province terrain, major rivers, and a
 | [Configuration](docs/CONFIGURATION.md) | All settings and CLI flags |
 | [Issues](https://github.com/MnTronslien/AzgaarToCK3/issues) | Bug reports and feature requests |
 | [Discord](https://discord.gg/Px6dwFVdUG) | Community and support |
+| [On AI and Authorship](AI.md) | About the role of AI in this project |
