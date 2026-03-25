@@ -20,13 +20,15 @@ For bug reports and feature requests, see the [Issues tab](https://github.com/Mn
 - All 4 CK3 culture pillars: heritage, language, ethos, martial custom
 - Heritage and language flow down the Azgaar lineage tree; ethos and traditions mutate slot-by-slot over generations
 - Hybrid cultures blend both parents' pillars and phenotype distributions before applying mutation
+- Azgaar cultures with more than two parents: first two are used, remainder discarded
 - 41 verified base-game traditions (no DLC dependency)
 - GFX bundles: clothing, building, unit, coat-of-arms graphics
 - Deterministic per seed
 
 ### Faiths
 - Custom faith per Azgaar religion, with its own religion group
-- Doctrines and tenets from a validated base-game pool
+- Child faiths inherit doctrines and tenets from their Azgaar parent, then mutate slot-by-slot (rate configurable via `DoctrineMutationRate`)
+- Processed in topological order — parent faiths always resolved before children
 - Holy sites with seeded random modifiers, attached to counties
 - Full localization: faith names, religion group names, holy site names, adherent terms
 
