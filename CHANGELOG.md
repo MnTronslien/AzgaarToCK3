@@ -1,3 +1,20 @@
+# 0.1.1 — 2026-03-26
+
+### Added
+- locator file overhaul — correct positions, full coverage, 8 files
+- culture ethnicities + deterministic RNG seeding
+- blend parent ethnicities for hybrid cultures
+- HolySite as a first-class entity
+- de jure capitals — all tiers + fix Bukex Skip(1) bug
+
+### Fixed
+- faith localization, holy site names/effects, zero-cell faith filter
+
+### Changed
+- remove dead upstream pipeline code
+
+---
+
 # 0.1.0 — Lemur Converter — 2026-03-26
 
 First public release of the Lemur Converter — a full rewrite of the AzgaarToCK3 pipeline.
