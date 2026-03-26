@@ -8,7 +8,7 @@
 
 ## Why this converter
 
-Most converters treat your Azgaar map as a rough sketch to approximate. This one treats it as source truth.
+Use this converter if you hve a beloved Azgaar map you have spent time curating and care about. Or if you just want to be able to play in a brand new world that you heave never seen before. This converter tries to inject AS LITTLE new information into the output as posiible. Veluing cleatr rules and deterministic outputs. In this converter it is easy to understand how the game world will lok onece the mod loads when working in the Azgaar tool.
 
 **The title hierarchy maps directly from your Azgaar data:**
 - Every burg becomes a barony — exact, 1:1. A typical map produces 1,000+ baronies.
@@ -40,7 +40,7 @@ Barony positions faithfully reflect where Azgaar places its burgs — coastal se
 ## Requirements
 
 - [.NET 8 Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/8.0) — required to run the current build; future release packages may ship self-contained
-- Crusader Kings III `1.12.5`
+- Crusader Kings III `1.18.4` (newest at the time of writing)
 - [Total Conversion Sandbox](https://steamcommunity.com/sharedfiles/filedetails/?id=2524797018) mod (Steam Workshop)
 - [Azgaar's Fantasy Map Generator](https://azgaar.github.io/Fantasy-Map-Generator/) — default settings work out of the box. An [alternate build](https://pryvyd9.github.io/Fantasy-Map-Generator/) produces better sea zones; if you use it, **do not use its built-in "Export for CK3" button** — that targets a different converter.
 
