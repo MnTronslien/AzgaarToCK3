@@ -17,6 +17,14 @@ How your Azgaar data becomes a CK3 world — and where manual prep pays off.
 | **County** | County | **Inferred** — see below. |
 | **Empire** | Empire | **Inferred** — grouped by culture or faith, depending on the `EmpireFromCulture` setting. |
 
+The same Azgaar map, before and after conversion:
+
+| Azgaar | CK3 |
+|--------|-----|
+| ![Azgaar political map](images/azgaar_political.png) | ![CK3 kingdoms](images/ck3_kingdoms.png) |
+| ![Azgaar culture map](images/azgaar_cultures.png) | ![CK3 culture map](images/ck3_cultures.png) |
+| ![Azgaar religion map](images/azgaar_religion.png) | ![CK3 religion map](images/ck3_religion.png) |
+
 ---
 
 ## The inferred tiers
@@ -36,6 +44,10 @@ The images below show the same map at each tier — each colour is a distinct ti
 | Kingdoms | Empires |
 |----------|---------|
 | ![Kingdoms](images/pipeline_kingdoms.png) | ![Empires](images/pipeline_empires.png) |
+
+Zooming in: barony positions faithfully reflect Azgaar burg placement. Terrain variety is a known gap — every province currently renders as plains.
+
+![Close-up of barony placement in CK3](images/ck3_barony_closeup.png)
 
 ---
 
@@ -77,6 +89,32 @@ Bundles are currently assigned randomly per culture (seeded). The following bund
 | `northern` | Norse / Northern European | Western | Norse |
 
 Future work: bundle selection driven by Azgaar's `nameBase` field so cultures with a Norse namebase automatically receive the `northern` bundle, Arabic → `mena`, etc.
+
+---
+
+## Culture inheritance in practice
+
+Each culture inherits its heritage and language from its Azgaar lineage. Ethos and traditions mutate slot-by-slot as you move down the tree — sibling cultures share the same ancestors but diverge independently.
+
+The Azgaar culture tree for the Showcase map:
+
+![Azgaar culture lineage tree](images/azgaar_culture_tree.png)
+
+Two sibling cultures in CK3 — same heritage and language (both Elfish), different ethos and traditions:
+
+| Eldar (Elfish) | Quenian (Elfish) |
+|----------------|-----------------|
+| ![Eldar Elfish culture tab](images/ck3_culture_tab.png) | ![Quenian Elfish culture tab](images/ck3_culture_tab_sibling.png) |
+
+---
+
+## Faiths in practice
+
+Each Azgaar religion becomes a faith with its own doctrine set and holy sites. Child faiths inherit from their parent and mutate slot-by-slot.
+
+| Faith doctrines and tenets | Holy sites with modifiers |
+|---------------------------|--------------------------|
+| ![Ormlarism faith tab](images/ck3_religion_tab.png) | ![Ormlarism holy sites](images/ck3_holy_sites.png) |
 
 ---
 
