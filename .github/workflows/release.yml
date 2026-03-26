@@ -1,0 +1,138 @@
+name: Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [stable]
+
+jobs:
+  # Only proceed if this was a release/* PR that was actually merged (not just closed)
+  check:
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/')
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Extract version from branch name
+        id: version
+        run: |
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          VERSION="${BRANCH#release/}"
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Could not extract valid version from branch '$BRANCH'"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  tag:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stable
+
+      - name: Tag stable HEAD
+        run: |
+          git tag "${{ needs.check.outputs.version }}"
+          git push origin "${{ needs.check.outputs.version }}"
+
+  build:
+    needs: [check, tag]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            aot: true
+          - os: ubuntu-latest
+            rid: linux-x64
+            aot: false
+          - os: macos-latest
+            rid: osx-x64
+            aot: false
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.check.outputs.version }}
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish (AOT — win-x64)
+        if: ${{ matrix.aot }}
+        shell: pwsh
+        run: |
+          dotnet publish ConsoleUI/ConsoleUI.csproj `
+            -c Release -r win-x64 `
+            /p:PublishAot=true `
+            /p:DebugType=None /p:DebugSymbols=false `
+            /p:CopyOutputSymbolsToPublishDirectory=false `
+            --self-contained true `
+            -o publish/win-x64
+
+      - name: Publish (single-file self-contained)
+        if: ${{ !matrix.aot }}
+        shell: bash
+        run: |
+          dotnet publish ConsoleUI/ConsoleUI.csproj \
+            -c Release -r ${{ matrix.rid }} \
+            /p:PublishSingleFile=true \
+            /p:PublishTrimmed=true \
+            /p:DebugType=None /p:DebugSymbols=false \
+            --self-contained true \
+            -o publish/${{ matrix.rid }}
+
+      - name: Zip artifact
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path "publish/${{ matrix.rid }}/*" `
+            -DestinationPath "AzgaarToCK3_${{ needs.check.outputs.version }}_${{ matrix.rid }}.zip" `
+            -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.rid }}
+          path: AzgaarToCK3_${{ needs.check.outputs.version }}_${{ matrix.rid }}.zip
+
+  release:
+    needs: [check, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.check.outputs.version }}
+
+      - name: Extract release notes from CHANGELOG.md
+        run: |
+          VERSION="${{ needs.check.outputs.version }}"
+          awk '/^# '"$VERSION"'/{found=1; next} found && /^# [0-9]/{exit} found{print}' \
+            CHANGELOG.md > release_notes.md
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ needs.check.outputs.version }}" \
+            --title "${{ needs.check.outputs.version }}" \
+            --notes-file release_notes.md \
+            --draft \
+            artifacts/*.zip

@@ -1,6 +1,4 @@
-﻿using ImageMagick;
-
-namespace Converter;
+﻿namespace Converter;
 
 public static class Helper
 {
@@ -167,22 +165,4 @@ public static class Helper
         }
     }
 
-    public static double HeightDifference(Province province)
-    {
-        var heights = province.Cells.Select(n => n.height).ToArray();
-        return Percentile(heights, 0.7) - Percentile(heights, 0.3);
-    }
-
-    public static PointD GeoToPixel(float lon, float lat, Map map)
-    {
-        return new PointD((lon - map.XOffset) * map.XRatio, Map.MapHeight - (lat - map.YOffset) * map.YRatio);
-    }
-    public static PointD GeoToPixelCrutch(float lon, float lat, Map map)
-    {
-        return new PointD((lon - map.XOffset) * map.XRatio, (lat - map.YOffset) * map.YRatio);
-    }
-    public static PointD PixelToFullPixel(float x, float y, Map map)
-    {
-        return new PointD(x * map.pixelXRatio, Map.MapHeight - y * map.pixelYRatio);
-    }
 }

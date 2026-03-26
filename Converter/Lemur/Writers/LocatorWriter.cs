@@ -6,18 +6,6 @@ namespace Converter.Lemur.Writers;
 
 public static class LocatorWriter
 {
-    private record LocatorSpec(
-        string FileName, string Name, string Layer,
-        bool BurgsOnly, double OffsetX, double OffsetZ);
-
-    private static readonly LocatorSpec[] Locators =
-    {
-        new("building_locators.txt",     "buildings",             "building_layer",  BurgsOnly: true,  OffsetX:   0, OffsetZ:   0),
-        new("combat_locators.txt",       "combat",                "combat_layer",    BurgsOnly: true,  OffsetX:   0, OffsetZ:  10),
-        new("siege_locators.txt",        "sieges",                "siege_layer",     BurgsOnly: true,  OffsetX:  10, OffsetZ:  -5),
-        new("player_stack_locators.txt", "unit_stack_player_owned","unit_stack_layer",BurgsOnly: false, OffsetX: -10, OffsetZ:  -5),
-    };
-
     public static async Task Write(L.Map map, string outputDirectory)
     {
         using var _ = OperationTimer.Start("Writing locator files");
@@ -25,46 +13,159 @@ public static class LocatorWriter
         var dir = Helper.GetPath(outputDirectory, "gfx", "map", "map_object_data");
         Directory.CreateDirectory(dir);
 
-        foreach (var spec in Locators)
-        {
-            var content = BuildLocatorFile(spec, map);
-            var path = Path.Combine(dir, spec.FileName);
-            await File.WriteAllTextAsync(path, content, Helper.Utf8Bom);
-        }
+        await Task.WhenAll(
+            WriteFile(dir, BuildBuildingLocators(map)),
+            WriteFile(dir, BuildSpecialBuildingLocators(map)),
+            WriteFile(dir, BuildSiegeLocators(map)),
+            WriteFile(dir, BuildCombatLocators(map)),
+            WriteFile(dir, BuildActivitiesLocators(map)),
+            WriteFile(dir, BuildPlayerStackLocators(map)),
+            WriteFile(dir, BuildStackLocators(map)),
+            WriteFile(dir, BuildOtherStackLocators(map)));
 
-        Logger.Info($"Wrote {Locators.Length} locator files ({map.Baronies!.Count} baronies)");
+        Logger.Info($"Wrote 8 locator files ({map.Baronies!.Count} baronies)");
+
+        if (Settings.Instance.GenerateDebugImages)
+            await ImageUtility.DrawAllLocatorsDebugImage(map);
     }
 
-    private static string BuildLocatorFile(LocatorSpec spec, L.Map map)
+    // -------------------------------------------------------------------------
+    // Burg-directional locators (buildings, special building, siege)
+    // Position = burg nudged 20px toward cell centroid, with optional spread
+    // -------------------------------------------------------------------------
+
+    private static (string fileName, string content) BuildBuildingLocators(L.Map map)
+    {
+        int id = 1;
+        var sb = StartLocatorFile("buildings", "building_layer");
+        foreach (var barony in map.Baronies!)
+        {
+            var p = Helper.BurgToPixel(barony.burg.Position.X, barony.burg.Position.Y, map);
+            AppendInstance(sb, id++, p.X, p.Y);
+        }
+        return ("building_locators.txt", EndLocatorFile(sb));
+    }
+
+    private static (string fileName, string content) BuildSpecialBuildingLocators(L.Map map)
+    {
+        int id = 1;
+        var sb = StartLocatorFile("special_building", "building_layer");
+        foreach (var barony in map.Baronies!)
+        {
+            var (x, z) = BurgNudgedTowardCentroid(barony, map);
+            var (perpX, perpZ) = PerpendicularTowardCentroid(barony, map);
+            AppendInstance(sb, id++, x - perpX * 10, z - perpZ * 10);
+        }
+        return ("special_building_locators.txt", EndLocatorFile(sb));
+    }
+
+    private static (string fileName, string content) BuildSiegeLocators(L.Map map)
+    {
+        int id = 1;
+        var sb = StartLocatorFile("siege", "siege_layer");
+        foreach (var barony in map.Baronies!)
+        {
+            var (x, z) = BurgNudgedTowardCentroid(barony, map);
+            AppendInstance(sb, id++, x, z);
+        }
+        return ("siege_locators.txt", EndLocatorFile(sb));
+    }
+
+    // -------------------------------------------------------------------------
+    // Centroid-based locators (combat, activities, player stack)
+    // Position = cell centroid + fixed pixel offset
+    // -------------------------------------------------------------------------
+
+    private static (string fileName, string content) BuildCombatLocators(L.Map map)
+    {
+        int id = 1;
+        var sb = StartLocatorFile("combat", "combat_layer");
+        foreach (var barony in map.Baronies!)
+        {
+            var (x, z) = ComputeCentroid(barony.Cells, map);
+            AppendInstance(sb, id++, x + 15, z + 10);
+        }
+        foreach (var wasteland in map.Wastelands!)
+        {
+            var (x, z) = ComputeCentroid(wasteland.Cells, map);
+            AppendInstance(sb, id++, x + 15, z + 10);
+        }
+        return ("combat_locators.txt", EndLocatorFile(sb));
+    }
+
+    private static (string fileName, string content) BuildActivitiesLocators(L.Map map)
+    {
+        int id = 1;
+        var sb = StartLocatorFile("activities", "activities_layer");
+        foreach (var barony in map.Baronies!)
+        {
+            var (x, z) = ComputeCentroid(barony.Cells, map);
+            AppendInstance(sb, id++, x - 10, z + 15);
+        }
+        foreach (var wasteland in map.Wastelands!)
+        {
+            var (x, z) = ComputeCentroid(wasteland.Cells, map);
+            AppendInstance(sb, id++, x - 10, z + 15);
+        }
+        return ("activities.txt", EndLocatorFile(sb));
+    }
+
+    private static (string fileName, string content) BuildPlayerStackLocators(L.Map map) =>
+        BuildAllProvinceStackLocator(map, "unit_stack_player_owned", "player_stack_locators.txt");
+
+    private static (string fileName, string content) BuildStackLocators(L.Map map) =>
+        BuildAllProvinceStackLocator(map, "unit_stack", "stack_locators.txt");
+
+    private static (string fileName, string content) BuildOtherStackLocators(L.Map map) =>
+        BuildAllProvinceStackLocator(map, "unit_stack_other_owner", "other_stack_locators.txt");
+
+    private static (string fileName, string content) BuildAllProvinceStackLocator(L.Map map, string locatorName, string fileName)
+    {
+        int id = 1;
+        var sb = StartLocatorFile(locatorName, "unit_stack_layer");
+        foreach (var barony in map.Baronies!)
+        {
+            var (x, z) = ComputeCentroid(barony.Cells, map);
+            AppendInstance(sb, id++, x, z);
+        }
+        foreach (var wasteland in map.Wastelands!)
+        {
+            var (x, z) = ComputeCentroid(wasteland.Cells, map);
+            AppendInstance(sb, id++, x, z);
+        }
+        foreach (var sea in map.SeaZones!.Concat(map.FarSeaZones!))
+        {
+            var (x, z) = ComputeCentroid(sea.Cells, map);
+            AppendInstance(sb, id++, x, z);
+        }
+        return (fileName, EndLocatorFile(sb));
+    }
+
+    // -------------------------------------------------------------------------
+    // Shared helpers
+    // -------------------------------------------------------------------------
+
+    private static async Task WriteFile(string dir, (string fileName, string content) locator)
+    {
+        var path = Path.Combine(dir, locator.fileName);
+        await File.WriteAllTextAsync(path, locator.content, Helper.Utf8Bom);
+    }
+
+    private static StringBuilder StartLocatorFile(string name, string layer)
     {
         var sb = new StringBuilder();
         sb.AppendLine("game_object_locator={");
-        sb.AppendLine($"\tname=\"{spec.Name}\"");
+        sb.AppendLine($"\tname=\"{name}\"");
         sb.AppendLine("\tclamp_to_water_level=yes");
         sb.AppendLine("\trender_under_water=no");
         sb.AppendLine("\tgenerated_content=no");
-        sb.AppendLine($"\tlayer=\"{spec.Layer}\"");
+        sb.AppendLine($"\tlayer=\"{layer}\"");
         sb.AppendLine("\tinstances={");
+        return sb;
+    }
 
-        int id = 0;
-
-        // Barony (burg) provinces — apply the per-type offset
-        foreach (var barony in map.Baronies!)
-        {
-            var (px, pz) = ComputeCentroid(barony.Cells, map);
-            AppendInstance(sb, id++, px + spec.OffsetX, pz + spec.OffsetZ);
-        }
-
-        // Non-burg land provinces (wastelands) — player_stack only, no offset
-        if (!spec.BurgsOnly)
-        {
-            foreach (var wasteland in map.Wastelands!)
-            {
-                var (px, pz) = ComputeCentroid(wasteland.Cells, map);
-                AppendInstance(sb, id++, px, pz);
-            }
-        }
-
+    private static string EndLocatorFile(StringBuilder sb)
+    {
         sb.AppendLine("\t}");
         sb.AppendLine("}");
         return sb.ToString();
@@ -72,38 +173,76 @@ public static class LocatorWriter
 
     private static void AppendInstance(StringBuilder sb, int id, double x, double z)
     {
-        string xs = x.ToString("F6", CultureInfo.InvariantCulture);
-        string zs = z.ToString("F6", CultureInfo.InvariantCulture);
         sb.AppendLine("\t\t{");
         sb.AppendLine($"\t\t\tid={id}");
-        sb.AppendLine($"\t\t\tposition={{ {xs} 0.000000 {zs} }}");
+        sb.AppendLine($"\t\t\tposition={{ {x.ToString("F6", CultureInfo.InvariantCulture)} 0.000000 {z.ToString("F6", CultureInfo.InvariantCulture)} }}");
         sb.AppendLine("\t\t\trotation={ 0.000000 0.000000 0.000000 1.000000 }");
         sb.AppendLine("\t\t\tscale={ 1.000000 1.000000 1.000000 }");
         sb.AppendLine("\t\t}");
     }
 
     /// <summary>
-    /// Computes the centroid of a province in CK3 map pixel coordinates
-    /// (mean of all polygon vertex coordinates across all cells).
+    /// Burg position nudged 20px toward the cell centroid, keeping the locator
+    /// inland for coastal burgs. Falls back to the bare burg position if the
+    /// burg and centroid are within 5px of each other.
     /// </summary>
-    private static (double x, double z) ComputeCentroid(List<L.Cell> cells, L.Map map)
+    internal static (double x, double z) BurgNudgedTowardCentroid(L.Barony barony, L.Map map)
+    {
+        var burg = Helper.BurgToPixel(barony.burg.Position.X, barony.burg.Position.Y, map);
+        var (cx, cz) = ComputeCentroid(barony.Cells, map);
+
+        double dx = cx - burg.X;
+        double dz = cz - burg.Y;
+        double length = Math.Sqrt(dx * dx + dz * dz);
+
+        if (length < 5)
+            return (burg.X, burg.Y);
+
+        dx /= length;
+        dz /= length;
+        return (burg.X + dx * 20, burg.Y + dz * 20);
+    }
+
+    /// <summary>
+    /// Unit vector perpendicular to the burg→centroid direction (rotated 90° clockwise).
+    /// Used to spread building and special_building locators to either side of the burg.
+    /// Returns (0, 0) if burg and centroid are within 5px of each other.
+    /// </summary>
+    internal static (double x, double z) PerpendicularTowardCentroid(L.Barony barony, L.Map map)
+    {
+        var burg = Helper.BurgToPixel(barony.burg.Position.X, barony.burg.Position.Y, map);
+        var (cx, cz) = ComputeCentroid(barony.Cells, map);
+
+        double dx = cx - burg.X;
+        double dz = cz - burg.Y;
+        double length = Math.Sqrt(dx * dx + dz * dz);
+
+        if (length < 5)
+            return (1, 0); // fallback: fixed rightward spread so building/special_building don't stack
+
+        dx /= length;
+        dz /= length;
+        return (dz, -dx); // 90° clockwise rotation
+    }
+
+    /// <summary>
+    /// Mean of all cell polygon vertex coordinates, in CK3 map pixel space.
+    /// </summary>
+    internal static (double x, double z) ComputeCentroid(List<L.Cell> cells, L.Map map)
     {
         double sumX = 0, sumZ = 0;
         int count = 0;
 
         foreach (var cell in cells)
-        {
             foreach (var vertex in cell.GeoDataCoordinates)
             {
                 sumX += (vertex[0] - map.XOffset) * map.XRatio;
-                sumZ += L.Map.MapHeight - (vertex[1] - map.YOffset) * map.YRatio;
+                sumZ += (vertex[1] - map.YOffset) * map.YRatio; // geo lat increases northward = CK3 world Z, no flip needed
                 count++;
             }
-        }
 
-        if (count == 0)
-            return (L.Map.MapWidth / 2.0, L.Map.MapHeight / 2.0);
-
-        return (sumX / count, sumZ / count);
+        return count == 0
+            ? (L.Map.MapWidth / 2.0, L.Map.MapHeight / 2.0)
+            : (sumX / count, sumZ / count);
     }
 }

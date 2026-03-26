@@ -20,6 +20,7 @@ namespace Converter.Lemur.Entities
         public MagickColor? Color { get; set; }
         public List<Cell> Cells { get; set; } = new List<Cell>();
         public List<Kingdom> Kingdoms { get; set; } = new List<Kingdom>();
+        public Barony? Capital { get; set; }
         public AzgaarCulture Culture { get; set; }
         public AzgaarReligion Religion { get; set; }
 

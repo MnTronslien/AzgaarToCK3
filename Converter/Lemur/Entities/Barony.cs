@@ -29,6 +29,7 @@ namespace Converter.Lemur.Entities
         public ITitle? DeJureParent { get; set; }
         public ITitle? DeFactoLiege { get; set; }
         public Character? Holder { get; set; }
+        public Barony? Capital { get; set; }
 
         public string Ck3_Id() => Helper.ToCk3Id("b", Name, Id);
 

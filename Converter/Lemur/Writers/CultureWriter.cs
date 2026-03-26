@@ -73,6 +73,11 @@ public static class CultureWriter
             lines.Add($"\tclothing_gfx = {{ {culture.ThemeBundle.ClothingGfx} }}");
             lines.Add($"\tunit_gfx = {{ {culture.ThemeBundle.UnitGfx} }}");
 
+            lines.Add("\tethnicities = {");
+            foreach (var (weight, key) in culture.Ethnicity)
+                lines.Add($"\t\t{weight} = {key}");
+            lines.Add("\t}");
+
             lines.Add("}");
             lines.Add("");
         }

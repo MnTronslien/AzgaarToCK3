@@ -29,12 +29,9 @@ public static class FaithWriter
             .OrderBy(g => g.Key)
             .ToList();
 
-        // Build a lookup: cellId → barony, to find holy site counties
-        var cellIdToBarony = BuildCellToBaronyLookup(map);
-
         var t1 = WriteReligionsFile(byReligion, outputDirectory);
-        var t2 = WriteHolySitesFile(faiths.Values.ToList(), map, cellIdToBarony, outputDirectory);
-        var t3 = WriteLocalizationFile(byReligion, map.JsonMap.pack.cultures, outputDirectory);
+        var t2 = WriteHolySitesFile(map.HolySites, outputDirectory);
+        var t3 = WriteLocalizationFile(byReligion, map.HolySites, map.JsonMap.pack.cultures, outputDirectory);
 
         await Task.WhenAll(t1, t2, t3);
 
@@ -74,14 +71,17 @@ public static class FaithWriter
             foreach (var faith in sortedFaiths)
             {
                 var (r, g, b) = ParseHexColor(faith.HexColor);
-                var holySiteKey = $"lemur_site_{faith.AzgaarId}";
 
                 lines.Add($"\t\t# {faith.Name}");
                 lines.Add($"\t\t{faith.CK3Key} = {{");
                 lines.Add($"\t\t\tcolor = rgb {{ {r} {g} {b} }}");
                 lines.Add($"\t\t\ticon = {faith.IconKey}");
                 lines.Add($"\t\t\treformed_icon = {faith.IconKey}");
-                lines.Add($"\t\t\tholy_site = {holySiteKey}");
+
+                // Emit all holy sites for this faith
+                foreach (var site in faith.HolySites)
+                    lines.Add($"\t\t\tholy_site = {site.Key}");
+
                 lines.Add("");
 
                 // 21 structural doctrines (one per required group)
@@ -117,9 +117,7 @@ public static class FaithWriter
     // File 2: common/religion/holy_sites/lemur_holy_sites.txt
     // ─────────────────────────────────────────────────────────────────────────
     private static async Task WriteHolySitesFile(
-        List<Faith> faiths,
-        L.Map map,
-        Dictionary<int, L.Barony> cellIdToBarony,
+        List<HolySite> sites,
         string outputDirectory)
     {
         var dir = Helper.GetPath(outputDirectory, "common", "religion", "holy_sites");
@@ -131,15 +129,16 @@ public static class FaithWriter
             ""
         };
 
-        foreach (var faith in faiths.OrderBy(f => f.AzgaarId))
+        foreach (var site in sites.OrderBy(s => s.Key))
         {
-            var countyId = FindHolySiteCountyId(faith, map, cellIdToBarony);
-            var countyKey = $"c_{countyId}";
-
-            lines.Add($"# {faith.Name}");
-            lines.Add($"lemur_site_{faith.AzgaarId} = {{");
-            lines.Add($"\tcounty = {countyKey}");
+            lines.Add($"{site.Key} = {{");
+            lines.Add($"\tcounty = {site.County.Ck3_Id()}");
+            if (site.Barony != null)
+                lines.Add($"\tbarony = {site.Barony.Ck3_Id()}");
             lines.Add("\tcharacter_modifier = {");
+            lines.Add($"\t\tname = {site.ModifierNameKey}");
+            foreach (var (key, value) in site.Modifiers)
+                lines.Add($"\t\t{key} = {value}");
             lines.Add("\t}");
             lines.Add("}");
             lines.Add("");
@@ -154,6 +153,7 @@ public static class FaithWriter
     // ─────────────────────────────────────────────────────────────────────────
     private static async Task WriteLocalizationFile(
         List<IGrouping<string, Faith>> byReligion,
+        List<HolySite> sites,
         Deserialization.AzgaarCulture[] cultures,
         string outputDirectory)
     {
@@ -181,13 +181,50 @@ public static class FaithWriter
             lines.Add($" {group.Key}_adj:0 \"{rootFaith.Name}\"");
             lines.Add($" {group.Key}_desc:0 \"{desc}\"");
 
+            // Religion-level placeholder keys (inherited by all child faiths)
+            lines.Add($" {group.Key}_house_of_worship:0 \"temple\"");
+            lines.Add($" {group.Key}_house_of_worship_plural:0 \"temples\"");
+            lines.Add($" {group.Key}_religious_symbol:0 \"holy symbol\"");
+            lines.Add($" {group.Key}_religious_text:0 \"holy texts\"");
+            lines.Add($" {group.Key}_positive_afterlife:0 \"paradise\"");
+            lines.Add($" {group.Key}_negative_afterlife:0 \"the underworld\"");
+            lines.Add($" {group.Key}_priest_male:0 \"priest\"");
+            lines.Add($" {group.Key}_priest_male_plural:0 \"priests\"");
+            lines.Add($" {group.Key}_priest_female:0 \"priestess\"");
+            lines.Add($" {group.Key}_priest_female_plural:0 \"priestesses\"");
+            lines.Add($" {group.Key}_bishop:0 \"high priest\"");
+            lines.Add($" {group.Key}_bishop_plural:0 \"high priests\"");
+            lines.Add($" {group.Key}_devotee_male:0 \"devotee\"");
+            lines.Add($" {group.Key}_devotee_male_plural:0 \"devotees\"");
+            lines.Add($" {group.Key}_devotee_female:0 \"devotee\"");
+            lines.Add($" {group.Key}_devotee_female_plural:0 \"devotees\"");
+            lines.Add($" {group.Key}_religious_head_title:0 \"High Priest\"");
+            lines.Add($" {group.Key}_religious_head_title_name:0 \"High Priesthood\"");
+
             foreach (var faith in sortedFaiths)
             {
                 lines.Add($" {faith.CK3Key}:0 \"{faith.Name}\"");
                 lines.Add($" {faith.CK3Key}_adj:0 \"{faith.Name}\"");
                 if (!string.IsNullOrEmpty(faith.Deity))
-                    lines.Add($" {faith.CK3Key}_HighGodName:0 \"{faith.Deity}\"");
+                {
+                    lines.Add($" {faith.CK3Key}_high_god_name:0 \"{faith.Deity}\"");
+                    lines.Add($" {faith.CK3Key}_high_god_name_possessive:0 \"{faith.Deity}'s\"");
+                }
+                lines.Add($" {faith.CK3Key}_adherent:0 \"{faith.Name}\"");
+                lines.Add($" {faith.CK3Key}_adherent_plural:0 \"{faith.Name} followers\"");
+                lines.Add($" {faith.CK3Key}_desc:0 \"The {faith.Name} faith.\"");
             }
+        }
+
+        // One loc entry per unique holy site (deduplicated — sites are already unique)
+        foreach (var site in sites.OrderBy(s => s.Key))
+        {
+            var deity = site.OriginFaith?.Deity;
+            var effectName = string.IsNullOrEmpty(deity)
+                ? $"Blessing of {site.GroupName}"
+                : $"Blessing of {site.GroupName} from {deity}";
+            lines.Add($" {site.NameKey}:0 \"{site.County.Name}\"");
+            lines.Add($" {site.ModifierNameKey}:0 \"{effectName}\"");
         }
 
         var path = Helper.GetPath(dir, "lemur_faiths_l_english.yml");
@@ -197,51 +234,6 @@ public static class FaithWriter
     // ─────────────────────────────────────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────────────────────────────────────
-
-    private static Dictionary<int, L.Barony> BuildCellToBaronyLookup(L.Map map)
-    {
-        var dict = new Dictionary<int, L.Barony>();
-        if (map.Baronies == null) return dict;
-
-        foreach (var barony in map.Baronies)
-        {
-            foreach (var cell in barony.Cells)
-            {
-                dict.TryAdd(cell.Id, barony);
-            }
-        }
-        return dict;
-    }
-
-    private static int FindHolySiteCountyId(
-        Faith faith,
-        L.Map map,
-        Dictionary<int, L.Barony> cellIdToBarony)
-    {
-        // Primary: find the barony that owns the origin cell
-        if (faith.OriginCellId > 0 && cellIdToBarony.TryGetValue(faith.OriginCellId, out var originBarony))
-        {
-            if (originBarony.DeJureParent is L.County county)
-                return county.Id;
-        }
-
-        // Fallback: find the county with the most cells matching this faith's AzgaarId
-        if (map.Counties != null && map.Cells != null)
-        {
-            var bestCounty = map.Counties
-                .Select(c => (county: c,
-                    count: c.GetAllCells().Count(cell => cell.Religion == faith.AzgaarId)))
-                .Where(x => x.count > 0)
-                .OrderByDescending(x => x.count)
-                .FirstOrDefault();
-
-            if (bestCounty.county != null)
-                return bestCounty.county.Id;
-        }
-
-        // Last resort: first county
-        return map.Counties?.FirstOrDefault()?.Id ?? 1;
-    }
 
     private static (int r, int g, int b) ParseHexColor(string hex)
     {

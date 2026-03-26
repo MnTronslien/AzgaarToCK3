@@ -35,6 +35,11 @@ namespace Converter.Lemur.Entities
         public ITitle? DeJureParent { get; set; }
 
         /// <summary>
+        /// The de jure capital province of this title. Null if not yet assigned or not applicable.
+        /// </summary>
+        public Barony? Capital { get; set; }
+
+        /// <summary>
         /// The de facto liege title. Null means independent (no liege declared in title history).
         /// For counties this is always set explicitly (own duchy, or primary duchy of an absorbed state).
         /// Set by CharacterFactory after all holders are assigned.
