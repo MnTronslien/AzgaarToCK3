@@ -29,19 +29,17 @@ Barony positions faithfully reflect where Azgaar places its burgs — coastal se
 
 | | |
 |---|---|
-| **Cultures** | Full CK3 culture system following your Azgaar family tree — heritage and language flow down lineages, traditions drift over generations, hybrid cultures blend both parents first then mutate. 41 verified base-game traditions, GFX bundles, phenotype distributions. |
-| **Faiths** | Doctrines and tenets follow the Azgaar religion tree — child faiths inherit from their parent then mutate slot-by-slot. Holy sites with modifiers, full localization. |
-| **Characters** | Rulers per title with correct culture and faith; feudal hierarchy wired up |
+| **Cultures** | Full CK3 culture system following your Azgaar family tree — If two cultures are related they should look very simmilar, support culture hybridization. Uses 41 verified base-game traditions, custom defined GFX bundles and ethnicity distributions. |
+| **Faiths** | Doctrines and tenets follow the Azgaar religion tree — child faiths inherit from their parent then mutate slot-by-slot simmilar to cultures. Holy sites with modifiers, broad localization support. |
+| **Characters** | interesting and predicatbel mix of independent rulers of different ranks |
 | **Rivers** | The first Azgaar converter to draw rivers — A\* pathfinding, correct tributary connections |
 
 
 ---
 
 ## Requirements
-
-- [.NET 8 Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/8.0) — required to run the current build; future release packages may ship self-contained
 - Crusader Kings III `1.18.4` (newest at the time of writing)
-- [Total Conversion Sandbox](https://steamcommunity.com/sharedfiles/filedetails/?id=2524797018) mod (Steam Workshop)
+- [Total Conversion Sandbox](https://steamcommunity.com/sharedfiles/filedetails/?id=2524797018) mod (Steam Workshop) (Working to make this dependency obsolete.)
 - [Azgaar's Fantasy Map Generator](https://azgaar.github.io/Fantasy-Map-Generator/) — default settings work out of the box. An [alternate build](https://pryvyd9.github.io/Fantasy-Map-Generator/) produces better sea zones; if you use it, **do not use its built-in "Export for CK3" button** — that targets a different converter.
 
 ---
