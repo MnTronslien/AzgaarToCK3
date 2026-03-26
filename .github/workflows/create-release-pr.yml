@@ -3,10 +3,14 @@ name: Create Release PR
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version number (e.g. 0.2.0)'
-        required: true
-        type: string
+      bump:
+        description: 'Version component to increment'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
 
 jobs:
   create-pr:
@@ -21,23 +25,32 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Validate version format
+      - name: Compute version
+        id: ver
         run: |
-          if ! echo "${{ inputs.version }}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error::Invalid version '${{ inputs.version }}' — expected X.Y.Z"
-            exit 1
-          fi
+          git fetch origin stable develop
+          CURRENT=$(awk '/^# [0-9]/ { match($0, /[0-9]+\.[0-9]+\.[0-9]+/); print substr($0, RSTART, RLENGTH); exit }' CHANGELOG.md)
+          MAJOR=$(echo "$CURRENT" | cut -d. -f1)
+          MINOR=$(echo "$CURRENT" | cut -d. -f2)
+          PATCH=$(echo "$CURRENT" | cut -d. -f3)
+          case "${{ inputs.bump }}" in
+            major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR+1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH+1)) ;;
+          esac
+          VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "Current: $CURRENT → Next: $VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Guard — tag must not already exist
         run: |
-          if git ls-remote --tags origin "refs/tags/${{ inputs.version }}" | grep -q .; then
-            echo "::error::Tag ${{ inputs.version }} already exists."
+          if git ls-remote --tags origin "refs/tags/${{ steps.ver.outputs.version }}" | grep -q .; then
+            echo "::error::Tag ${{ steps.ver.outputs.version }} already exists."
             exit 1
           fi
 
       - name: Guard — develop must be ahead of stable
         run: |
-          git fetch origin stable develop
           AHEAD=$(git rev-list --count origin/stable..origin/develop)
           if [ "$AHEAD" -eq 0 ]; then
             echo "::error::develop has no commits ahead of stable. Nothing to release."
@@ -52,12 +65,12 @@ jobs:
 
       - name: Create release branch from develop
         run: |
-          git checkout -b "release/${{ inputs.version }}" origin/develop
+          git checkout -b "release/${{ steps.ver.outputs.version }}" origin/develop
 
       - name: Generate changelog section
         id: changelog
         run: |
-          VERSION="${{ inputs.version }}"
+          VERSION="${{ steps.ver.outputs.version }}"
           DATE=$(date +%Y-%m-%d)
 
           COMMITS=$(git log origin/stable..origin/develop --oneline --no-merges --reverse)
@@ -86,8 +99,8 @@ jobs:
       - name: Commit changelog
         run: |
           git add CHANGELOG.md
-          git commit -m "chore: update CHANGELOG.md for ${{ inputs.version }}"
-          git push origin "release/${{ inputs.version }}"
+          git commit -m "chore: update CHANGELOG.md for ${{ steps.ver.outputs.version }}"
+          git push origin "release/${{ steps.ver.outputs.version }}"
 
       - name: Open PR
         env:
@@ -95,8 +108,8 @@ jobs:
         run: |
           gh pr create \
             --base stable \
-            --head "release/${{ inputs.version }}" \
-            --title "release: ${{ inputs.version }}" \
+            --head "release/${{ steps.ver.outputs.version }}" \
+            --title "release: ${{ steps.ver.outputs.version }}" \
             --body "$(cat new_section.md)
           ---
-          Merging this PR will tag \`${{ inputs.version }}\` and trigger the release build."
+          Merging this PR will tag \`${{ steps.ver.outputs.version }}\` and trigger the release build."
