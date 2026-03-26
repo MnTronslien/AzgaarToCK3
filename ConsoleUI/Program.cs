@@ -87,8 +87,6 @@ internal class Program
             Settings.Instance.ModName = Console.ReadLine()!;
         }
 
-        CheckIfShouldOverride();
-
         // Resolve inputs from --input-dir / InputDirectory if set
         if (!string.IsNullOrWhiteSpace(Settings.Instance.InputDirectory))
         {
@@ -449,42 +447,6 @@ internal class Program
         Console.ReadKey();
         SettingsManager.Save();
         Environment.Exit(0);
-    }
-
-    private static void CheckIfShouldOverride()
-    {
-        while (ModManager.DoesModExist())
-        {
-            if (Settings.Instance.ShouldOverride is not null)
-            {
-                break;
-            }
-
-            Console.WriteLine("Mod already exists. Override?");
-            Settings.Instance.ShouldOverride = YesNo();
-            if (!Settings.Instance.ShouldOverride.Value)
-            {
-                Console.WriteLine("ChangeModName?");
-                if (!YesNo())
-                {
-                    Console.WriteLine("Exiting... Please, change mod name in 'settings.json' if needed and try again");
-                    Exit();
-                }
-                Console.WriteLine("Name your mod:");
-                Settings.Instance.ModName = Console.ReadLine()!;
-                break;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        if (Settings.Instance.ShouldOverride ?? false)
-        {
-            Console.WriteLine($"Mod will be overriden in all future runs. If you wish to change it change '{nameof(Settings.Instance.ShouldOverride)}' in 'settings.json' file.");
-        }
-
     }
 
     private static void FindInputs()
