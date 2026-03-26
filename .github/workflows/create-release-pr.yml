@@ -1,0 +1,102 @@
+name: Create Release PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g. 0.2.0)'
+        required: true
+        type: string
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate version format
+        run: |
+          if ! echo "${{ inputs.version }}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid version '${{ inputs.version }}' — expected X.Y.Z"
+            exit 1
+          fi
+
+      - name: Guard — tag must not already exist
+        run: |
+          if git ls-remote --tags origin "refs/tags/${{ inputs.version }}" | grep -q .; then
+            echo "::error::Tag ${{ inputs.version }} already exists."
+            exit 1
+          fi
+
+      - name: Guard — develop must be ahead of stable
+        run: |
+          git fetch origin stable develop
+          AHEAD=$(git rev-list --count origin/stable..origin/develop)
+          if [ "$AHEAD" -eq 0 ]; then
+            echo "::error::develop has no commits ahead of stable. Nothing to release."
+            exit 1
+          fi
+          echo "$AHEAD commit(s) to release."
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create release branch from develop
+        run: |
+          git checkout -b "release/${{ inputs.version }}" origin/develop
+
+      - name: Generate changelog section
+        id: changelog
+        run: |
+          VERSION="${{ inputs.version }}"
+          DATE=$(date +%Y-%m-%d)
+
+          COMMITS=$(git log origin/stable..origin/develop --oneline --no-merges --reverse)
+
+          FEATS=$(echo "$COMMITS" | grep -E '^[a-f0-9]+ feat'     | sed -E 's/^[a-f0-9]+ feat(\([^)]*\))?: /- /'     || true)
+          FIXES=$(echo "$COMMITS" | grep -E '^[a-f0-9]+ fix'      | sed -E 's/^[a-f0-9]+ fix(\([^)]*\))?: /- /'      || true)
+          REFAC=$(echo "$COMMITS" | grep -E '^[a-f0-9]+ refactor'  | sed -E 's/^[a-f0-9]+ refactor(\([^)]*\))?: /- /' || true)
+
+          {
+            echo "# $VERSION — $DATE"
+            echo ""
+            [ -n "$FEATS" ] && printf "### Added\n%s\n\n" "$FEATS"
+            [ -n "$FIXES" ] && printf "### Fixed\n%s\n\n" "$FIXES"
+            [ -n "$REFAC" ] && printf "### Changed\n%s\n\n" "$REFAC"
+            echo "---"
+            echo ""
+          } > new_section.md
+
+          cat new_section.md CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
+
+          # Store for PR body
+          echo "section<<EOF" >> "$GITHUB_OUTPUT"
+          cat new_section.md >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Commit changelog
+        run: |
+          git add CHANGELOG.md
+          git commit -m "chore: update CHANGELOG.md for ${{ inputs.version }}"
+          git push origin "release/${{ inputs.version }}"
+
+      - name: Open PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --base stable \
+            --head "release/${{ inputs.version }}" \
+            --title "release: ${{ inputs.version }}" \
+            --body "$(cat new_section.md)
+          ---
+          Merging this PR will tag \`${{ inputs.version }}\` and trigger the release build."
