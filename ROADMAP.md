@@ -61,6 +61,9 @@ Empires exist as de jure structure only. Kings and dukes start independent; the 
 **Ruler demesne sizes are hardcoded.**
 All rulers hold 1 county (weak kings by default). No setting to scale this up yet.
 
+**Starting year and character ages are not data-driven.**
+The game start date is a fixed hardcoded value. Ruler birth and death years are generated independently of any Azgaar timeline data.
+
 **Culture GFX bundles are assigned randomly.**
 Azgaar cultures carry a `nameBase` field implying a real-world analogue. The converter currently ignores it. When implemented, a Norse-namebase culture will get Norse graphics.
 
@@ -78,6 +81,7 @@ CK3 has regional textures (Mediterranean, Steppe, MENA, etc.). Every province cu
 - GFX bundle selection from Azgaar `nameBase`
 - Independent rulers for absorbed titles at game start
 - Configurable ruler demesne sizes (`RulerStrength` setting)
+- Data-driven start date and character ages
 - Title colors from Azgaar province colors
 - Holy site proximity selection (cap per faith at ~5 relevant sites)
 - Government type mapping (Azgaar `state.form` → CK3 government)

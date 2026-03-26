@@ -12,8 +12,6 @@ Settings are stored in `settings.json` next to the `ConsoleUI` executable. CLI f
 | `InputJsonPath` | `-j` | string | Explicit path to Azgaar full data `.json` |
 | `InputGeojsonPath` | `-g` | string | Explicit path to Azgaar cells `.geojson` |
 | `InputRiversGeojsonPath` | `-r` | string | Explicit path to Azgaar rivers `.geojson` |
-| `AzgaarSvgPath` | `--svg` | string | Optional Azgaar SVG export for flatmap; falls back to biome colors |
-
 Explicit paths (`-j`, `-g`, `-r`) always override directory auto-detection.
 
 ---
@@ -27,7 +25,6 @@ Explicit paths (`-j`, `-g`, `-r`) always override directory auto-detection.
 | `TotalConversionSandboxPath` | — | string | *(required)* | Path to TCS mod folder |
 | `ModName` | — | string | *(required)* | Name of the generated mod |
 | `AutoWipeOutput` | `--no-wipe` | bool | `true` | Wipe mod folder before converting |
-| `ShouldOverride` | — | bool? | `null` | Auto-confirm overwrite prompt |
 
 ---
 
