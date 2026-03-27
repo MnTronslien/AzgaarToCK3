@@ -147,7 +147,7 @@ namespace Converter.Lemur.Rivers
                 var controlPoints = new List<PointD>();
                 foreach (var coord in river.ControlPoints)
                 {
-                    var pixel = Helper.GeoToPixel(coord[0], coord[1], map);
+                    var pixel = Helper.GeoToPixel((float)coord[0], (float)coord[1], map);
                     controlPoints.Add(pixel);
                 }
 

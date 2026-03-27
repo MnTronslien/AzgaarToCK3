@@ -56,6 +56,10 @@ namespace Converter.Lemur
 
                 // Phase 2: Insert major river cells (splits affected cells, severs cross-river neighbor links)
                 MajorRiverInserter.InsertMajorRiverCells(map, Settings.Instance.MajorRiverThreshold);
+
+                // Debug: draw cells after river insertion so splits are visible
+                await ImageUtility.DrawCells(map.Cells!.Values.ToList(), map, "1_cells_post_river.png");
+                await ImageUtility.DrawCellsWithNeighborLines(map.Cells!.Values.ToList(), map, "1_cells_neighbors_post_river.png");
             }
 
             GenerateDuchies(map);

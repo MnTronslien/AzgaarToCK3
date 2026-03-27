@@ -73,7 +73,7 @@ namespace Converter.Lemur
             Process.Start(psi);
         }
 
-        public static async Task DrawCells(List<Entities.Cell> cells, Entities.Map map)
+        public static async Task DrawCells(List<Entities.Cell> cells, Entities.Map map, string fileName = "1_cells.png")
         {
             try
             {
@@ -101,7 +101,7 @@ namespace Converter.Lemur
                 if (Settings.Instance.GenerateDebugImages)
                 {
                     var debugRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AzgaarToCK3", "debug");
-                    var path = Helper.GetPath(debugRoot, GetDebugFolderName(),"1_cells.png");
+                    var path = Helper.GetPath(debugRoot, GetDebugFolderName(), fileName);
                     Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                     await cellsMap.WriteAsync(path);
                     Logger.Debug($"Saved cells image to '{path}'");
@@ -118,7 +118,7 @@ namespace Converter.Lemur
         }
 
 
-        public static async Task DrawCellsWithNeighborLines(List<Entities.Cell> cells, Entities.Map map)
+        public static async Task DrawCellsWithNeighborLines(List<Entities.Cell> cells, Entities.Map map, string fileName = "1_cells_neighbors.png")
         {
             if (!Settings.Instance.GenerateDebugImages) return;
 
@@ -169,7 +169,7 @@ namespace Converter.Lemur
 
             var path = Helper.GetPath(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "AzgaarToCK3", "debug", GetDebugFolderName(), "1_cells_neighbors.png");
+                "AzgaarToCK3", "debug", GetDebugFolderName(), fileName);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             await img.WriteAsync(path);
             Logger.Debug($"Saved cells+neighbors image to '{path}'");

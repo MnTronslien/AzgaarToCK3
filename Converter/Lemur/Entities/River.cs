@@ -19,7 +19,7 @@ namespace Converter.Lemur.Entities
         /// These are the actual coordinates that define the river's path, NOT just cell centroids.
         /// Each point is [x, y] in Azgaar's coordinate system.
         /// </summary>
-        public List<float[]>? ControlPoints { get; set; }
+        public List<double[]>? ControlPoints { get; set; }
 
         /// <summary>
         /// Parent river ID. 0 if this is a main river, otherwise the ID of the river this flows into.

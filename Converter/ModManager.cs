@@ -60,8 +60,9 @@ supported_version=""1.12.4""";
             else if (f.EndsWith(".geojson"))
             {
                 var fileName = Path.GetFileName(f).ToLower();
-                // Check if it's a rivers geojson (contains "rivers" in the name)
-                if (fileName.Contains("rivers") || fileName.Contains("river"))
+                // "cells" always means the cells GeoJSON, even if the map name contains "rivers".
+                // Only treat as a rivers GeoJSON if it contains "rivers"/"river" but NOT "cells".
+                if (!fileName.Contains("cells") && (fileName.Contains("rivers") || fileName.Contains("river")))
                 {
                     riversGeojsonName = f;
                 }

@@ -281,7 +281,7 @@ namespace Converter.Lemur.Deserialization
 
     public record RiverGeometry(
         string type,        // "LineString"
-        float[][] coordinates  // Array of [x, y] coordinate pairs
+        double[][] coordinates  // Array of [x, y] coordinate pairs
     );
 
     public record RiverFeatureProperties(

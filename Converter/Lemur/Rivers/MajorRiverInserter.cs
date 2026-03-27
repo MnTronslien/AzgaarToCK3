@@ -69,7 +69,13 @@ namespace Converter.Lemur.Rivers
 
                     if (remainder.IsEmpty || remainder.Area < cellPoly.Area * 0.05)
                     {
-                        // Engulfed: the ribbon covers the whole cell
+                        // Engulfed: the ribbon covers the whole cell.
+                        // Skip cells with burgs — destroying a settlement is wrong; leave the cell as land.
+                        if (cell.Burg != null)
+                        {
+                            Logger.Debug($"  Skipping engulfed cell {cell.Id} — has burg '{cell.Burg.Name}'");
+                            continue;
+                        }
                         var riverCell = CreateRiverCell(cell, cellPoly, riverCellId);
                         map.Cells.Remove(cell.Id);
                         map.Cells[riverCellId] = riverCell;
@@ -103,6 +109,9 @@ namespace Converter.Lemur.Rivers
                         var cellB = CreateLandCell(cell, otherPoly, cellBId, inheritBurg: false);
                         var riverCell = CreateRiverCell(cell, ribbonInCell, riverCellId);
 
+                        // Update burg's back-reference to point at the new land cell
+                        if (cellA.Burg != null) cellA.Burg.Cell = cellA;
+
                         map.Cells.Remove(cell.Id);
                         map.Cells[cellAId] = cellA;
                         map.Cells[cellBId] = cellB;
@@ -128,6 +137,9 @@ namespace Converter.Lemur.Rivers
                         int landCellId = nextCellId++;
                         var landCell = CreateLandCell(cell, landPoly, landCellId, inheritBurg: true);
                         var riverCell = CreateRiverCell(cell, ribbonInCell, riverCellId);
+
+                        // Update burg's back-reference to point at the new land cell
+                        if (landCell.Burg != null) landCell.Burg.Cell = landCell;
 
                         map.Cells.Remove(cell.Id);
                         map.Cells[landCellId] = landCell;
