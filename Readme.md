@@ -8,12 +8,12 @@
 
 ## Why this converter
 
-Use this converter if you hve a beloved Azgaar map you have spent time curating and care about. Or if you just want to be able to play in a brand new world that you heave never seen before. This converter tries to inject AS LITTLE new information into the output as posiible. Veluing cleatr rules and deterministic outputs. In this converter it is easy to understand how the game world will lok onece the mod loads when working in the Azgaar tool.
+Use this converter if you hve a beloved Azgaar map you have spent time curating and care about. Or if you just want to be able to play in a brand new world that you heave never seen before. This converter tries to inject AS LITTLE new information into the output as posiible. Valueing clear rules and deterministic outputs. In this converter it is easy to understand how the game world will end up looking when working in the Azgaar tool.
 
 **The title hierarchy maps directly from your Azgaar data:**
-- Every burg becomes a barony — exact, 1:1. A typical map produces 1,000+ baronies.
+- Every burg becomes a barony — exact, 1:1. A 50k point map produces 1,000+ baronies.
 - Every Azgaar province becomes a duchy.
-- Every Azgaar state becomes a kingdom.
+- Most Azgaar states becomes a kingdom.
 
 Where CK3 needs structure Azgaar doesn't have — counties and empires — the converter infers them algorithmically from population data. Predictable, not arbitrary.
 
