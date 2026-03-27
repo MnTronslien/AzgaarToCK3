@@ -118,6 +118,64 @@ namespace Converter.Lemur
         }
 
 
+        public static async Task DrawCellsWithNeighborLines(List<Entities.Cell> cells, Entities.Map map)
+        {
+            if (!Settings.Instance.GenerateDebugImages) return;
+
+            var settings = new MagickReadSettings() { Width = Map.MapWidth, Height = Map.MapHeight };
+            using var img = new MagickImage("xc:white", settings);
+            var drawables = new Drawables();
+
+            // Draw cell polygons
+            foreach (var cell in cells)
+            {
+                drawables
+                    .DisableStrokeAntialias()
+                    .StrokeWidth(1)
+                    .StrokeColor(MagickColors.Black)
+                    .FillOpacity(new Percentage(0))
+                    .Polygon(cell.GeoDataCoordinates.Select(n => Helper.GeoToPixel(n[0], n[1], map)));
+            }
+
+            // Build lookup for neighbor access
+            var cellById = cells.ToDictionary(c => c.Id);
+
+            // Draw red lines between each cell centroid and its neighbors (each edge once)
+            foreach (var cell in cells)
+            {
+                var cx = cell.GeoDataCoordinates.Average(n => n[0]);
+                var cy = cell.GeoDataCoordinates.Average(n => n[1]);
+                var cp = Helper.GeoToPixel(cx, cy, map);
+
+                foreach (var neighborId in cell.Neighbors)
+                {
+                    if (neighborId <= cell.Id) continue; // draw each edge once
+                    if (!cellById.TryGetValue(neighborId, out var neighbor)) continue;
+
+                    var nx = neighbor.GeoDataCoordinates.Average(n => n[0]);
+                    var ny = neighbor.GeoDataCoordinates.Average(n => n[1]);
+                    var np = Helper.GeoToPixel(nx, ny, map);
+
+                    drawables
+                        .DisableStrokeAntialias()
+                        .StrokeWidth(1)
+                        .StrokeColor(MagickColors.Red)
+                        .FillOpacity(new Percentage(0))
+                        .Line(cp.X, cp.Y, np.X, np.Y);
+                }
+            }
+
+            img.Draw(drawables);
+
+            var path = Helper.GetPath(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "AzgaarToCK3", "debug", GetDebugFolderName(), "1_cells_neighbors.png");
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            await img.WriteAsync(path);
+            Logger.Debug($"Saved cells+neighbors image to '{path}'");
+            RegisterGeneratedImage(path);
+        }
+
         public static async Task DrawProvincesImage(Entities.Map map)
         {
             Logger.Info("Drawing provinces image...");
