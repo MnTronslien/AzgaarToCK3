@@ -68,7 +68,8 @@ namespace Converter.Lemur.Entities
             salt,
             dry,
             sinkhole,
-            lava
+            lava,
+            river // major navigable river province
         }
 
         public static bool IsDryLand(FeatureType type)

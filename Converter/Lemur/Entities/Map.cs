@@ -33,6 +33,8 @@ namespace Converter.Lemur.Entities
         public List<Kingdom> Kingdoms { get; set; } = new();
         public List<Empire>? Empires { get; internal set; } = new();
 
+        public List<MajorRiverProvince> MajorRiverProvinces { get; set; } = new();
+
         // list of wasteland provinces, ths is because provinces with no burgs counts as wasteland. Add 0 by default
         public List<Wasteland>? Wastelands { get; set; } = new();
 
