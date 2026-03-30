@@ -48,17 +48,30 @@ namespace Converter.Lemur.Rivers
                 var ribbon = BuildRibbon(river);
                 var riverCellIds = new List<int>();
 
-                foreach (int cellId in river.CellIds)
+                // Snapshot candidate cells (with pre-computed polygons) before any modification.
+                // Segments discover candidates spatially — no CellIds list needed.
+                var candidates = map.Cells.Values
+                    .Where(c => c.Type != FeatureType.river)
+                    .Select(c => (cell: c, poly: CellToPolygon(c)))
+                    .Where(t => t.poly != null)
+                    .ToList();
+
+                var processedCellIds = new HashSet<int>();
+                const int SegmentSize = 3; // new segment every ~3 control points
+
+                for (int seg = 0; seg + 1 < river.ControlPoints!.Count; seg += SegmentSize - 1)
                 {
-                    if (!map.Cells.TryGetValue(cellId, out var cell))
-                        continue;
+                    var segPoints = river.ControlPoints.Skip(seg).Take(SegmentSize).ToList();
+                    if (segPoints.Count < 2) continue;
+                    var segRibbon = BuildRibbon(segPoints, river.Width);
 
-                    if (cell.Type == FeatureType.river)
-                        continue; // already consumed by an earlier river
+                    foreach (var (cell, cellPoly) in candidates!)
+                    {
+                        if (processedCellIds.Contains(cell.Id)) continue;
+                        if (!map.Cells.ContainsKey(cell.Id)) continue; // replaced by an earlier river
+                        if (!segRibbon.Intersects(cellPoly)) continue;
 
-                    var cellPoly = CellToPolygon(cell);
-                    if (cellPoly == null)
-                        continue;
+                        processedCellIds.Add(cell.Id);
 
                     var ribbonInCell = ribbon.Intersection(cellPoly);
                     if (ribbonInCell.IsEmpty)
@@ -149,7 +162,8 @@ namespace Converter.Lemur.Rivers
                         riverCellIds.Add(riverCellId);
                         totalRiverCells++;
                     }
-                }
+                    } // end foreach candidate
+                } // end segment loop
 
                 var riverCells = riverCellIds
                     .Where(id => map.Cells.ContainsKey(id))
@@ -169,13 +183,16 @@ namespace Converter.Lemur.Rivers
             Logger.Info($"Major rivers complete: {totalRiverCells} river cells, {map.MajorRiverProvinces.Count} provinces.");
         }
 
-        private static Geometry BuildRibbon(River river)
+        private static Geometry BuildRibbon(River river) =>
+            BuildRibbon(river.ControlPoints!, river.Width);
+
+        private static Geometry BuildRibbon(IList<double[]> controlPoints, float width)
         {
-            var coords = river.ControlPoints!
+            var coords = controlPoints
                 .Select(p => new Coordinate(p[0], p[1]))
                 .ToArray();
             var line = GeoFactory.CreateLineString(coords);
-            return line.Buffer(river.Width / 2.0);
+            return line.Buffer(width / 2.0);
         }
 
         private static Polygon? CellToPolygon(Cell cell)
