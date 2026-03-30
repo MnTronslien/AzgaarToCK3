@@ -36,6 +36,8 @@ namespace Converter.Lemur.Rivers
             // Maps replaced cell IDs to the new cell IDs that replaced them,
             // so the final pass can update Neighbors arrays throughout the map.
             var cellReplacements = new Dictionary<int, List<int>>();
+            // Maps new land cell IDs → NTS area of the original cell, for tiny-cell detection.
+            var splitLandCells = new Dictionary<int, double>();
 
             foreach (var river in majorRivers)
             {
@@ -133,6 +135,8 @@ namespace Converter.Lemur.Rivers
                         WireNeighborsSplit(cell, cellA, burgPoly, cellB, otherPoly, riverCell, ribbon, map);
 
                         cellReplacements[cell.Id] = new List<int> { cellAId, cellBId, riverCellId };
+                        splitLandCells[cellAId] = cellPoly.Area;
+                        splitLandCells[cellBId] = cellPoly.Area;
                         riverCellIds.Add(riverCellId);
                         totalRiverCells++;
                     }
@@ -159,6 +163,7 @@ namespace Converter.Lemur.Rivers
                         map.Cells[riverCellId] = riverCell;
 
                         cellReplacements[cell.Id] = new List<int> { landCellId, riverCellId };
+                        splitLandCells[landCellId] = cellPoly.Area;
                         riverCellIds.Add(riverCellId);
                         totalRiverCells++;
                     }
@@ -179,8 +184,82 @@ namespace Converter.Lemur.Rivers
             }
 
             UpdateAllNeighborReferences(map, cellReplacements);
+            MergeTinyCells(map, splitLandCells);
 
             Logger.Info($"Major rivers complete: {totalRiverCells} river cells, {map.MajorRiverProvinces.Count} provinces.");
+        }
+
+        // Absorb a split land cell if its NTS area is below this fraction of the original cell area.
+        private const double TinyLandCellFraction = 0.05;
+
+        private static void MergeTinyCells(Map map, Dictionary<int, double> splitLandCells)
+        {
+            int mergedCount = 0;
+
+            foreach (var (tinyId, originalArea) in splitLandCells)
+            {
+                if (!map.Cells.TryGetValue(tinyId, out var tinyCell)) continue;
+                if (tinyCell.Type == FeatureType.river) continue;
+
+                var tinyPoly = CellToPolygon(tinyCell);
+                if (tinyPoly == null) continue;
+                if (tinyPoly.Area >= originalArea * TinyLandCellFraction) continue; // not tiny
+
+                // Find best absorbing neighbor: longest shared boundary, not a river cell
+                Cell? best = null;
+                Polygon? bestPoly = null;
+                double bestLen = 0;
+
+                foreach (int nId in tinyCell.Neighbors)
+                {
+                    if (!map.Cells.TryGetValue(nId, out var n)) continue;
+                    if (n.Type == FeatureType.river) continue;
+                    var nPoly = CellToPolygon(n);
+                    if (nPoly == null) continue;
+                    var sharedLen = tinyPoly.Intersection(nPoly).Length;
+                    if (sharedLen > bestLen) { best = n; bestPoly = nPoly; bestLen = sharedLen; }
+                }
+
+                if (best == null)
+                {
+                    Logger.Warning($"Tiny cell {tinyId} has no eligible land neighbor — kept as-is.");
+                    continue;
+                }
+
+                // Union the two polygons; prefer the result as a single Polygon
+                var merged = bestPoly!.Union(tinyPoly);
+                var mergedPoly = merged is Polygon p ? p
+                    : merged is MultiPolygon mp
+                        ? (Polygon)mp.Geometries.OrderByDescending(g => g.Area).First()
+                        : null;
+                if (mergedPoly == null) continue;
+
+                best.GeoDataCoordinates = GeomToCoordinates(mergedPoly);
+
+                // Absorbing cell inherits all of tiny's neighbors (except tiny itself and self)
+                best.Neighbors = best.Neighbors
+                    .Union(tinyCell.Neighbors)
+                    .Where(id => id != tinyId && id != best.Id)
+                    .ToArray();
+
+                // Replace tinyId with best.Id in every former neighbor of the tiny cell
+                foreach (int nId in tinyCell.Neighbors)
+                {
+                    if (nId == best.Id) continue;
+                    if (!map.Cells.TryGetValue(nId, out var neighbor)) continue;
+                    neighbor.Neighbors = neighbor.Neighbors
+                        .Select(id => id == tinyId ? best.Id : id)
+                        .Distinct().ToArray();
+                }
+
+                map.Cells.Remove(tinyId);
+                mergedCount++;
+                Logger.Debug($"  Merged tiny cell {tinyId} into {best.Id} " +
+                             $"(area ratio {tinyPoly.Area / originalArea:P0})");
+            }
+
+            if (mergedCount > 0)
+                Logger.Info($"Tiny cell merge: absorbed {mergedCount} degenerate land cells.");
         }
 
         private static Geometry BuildRibbon(River river) =>
