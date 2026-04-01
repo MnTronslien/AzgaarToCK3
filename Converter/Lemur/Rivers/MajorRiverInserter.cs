@@ -197,6 +197,12 @@ namespace Converter.Lemur.Rivers
                     }
                 }
 
+                // Merge junction river cells (3+ river neighbors) into their best river neighbor.
+                // A junction cell sits at a bend where the ribbon covered two segments of the same
+                // underlying land cell, giving its river slice edges that touch many other river cells.
+                // Absorbing it keeps the chain roughly linear and avoids cross-bucket connections.
+                MergeJunctionRiverCells(riverCells, map);
+
                 // Bucket into sub-provinces of RiverProvinceCellCount cells each.
                 if (riverCells.Count > 0)
                 {
@@ -299,6 +305,87 @@ namespace Converter.Lemur.Rivers
 
             if (mergedCount > 0)
                 Logger.Info($"Tiny cell merge: absorbed {mergedCount} degenerate land cells.");
+        }
+
+        /// <summary>
+        /// Absorbs junction river cells (those with 3+ river neighbors) into the river neighbor
+        /// sharing the longest boundary. Keeps the cell chain roughly linear before bucketing.
+        /// Mutates <paramref name="riverCells"/> in-place, removing absorbed cells.
+        /// </summary>
+        private static void MergeJunctionRiverCells(List<Cell> riverCells, Map map)
+        {
+            int mergedCount = 0;
+            var riverCellSet = new HashSet<int>(riverCells.Select(c => c.Id));
+
+            // Single pass — iterate a snapshot of the list so new junctions created by merging
+            // are not re-processed (which would cascade into absorbing everything).
+            var snapshot = riverCells.ToList();
+            var alreadyAbsorbed = new HashSet<int>();
+
+            foreach (var junc in snapshot)
+            {
+                if (alreadyAbsorbed.Contains(junc.Id)) continue;
+
+                var riverNeighborIds = junc.Neighbors
+                    .Where(nId => riverCellSet.Contains(nId) && !alreadyAbsorbed.Contains(nId))
+                    .ToList();
+
+                if (riverNeighborIds.Count <= 2) continue; // not a junction
+
+                Logger.Debug($"  Junction river cell {junc.Id} has {riverNeighborIds.Count} river neighbors — merging");
+
+                // Pick the river neighbor with the longest shared boundary.
+                var juncPoly = CellToPolygon(junc);
+                if (juncPoly == null) continue;
+
+                Cell? best = null;
+                Polygon? bestPoly = null;
+                double bestLen = 0;
+                foreach (int nId in riverNeighborIds)
+                {
+                    if (!map.Cells.TryGetValue(nId, out var n)) continue;
+                    var nPoly = CellToPolygon(n);
+                    if (nPoly == null) continue;
+                    var sharedLen = juncPoly.Intersection(nPoly).Length;
+                    if (sharedLen > bestLen) { best = n; bestPoly = nPoly; bestLen = sharedLen; }
+                }
+                if (best == null || bestPoly == null) continue;
+
+                // Union geometries into the absorbing cell.
+                var merged = bestPoly.Union(juncPoly);
+                var mergedPoly = merged is Polygon mp ? mp
+                    : merged is MultiPolygon mmp
+                        ? (Polygon)mmp.Geometries.OrderByDescending(g => g.Area).First()
+                        : null;
+                if (mergedPoly == null) continue;
+
+                best.GeoDataCoordinates = GeomToCoordinates(mergedPoly);
+
+                // Absorb junc's neighbors into best (exclude junc itself and self).
+                best.Neighbors = best.Neighbors
+                    .Union(junc.Neighbors)
+                    .Where(id => id != junc.Id && id != best.Id)
+                    .ToArray();
+
+                // In every former neighbor of junc, replace junc.Id with best.Id.
+                foreach (int nId in junc.Neighbors)
+                {
+                    if (nId == best.Id) continue;
+                    if (!map.Cells.TryGetValue(nId, out var neighbor)) continue;
+                    neighbor.Neighbors = neighbor.Neighbors
+                        .Select(id => id == junc.Id ? best.Id : id)
+                        .Distinct().ToArray();
+                }
+
+                map.Cells.Remove(junc.Id);
+                riverCellSet.Remove(junc.Id);
+                riverCells.Remove(junc);
+                alreadyAbsorbed.Add(junc.Id);
+                mergedCount++;
+            }
+
+            if (mergedCount > 0)
+                Logger.Info($"  Junction merge: absorbed {mergedCount} junction river cells.");
         }
 
         /// <summary>
