@@ -140,7 +140,11 @@ namespace Converter.Lemur
             // Build lookup for neighbor access
             var cellById = cells.ToDictionary(c => c.Id);
 
-            // Draw red lines between each cell centroid and its neighbors (each edge once)
+            // Draw color-coded lines between each cell centroid and its neighbors (each edge once):
+            //   red     = dry  ↔ dry
+            //   blue    = wet  ↔ wet
+            //   burgundy = dry ↔ wet (coastline)
+            var burgundy = new MagickColor("#800020");
             foreach (var cell in cells)
             {
                 var cx = cell.GeoDataCoordinates.Average(n => n[0]);
@@ -156,10 +160,17 @@ namespace Converter.Lemur
                     var ny = neighbor.GeoDataCoordinates.Average(n => n[1]);
                     var np = Helper.GeoToPixel(nx, ny, map);
 
+                    var lineColor = (Entities.Cell.IsDryLand(cell.Type), Entities.Cell.IsDryLand(neighbor.Type)) switch
+                    {
+                        (true,  true)  => MagickColors.Red,
+                        (false, false) => MagickColors.Blue,
+                        _              => burgundy,
+                    };
+
                     drawables
                         .DisableStrokeAntialias()
                         .StrokeWidth(1)
-                        .StrokeColor(MagickColors.Red)
+                        .StrokeColor(lineColor)
                         .FillOpacity(new Percentage(0))
                         .Line(cp.X, cp.Y, np.X, np.Y);
                 }
