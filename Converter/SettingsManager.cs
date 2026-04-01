@@ -94,6 +94,18 @@ public class Settings
     public float MajorRiverThreshold { get; set; } = 999999f;  // Very high for testing - all rivers will be minor
 
     /// <summary>
+    /// Target number of river cells per CK3 river province.
+    /// A long river is split into multiple sub-provinces of approximately this size.
+    /// </summary>
+    public int RiverProvinceCellCount { get; set; } = 4;
+
+    /// <summary>
+    /// Minimum cells for the tail sub-province of a river.
+    /// If the last bucket has fewer cells than this, it is absorbed into the preceding bucket.
+    /// </summary>
+    public int RiverProvinceMinCells { get; set; } = 2;
+
+    /// <summary>
     /// Target area per sea zone (Azgaar cell-area units). Zone grows until it hits this.
     /// </summary>
     public int SeaZoneTargetArea { get; set; } = 25000;

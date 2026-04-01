@@ -1234,7 +1234,9 @@ namespace Converter.Lemur
             {
                 //fist get all the cells that the cells in this barony are adjacent to
                 var cells = barony.GetAllCells();
-                var adjacentCells = cells.SelectMany(c => c.Neighbors).Distinct().Select(k => map.Cells![k]).ToList();
+                var adjacentCells = cells.SelectMany(c => c.Neighbors).Distinct()
+                    .Where(k => map.Cells!.ContainsKey(k))
+                    .Select(k => map.Cells![k]).ToList();
                 // Remove any cell that is in this barony
                 adjacentCells.RemoveAll(cells.Contains);
 

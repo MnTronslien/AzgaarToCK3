@@ -170,16 +170,55 @@ namespace Converter.Lemur.Rivers
                     } // end foreach candidate
                 } // end segment loop
 
+                // Sort river cells upstream→downstream by proximity to control points.
                 var riverCells = riverCellIds
                     .Where(id => map.Cells.ContainsKey(id))
                     .Select(id => map.Cells[id])
+                    .OrderBy(c => ClosestControlPointIndex(c, river.ControlPoints!))
                     .ToList();
 
+                // Wire river cells that share an edge as neighbors (upstream ↔ downstream).
+                for (int i = 0; i < riverCells.Count; i++)
+                {
+                    var polyI = CellToPolygon(riverCells[i]);
+                    if (polyI == null) continue;
+                    for (int j = i + 1; j < riverCells.Count; j++)
+                    {
+                        var polyJ = CellToPolygon(riverCells[j]);
+                        if (polyJ == null) continue;
+                        if (!polyI.Intersects(polyJ)) continue;
+                        var shared = polyI.Intersection(polyJ);
+                        if (shared.IsEmpty || shared.Dimension < Dimension.Curve) continue;
+
+                        if (!riverCells[i].Neighbors.Contains(riverCells[j].Id))
+                            riverCells[i].Neighbors = riverCells[i].Neighbors.Append(riverCells[j].Id).ToArray();
+                        if (!riverCells[j].Neighbors.Contains(riverCells[i].Id))
+                            riverCells[j].Neighbors = riverCells[j].Neighbors.Append(riverCells[i].Id).ToArray();
+                    }
+                }
+
+                // Bucket into sub-provinces of RiverProvinceCellCount cells each.
                 if (riverCells.Count > 0)
                 {
-                    var province = new MajorRiverProvince(nextProvinceId++, riverCells, river.Name, river.Id);
-                    map.MajorRiverProvinces.Add(province);
-                    Logger.Debug($"  River '{river.Name}': {riverCells.Count} cells, province id {province.Id}");
+                    var buckets = new List<List<Cell>>();
+                    int step = Math.Max(1, Settings.Instance.RiverProvinceCellCount);
+                    for (int i = 0; i < riverCells.Count; i += step)
+                        buckets.Add(riverCells.Skip(i).Take(step).ToList());
+
+                    // Absorb an undersized tail bucket into the preceding one.
+                    if (buckets.Count >= 2 && buckets[^1].Count < Settings.Instance.RiverProvinceMinCells)
+                    {
+                        buckets[^2].AddRange(buckets[^1]);
+                        buckets.RemoveAt(buckets.Count - 1);
+                    }
+
+                    for (int b = 0; b < buckets.Count; b++)
+                    {
+                        var provinceName = buckets.Count == 1 ? river.Name : $"{river.Name} {b + 1}";
+                        var province = new MajorRiverProvince(nextProvinceId++, buckets[b], provinceName, river.Id);
+                        map.MajorRiverProvinces.Add(province);
+                        Logger.Debug($"  River '{river.Name}' sub-province {b + 1}/{buckets.Count}: {buckets[b].Count} cells, id {province.Id}");
+                    }
                 }
             }
 
@@ -260,6 +299,19 @@ namespace Converter.Lemur.Rivers
 
             if (mergedCount > 0)
                 Logger.Info($"Tiny cell merge: absorbed {mergedCount} degenerate land cells.");
+        }
+
+        /// <summary>
+        /// Returns the index of the control point closest to the cell's centroid.
+        /// Used to sort river cells into upstream→downstream order.
+        /// </summary>
+        private static int ClosestControlPointIndex(Cell cell, List<double[]> cps)
+        {
+            var cx = cell.GeoDataCoordinates!.Average(p => p[0]);
+            var cy = cell.GeoDataCoordinates!.Average(p => p[1]);
+            return cps
+                .Select((p, i) => (dist: Math.Pow(p[0] - cx, 2) + Math.Pow(p[1] - cy, 2), i))
+                .MinBy(t => t.dist).i;
         }
 
         private static Geometry BuildRibbon(River river) =>
