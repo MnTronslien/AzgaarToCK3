@@ -168,6 +168,7 @@ namespace Converter.Lemur.Rivers
                 var cps = river.ControlPoints;
                 var fullRibbon = BuildRibbon(cps, river.Width);
                 var ids = new List<int>();
+                Geometry? claimedArea = null; // union of all accepted slice polygons so far
 
                 for (int start = 0; start + 1 < cps.Count; start += ControlPointsPerRiverCell - 1)
                 {
@@ -176,14 +177,23 @@ namespace Converter.Lemur.Rivers
 
                     var sliceRibbon = BuildRibbon(window, river.Width);
                     // Clip to the full ribbon so slices don't bleed outside the river footprint
-                    var sliceGeom = sliceRibbon.Intersection(fullRibbon);
+                    Geometry sliceGeom = sliceRibbon.Intersection(fullRibbon);
                     if (sliceGeom == null || sliceGeom.IsEmpty) continue;
+
+                    // Subtract already-claimed area to guarantee zero overlap with previous slices
+                    if (claimedArea != null)
+                    {
+                        sliceGeom = sliceGeom.Difference(claimedArea);
+                        if (sliceGeom == null || sliceGeom.IsEmpty) continue;
+                    }
 
                     var slicePoly = sliceGeom is Polygon sp ? sp
                         : sliceGeom is MultiPolygon smp
                             ? (Polygon)smp.Geometries.OrderByDescending(g => g.Area).First()
                             : null;
                     if (slicePoly == null) continue;
+
+                    claimedArea = claimedArea == null ? slicePoly : claimedArea.Union(slicePoly);
 
                     int id = nextCellId++;
                     map.Cells[id] = new Cell
