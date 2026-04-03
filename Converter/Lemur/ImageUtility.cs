@@ -118,7 +118,7 @@ namespace Converter.Lemur
         }
 
 
-        public static async Task DrawCellsWithNeighborLines(List<Entities.Cell> cells, Entities.Map map)
+        public static async Task DrawCellsWithNeighborLines(List<Entities.Cell> cells, Entities.Map map, string fileName = "1_cells_neighbors.png")
         {
             if (!Settings.Instance.GenerateDebugImages) return;
 
@@ -180,7 +180,7 @@ namespace Converter.Lemur
 
             var path = Helper.GetPath(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "AzgaarToCK3", "debug", GetDebugFolderName(), "1_cells_neighbors.png");
+                "AzgaarToCK3", "debug", GetDebugFolderName(), fileName);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             await img.WriteAsync(path);
             Logger.Debug($"Saved cells+neighbors image to '{path}'");
@@ -254,6 +254,10 @@ namespace Converter.Lemur
                 // Draw wastelands (impassable land provinces — must be colored so CK3 can map pixel → province ID)
                 foreach (var wasteland in map.Wastelands!.Cast<IProvince>())
                     drawablesList.Add(GenerateCellPolygons(wasteland.Cells, wasteland.Color, map));
+
+                // Draw major river provinces
+                foreach (var rp in map.MajorRiverProvinces.Cast<IProvince>())
+                    drawablesList.Add(GenerateCellPolygons(rp.Cells, rp.Color, map));
 
                 // Draw sea zones
                 foreach (var zone in map.SeaZones!)
