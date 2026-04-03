@@ -40,6 +40,8 @@ namespace Converter.Lemur.Entities
 
         public List<SeaZone>? FarSeaZones { get; set; } = new();
 
+        public List<MajorRiverProvince> MajorRiverProvinces { get; set; } = new();
+
         public List<IProvince>? AllProvinces { get; set; }
 
         public List<Character> Characters { get; set; } = new();
