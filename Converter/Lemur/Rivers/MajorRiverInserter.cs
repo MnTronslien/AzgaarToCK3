@@ -32,12 +32,28 @@ namespace Converter.Lemur.Rivers
             Logger.Section("Inserting major rivers");
             Logger.Info($"{majorRivers.Count} rivers above discharge threshold {majorThreshold}.");
 
-            // Phase 1: carve ribbon geometry from land cells
-            CarveRibbonsFromLandCells(map, majorRivers, out var cellReplacements);
-            Logger.Info($"Phase 1 complete: {cellReplacements.Count} cells split.");
+            // Sort: tributaries before the rivers they flow into.
+            // This ensures each river's Phase 1 can carve into cells already built by its tributaries.
+            var sortedRivers = SortRiversTributariesFirst(majorRivers);
 
-            // Phase 2: build river cells from ribbon slices
-            var riverCellIds = BuildRiverCells(map, majorRivers);
+            // Phases 1+2 run per river in tributary-first order.
+            // UpdateAllNeighborReferences is deferred until all rivers are processed.
+            var allReplacements = new Dictionary<int, List<int>>();
+            var riverCellIds    = new Dictionary<River, List<int>>();
+            int totalLandSplits  = 0;
+            int totalRiverCarved = 0;
+
+            foreach (var river in sortedRivers)
+            {
+                var (landSplits, riverCarved) = CarveRibbonFromCells(map, river, allReplacements);
+                totalLandSplits  += landSplits;
+                totalRiverCarved += riverCarved;
+                riverCellIds[river] = BuildRiverCellsForRiver(map, river);
+            }
+
+            UpdateAllNeighborReferences(map, allReplacements);
+            Logger.Info($"Phase 1 complete: {totalLandSplits} land cells carved, {totalRiverCarved} tributary river cells trimmed.");
+
             int totalRiverCells = riverCellIds.Values.Sum(l => l.Count);
             Logger.Info($"Phase 2 complete: {totalRiverCells} river cells created.");
             AssertNoRiverCellOverlap(map, riverCellIds);
@@ -52,175 +68,254 @@ namespace Converter.Lemur.Rivers
             Logger.Info($"Phase 4 complete: {map.MajorRiverProvinces.Count} river provinces built.");
         }
 
+        // ─── Helpers ──────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Topological sort: tributaries before the rivers they flow into.
+        /// Post-order DFS from roots (major rivers whose parent is not itself a major river).
+        /// </summary>
+        private static List<River> SortRiversTributariesFirst(List<River> rivers)
+        {
+            var majorIds = new HashSet<int>(rivers.Select(r => r.Id));
+            var result   = new List<River>();
+            var visited  = new HashSet<int>();
+
+            void Visit(River r)
+            {
+                if (!visited.Add(r.Id)) return;
+                foreach (var trib in rivers.Where(t => t.ParentId == r.Id))
+                    Visit(trib);
+                result.Add(r);
+            }
+
+            foreach (var r in rivers.Where(r => !majorIds.Contains(r.ParentId)))
+                Visit(r);
+
+            return result;
+        }
+
         // ─── Phase 1 ──────────────────────────────────────────────────────────────
 
-        private static void CarveRibbonsFromLandCells(
-            Map map,
-            List<River> rivers,
-            out Dictionary<int, List<int>> cellReplacements)
+        /// <summary>
+        /// Carves a single river's ribbon from all intersecting cells:
+        ///   • Land cells — burg-safe split/clip logic (fully engulfed = keep as land).
+        ///   • River cells (from previously processed tributaries) — simple clip/delete, no burg.
+        /// Returns (landSplits, riverCellsCarved).
+        /// </summary>
+        private static (int landSplits, int riverCarved) CarveRibbonFromCells(
+            Map map, River river, Dictionary<int, List<int>> cellReplacements)
         {
-            cellReplacements = new Dictionary<int, List<int>>();
+            if (river.ControlPoints == null || river.ControlPoints.Count < 2 || river.Width <= 0)
+            {
+                Logger.Warning($"River '{river.Name}' skipped: missing control points or zero width.");
+                return (0, 0);
+            }
+
+            var ribbon     = BuildRibbon(river.ControlPoints, river.Width);
             int nextCellId = map.Cells!.Keys.Max() + 1;
 
-            foreach (var river in rivers)
+            // ── Land cells ────────────────────────────────────────────────────────
+            var landCandidates = map.Cells.Values
+                .Where(c => Cell.IsDryLand(c.Type) && !c.IsRiverCell)
+                .Select(c => (cell: c, poly: CellToPolygon(c)))
+                .Where(t => t.poly != null && ribbon.Intersects(t.poly))
+                .ToList();
+
+            int landSplits = 0;
+            foreach (var (cell, cellPoly) in landCandidates)
             {
-                if (river.ControlPoints == null || river.ControlPoints.Count < 2 || river.Width <= 0)
+                if (!map.Cells.ContainsKey(cell.Id)) continue;
+
+                var remainder = cellPoly!.Difference(ribbon);
+                if (remainder == null || remainder.IsEmpty)
                 {
-                    Logger.Warning($"River '{river.Name}' skipped: missing control points or zero width.");
+                    // Fully engulfed — leave as land (protects burgs, avoids geometry loss)
+                    Logger.Debug($"  Cell {cell.Id} fully engulfed by '{river.Name}' ribbon — kept as land.");
                     continue;
                 }
 
-                var ribbon = BuildRibbon(river.ControlPoints, river.Width);
+                var pieces = remainder is MultiPolygon mp
+                    ? mp.Geometries.OfType<Polygon>().ToList()
+                    : remainder is Polygon p ? new List<Polygon> { p }
+                    : null;
+                if (pieces == null || pieces.Count == 0) continue;
 
-                // Snapshot before modifying — only dry-land non-river cells
-                var candidates = map.Cells.Values
-                    .Where(c => Cell.IsDryLand(c.Type) && !c.IsRiverCell)
-                    .Select(c => (cell: c, poly: CellToPolygon(c)))
-                    .Where(t => t.poly != null && ribbon.Intersects(t.poly))
-                    .ToList();
-
-                int hitCount = 0;
-                foreach (var (cell, cellPoly) in candidates)
+                if (pieces.Count == 1)
                 {
-                    if (!map.Cells.ContainsKey(cell.Id)) continue; // already replaced by earlier river
+                    cell.GeoDataCoordinates = GeomToCoordinates(pieces[0]);
+                    landSplits++;
+                }
+                else
+                {
+                    var newIds = new List<int>();
+                    bool burgAssigned = false;
 
-                    var remainder = cellPoly!.Difference(ribbon);
-                    if (remainder == null || remainder.IsEmpty)
+                    for (int k = 0; k < pieces.Count; k++)
                     {
-                        // Fully engulfed — leave as land (protects burgs, avoids geometry loss)
-                        Logger.Debug($"  Cell {cell.Id} fully engulfed by '{river.Name}' ribbon — kept as land.");
-                        continue;
-                    }
+                        int newId   = nextCellId++;
+                        var newCell = CloneLandCell(cell, pieces[k], newId);
 
-                    var pieces = remainder is MultiPolygon mp
-                        ? mp.Geometries.OfType<Polygon>().ToList()
-                        : remainder is Polygon p ? new List<Polygon> { p }
-                        : null;
-
-                    if (pieces == null || pieces.Count == 0) continue;
-
-                    if (pieces.Count == 1)
-                    {
-                        // Clipped: cell geometry trimmed in-place; no ID change, no neighbor update needed
-                        cell.GeoDataCoordinates = GeomToCoordinates(pieces[0]);
-                        hitCount++;
-                    }
-                    else
-                    {
-                        // Split: create one new cell per piece, remove original
-                        var newIds = new List<int>();
-                        bool burgAssigned = false;
-
-                        for (int k = 0; k < pieces.Count; k++)
-                        {
-                            int newId = nextCellId++;
-                            var newCell = CloneLandCell(cell, pieces[k], newId);
-
-                            // Burg goes to the piece whose polygon contains the burg position
-                            if (cell.Burg != null && !burgAssigned)
-                            {
-                                var burgPt = GeoFactory.CreatePoint(
-                                    new Coordinate(cell.Burg.Position.X, cell.Burg.Position.Y));
-                                if (pieces[k].Contains(burgPt) || pieces[k].Distance(burgPt) < 1e-6)
-                                {
-                                    newCell.Burg = cell.Burg;
-                                    newCell.Burg.Cell = newCell;
-                                    burgAssigned = true;
-                                }
-                            }
-
-                            map.Cells[newId] = newCell;
-                            newIds.Add(newId);
-                        }
-
-                        // If no piece contained the burg (floating-point edge case), give it to the largest
                         if (cell.Burg != null && !burgAssigned)
                         {
-                            var largestId = newIds
-                                .OrderByDescending(id => CellToPolygon(map.Cells[id])?.Area ?? 0)
-                                .First();
-                            map.Cells[largestId].Burg = cell.Burg;
-                            map.Cells[largestId].Burg!.Cell = map.Cells[largestId];
-                            Logger.Debug($"  Burg '{cell.Burg.Name}' fallback-assigned to largest split piece {largestId}.");
+                            var burgPt = GeoFactory.CreatePoint(
+                                new Coordinate(cell.Burg.Position.X, cell.Burg.Position.Y));
+                            if (pieces[k].Contains(burgPt) || pieces[k].Distance(burgPt) < 1e-6)
+                            {
+                                newCell.Burg      = cell.Burg;
+                                newCell.Burg.Cell = newCell;
+                                burgAssigned      = true;
+                            }
                         }
 
-                        map.Cells.Remove(cell.Id);
-                        cellReplacements[cell.Id] = newIds;
-                        hitCount++;
+                        map.Cells[newId] = newCell;
+                        newIds.Add(newId);
                     }
-                }
 
-                Logger.Debug($"  River '{river.Name}': {hitCount} land cells carved.");
+                    if (cell.Burg != null && !burgAssigned)
+                    {
+                        var largestId = newIds
+                            .OrderByDescending(id => CellToPolygon(map.Cells[id])?.Area ?? 0)
+                            .First();
+                        map.Cells[largestId].Burg      = cell.Burg;
+                        map.Cells[largestId].Burg!.Cell = map.Cells[largestId];
+                        Logger.Debug($"  Burg '{cell.Burg.Name}' fallback-assigned to largest split piece {largestId}.");
+                    }
+
+                    map.Cells.Remove(cell.Id);
+                    cellReplacements[cell.Id] = newIds;
+                    landSplits++;
+                }
             }
 
-            UpdateAllNeighborReferences(map, cellReplacements);
+            Logger.Debug($"  River '{river.Name}': {landSplits} land cells carved.");
+
+            // ── River cells from previously processed tributaries ─────────────────
+            var riverCandidates = map.Cells.Values
+                .Where(c => c.IsRiverCell)
+                .Select(c => (cell: c, poly: CellToPolygon(c)))
+                .Where(t => t.poly != null && ribbon.Intersects(t.poly))
+                .ToList();
+
+            int riverCarved = 0;
+            foreach (var (cell, cellPoly) in riverCandidates)
+            {
+                if (!map.Cells.ContainsKey(cell.Id)) continue;
+
+                var remainder = cellPoly!.Difference(ribbon);
+                if (remainder == null || remainder.IsEmpty)
+                {
+                    // Fully engulfed by main river — remove tributary cell entirely
+                    map.Cells.Remove(cell.Id);
+                    cellReplacements[cell.Id] = new List<int>();
+                    riverCarved++;
+                    continue;
+                }
+
+                var pieces = remainder is MultiPolygon mp
+                    ? mp.Geometries.OfType<Polygon>().ToList()
+                    : remainder is Polygon p ? new List<Polygon> { p }
+                    : null;
+                if (pieces == null || pieces.Count == 0)
+                {
+                    map.Cells.Remove(cell.Id);
+                    cellReplacements[cell.Id] = new List<int>();
+                    riverCarved++;
+                    continue;
+                }
+
+                if (pieces.Count == 1)
+                {
+                    cell.GeoDataCoordinates = GeomToCoordinates(pieces[0]);
+                    riverCarved++;
+                }
+                else
+                {
+                    var newIds = new List<int>();
+                    foreach (var piece in pieces)
+                    {
+                        int newId = nextCellId++;
+                        map.Cells[newId] = new Cell
+                        {
+                            Id = newId,
+                            GeoDataCoordinates = GeomToCoordinates(piece),
+                            Neighbors = cell.Neighbors.ToArray(),
+                            IsRiverCell = true,
+                            Culture = 0, Religion = 0, Biome = 0, Area = 0,
+                            DistanceToCoast = 0, State = 0, AzProvince = 0,
+                        };
+                        newIds.Add(newId);
+                    }
+                    map.Cells.Remove(cell.Id);
+                    cellReplacements[cell.Id] = newIds;
+                    riverCarved++;
+                }
+            }
+
+            if (riverCarved > 0)
+                Logger.Debug($"  River '{river.Name}': {riverCarved} tributary river cells trimmed.");
+
+            return (landSplits, riverCarved);
         }
 
         // ─── Phase 2 ──────────────────────────────────────────────────────────────
 
-        private static Dictionary<River, List<int>> BuildRiverCells(Map map, List<River> rivers)
+        private static List<int> BuildRiverCellsForRiver(Map map, River river)
         {
-            var result = new Dictionary<River, List<int>>();
+            if (river.ControlPoints == null || river.ControlPoints.Count < 2)
+                return new List<int>();
+
+            var cps        = river.ControlPoints;
+            var fullRibbon = BuildRibbon(cps, river.Width);
+            var ids        = new List<int>();
             int nextCellId = map.Cells!.Keys.Max() + 1;
 
-            foreach (var river in rivers)
+            int step = ControlPointsPerRiverCell - 1;
+            for (int start = 0; start + 1 < cps.Count; start += step)
             {
-                if (river.ControlPoints == null || river.ControlPoints.Count < 2) continue;
+                var window = cps.Skip(start).Take(ControlPointsPerRiverCell).ToList();
+                if (window.Count < 2) continue;
 
-                var cps = river.ControlPoints;
-                var fullRibbon = BuildRibbon(cps, river.Width);
-                var ids = new List<int>();
+                var sliceRibbon = BuildRibbon(window, river.Width);
+                Geometry sliceGeom = sliceRibbon.Intersection(fullRibbon);
+                if (sliceGeom == null || sliceGeom.IsEmpty) continue;
 
-                int step = ControlPointsPerRiverCell - 1;
-                for (int start = 0; start + 1 < cps.Count; start += step)
+                // Leading cut: trim the backward-facing round cap at this slice's start junction.
+                // Not applied to the first slice — its upstream cap is a natural river terminus.
+                int leadJ = start;
+                if (leadJ > 0)
                 {
-                    var window = cps.Skip(start).Take(ControlPointsPerRiverCell).ToList();
-                    if (window.Count < 2) continue;
-
-                    var sliceRibbon = BuildRibbon(window, river.Width);
-                    Geometry sliceGeom = sliceRibbon.Intersection(fullRibbon);
-                    if (sliceGeom == null || sliceGeom.IsEmpty) continue;
-
-                    // Leading cut: trim the backward-facing round cap at this slice's start junction.
-                    // Not applied to the first slice — its upstream cap is a natural river terminus.
-                    int leadJ = start;
-                    if (leadJ > 0)
+                    var cutBox = BuildJunctionCutBox(cps, leadJ, river.Width, forward: false);
+                    if (cutBox != null)
                     {
-                        var cutBox = BuildJunctionCutBox(cps, leadJ, river.Width, forward: false);
-                        if (cutBox != null)
-                        {
-                            sliceGeom = sliceGeom.Difference(cutBox);
-                            if (sliceGeom == null || sliceGeom.IsEmpty) continue;
-                        }
+                        sliceGeom = sliceGeom.Difference(cutBox);
+                        if (sliceGeom == null || sliceGeom.IsEmpty) continue;
                     }
-
-                    // Trailing cut: trim the forward-facing round cap at this slice's end junction.
-                    // Not applied to the last slice — its downstream cap is a natural river terminus.
-                    int trailJ = start + window.Count - 1;
-                    if (trailJ < cps.Count - 1)
-                    {
-                        var cutBox = BuildJunctionCutBox(cps, trailJ, river.Width, forward: true);
-                        if (cutBox != null)
-                        {
-                            sliceGeom = sliceGeom.Difference(cutBox);
-                            if (sliceGeom == null || sliceGeom.IsEmpty) continue;
-                        }
-                    }
-
-                    var slicePoly = sliceGeom is Polygon sp ? sp
-                        : sliceGeom is MultiPolygon smp
-                            ? (Polygon)smp.Geometries.OrderByDescending(g => g.Area).First()
-                            : null;
-                    if (slicePoly == null) continue;
-
-                    ids.Add(CreateRiverCell(map, ref nextCellId, slicePoly));
                 }
 
-                result[river] = ids;
-                Logger.Debug($"  River '{river.Name}': {ids.Count} river cells built from {cps.Count} control points.");
+                // Trailing cut: trim the forward-facing round cap at this slice's end junction.
+                // Not applied to the last slice — its downstream cap is a natural river terminus.
+                int trailJ = start + window.Count - 1;
+                if (trailJ < cps.Count - 1)
+                {
+                    var cutBox = BuildJunctionCutBox(cps, trailJ, river.Width, forward: true);
+                    if (cutBox != null)
+                    {
+                        sliceGeom = sliceGeom.Difference(cutBox);
+                        if (sliceGeom == null || sliceGeom.IsEmpty) continue;
+                    }
+                }
+
+                var slicePoly = sliceGeom is Polygon sp ? sp
+                    : sliceGeom is MultiPolygon smp
+                        ? (Polygon)smp.Geometries.OrderByDescending(g => g.Area).First()
+                        : null;
+                if (slicePoly == null) continue;
+
+                ids.Add(CreateRiverCell(map, ref nextCellId, slicePoly));
             }
 
-            return result;
+            Logger.Debug($"  River '{river.Name}': {ids.Count} river cells built from {cps.Count} control points.");
+            return ids;
         }
 
         /// <summary>
