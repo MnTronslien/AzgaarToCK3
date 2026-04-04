@@ -170,7 +170,8 @@ namespace Converter.Lemur.Rivers
                 var fullRibbon = BuildRibbon(cps, river.Width);
                 var ids = new List<int>();
 
-                for (int start = 0; start + 1 < cps.Count; start += ControlPointsPerRiverCell - 1)
+                int step = ControlPointsPerRiverCell - 1;
+                for (int start = 0; start + 1 < cps.Count; start += step)
                 {
                     var window = cps.Skip(start).Take(ControlPointsPerRiverCell).ToList();
                     if (window.Count < 2) continue;
@@ -178,6 +179,32 @@ namespace Converter.Lemur.Rivers
                     var sliceRibbon = BuildRibbon(window, river.Width);
                     Geometry sliceGeom = sliceRibbon.Intersection(fullRibbon);
                     if (sliceGeom == null || sliceGeom.IsEmpty) continue;
+
+                    // Leading cut: trim the backward-facing round cap at this slice's start junction.
+                    // Not applied to the first slice — its upstream cap is a natural river terminus.
+                    int leadJ = start;
+                    if (leadJ > 0)
+                    {
+                        var cutBox = BuildJunctionCutBox(cps, leadJ, river.Width, forward: false);
+                        if (cutBox != null)
+                        {
+                            sliceGeom = sliceGeom.Difference(cutBox);
+                            if (sliceGeom == null || sliceGeom.IsEmpty) continue;
+                        }
+                    }
+
+                    // Trailing cut: trim the forward-facing round cap at this slice's end junction.
+                    // Not applied to the last slice — its downstream cap is a natural river terminus.
+                    int trailJ = start + window.Count - 1;
+                    if (trailJ < cps.Count - 1)
+                    {
+                        var cutBox = BuildJunctionCutBox(cps, trailJ, river.Width, forward: true);
+                        if (cutBox != null)
+                        {
+                            sliceGeom = sliceGeom.Difference(cutBox);
+                            if (sliceGeom == null || sliceGeom.IsEmpty) continue;
+                        }
+                    }
 
                     var slicePoly = sliceGeom is Polygon sp ? sp
                         : sliceGeom is MultiPolygon smp
@@ -193,6 +220,53 @@ namespace Converter.Lemur.Rivers
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Builds a half-plane cutting box at interior junction cps[j].
+        /// The cut line passes through cps[j], perpendicular to the chord cps[j-1] → cps[j+1].
+        /// <paramref name="forward"/> = true  → box covers the half-plane toward cps[j+1]
+        ///                                       (trims the trailing round cap of slice A).
+        /// <paramref name="forward"/> = false → box covers the half-plane toward cps[j-1]
+        ///                                       (trims the leading round cap of slice B).
+        /// </summary>
+        private static Geometry? BuildJunctionCutBox(List<float[]> cps, int j, float width, bool forward)
+        {
+            if (j <= 0 || j >= cps.Count - 1) return null;
+
+            var prev = cps[j - 1];
+            var cur  = cps[j];
+            var next = cps[j + 1];
+
+            // Chord direction: from prev to next — the bisector direction at P
+            double cdx = (double)next[0] - (double)prev[0];
+            double cdy = (double)next[1] - (double)prev[1];
+            double len = Math.Sqrt(cdx * cdx + cdy * cdy);
+            if (len < 1e-10) return null;
+            cdx /= len;
+            cdy /= len;
+
+            // Cut line direction: perpendicular to chord
+            double nx = -cdy;
+            double ny =  cdx;
+
+            double px = (double)cur[0];
+            double py = (double)cur[1];
+
+            // halfN: how far the box extends along the cut line (covers full ribbon + margin)
+            double halfN = width * 2.0;
+            // extent: how far the box extends into the half-plane to remove (covers the full round cap)
+            double extent = width * 4.0;
+            double sign = forward ? 1.0 : -1.0;
+
+            var c1 = new Coordinate(px + nx * halfN,                        py + ny * halfN);
+            var c2 = new Coordinate(px - nx * halfN,                        py - ny * halfN);
+            var c3 = new Coordinate(px - nx * halfN + sign * cdx * extent,  py - ny * halfN + sign * cdy * extent);
+            var c4 = new Coordinate(px + nx * halfN + sign * cdx * extent,  py + ny * halfN + sign * cdy * extent);
+
+            var ring = GeoFactory.CreateLinearRing(new[] { c1, c2, c3, c4, c1 });
+            var box  = GeoFactory.CreatePolygon(ring);
+            return box.IsValid ? box : box.Buffer(0);
         }
 
         private static int CreateRiverCell(Map map, ref int nextCellId, Polygon poly)
