@@ -57,9 +57,12 @@ namespace Converter.Lemur
                 // Phase 2: Insert major river cells (must run before barony formation)
                 MajorRiverInserter.InsertMajorRivers(map, Settings.Instance.MajorRiverThreshold);
 
-                // Debug: visualize cells+neighbors after river insertion
-                await ImageUtility.DrawCellsWithNeighborLines(
-                    map.Cells!.Values.ToList(), map, "1b_cells_neighbors_post_rivers.png");
+                // Debug: visualize cells after river insertion (plain + neighbors + control points)
+                var majorRivers = map.Rivers!.Where(r => r.IsMajor(Settings.Instance.MajorRiverThreshold)).ToList();
+                await Task.WhenAll(
+                    ImageUtility.DrawCells(map.Cells!.Values.ToList(), map, "1b_cells_post_rivers.png"),
+                    ImageUtility.DrawCellsWithNeighborLines(map.Cells!.Values.ToList(), map, "1b_cells_neighbors_post_rivers.png"),
+                    ImageUtility.DrawMajorRiverControlPoints(majorRivers, map));
             }
 
             GenerateDuchies(map);

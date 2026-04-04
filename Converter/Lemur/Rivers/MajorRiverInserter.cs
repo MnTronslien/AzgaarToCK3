@@ -29,7 +29,8 @@ namespace Converter.Lemur.Rivers
                 return;
             }
 
-            Logger.Info($"Inserting major rivers: {majorRivers.Count} rivers above discharge threshold {majorThreshold}.");
+            Logger.Section("Inserting major rivers");
+            Logger.Info($"{majorRivers.Count} rivers above discharge threshold {majorThreshold}.");
 
             // Phase 1: carve ribbon geometry from land cells
             CarveRibbonsFromLandCells(map, majorRivers, out var cellReplacements);
@@ -224,7 +225,10 @@ namespace Converter.Lemur.Rivers
 
         /// <summary>
         /// Builds a half-plane cutting box at interior junction cps[j].
-        /// The cut line passes through cps[j], perpendicular to the chord cps[j-1] → cps[j+1].
+        /// The cut line passes through cps[j], perpendicular to the true angular bisector of
+        /// the incoming segment (prev→cur) and outgoing segment (cur→next).
+        /// Using normalized unit vectors ensures the bisector is angularly equidistant from both
+        /// segment perpendiculars regardless of segment length.
         /// <paramref name="forward"/> = true  → box covers the half-plane toward cps[j+1]
         ///                                       (trims the trailing round cap of slice A).
         /// <paramref name="forward"/> = false → box covers the half-plane toward cps[j-1]
@@ -238,15 +242,28 @@ namespace Converter.Lemur.Rivers
             var cur  = cps[j];
             var next = cps[j + 1];
 
-            // Chord direction: from prev to next — the bisector direction at P
-            double cdx = (double)next[0] - (double)prev[0];
-            double cdy = (double)next[1] - (double)prev[1];
+            // Normalize each segment direction independently so segment length does not bias the bisector.
+            double abx = (double)cur[0]  - (double)prev[0];
+            double aby = (double)cur[1]  - (double)prev[1];
+            double abLen = Math.Sqrt(abx * abx + aby * aby);
+            if (abLen < 1e-10) return null;
+            abx /= abLen; aby /= abLen;  // d_AB: unit vector A→B
+
+            double bcx = (double)next[0] - (double)cur[0];
+            double bcy = (double)next[1] - (double)cur[1];
+            double bcLen = Math.Sqrt(bcx * bcx + bcy * bcy);
+            if (bcLen < 1e-10) return null;
+            bcx /= bcLen; bcy /= bcLen;  // d_BC: unit vector B→C
+
+            // CL normal = normalize(d_AB + d_BC) — true angular bisector of the two travel directions.
+            double cdx = abx + bcx;
+            double cdy = aby + bcy;
             double len = Math.Sqrt(cdx * cdx + cdy * cdy);
-            if (len < 1e-10) return null;
+            if (len < 1e-10) return null;  // 180° reversal — degenerate
             cdx /= len;
             cdy /= len;
 
-            // Cut line direction: perpendicular to chord
+            // CL direction: perpendicular to the bisector normal
             double nx = -cdy;
             double ny =  cdx;
 
