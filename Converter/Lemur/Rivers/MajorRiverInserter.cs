@@ -40,6 +40,7 @@ namespace Converter.Lemur.Rivers
             int totalRiverCells = riverCellIds.Values.Sum(l => l.Count);
             Logger.Info($"Phase 2 complete: {totalRiverCells} river cells created.");
             AssertNoRiverCellOverlap(map, riverCellIds);
+            AssertRiverCellsCoverRibbon(map, riverCellIds);
 
             // Phase 3: wire river cell neighbors
             WireRiverNeighbors(map, riverCellIds);
@@ -168,7 +169,6 @@ namespace Converter.Lemur.Rivers
                 var cps = river.ControlPoints;
                 var fullRibbon = BuildRibbon(cps, river.Width);
                 var ids = new List<int>();
-                Geometry? claimedArea = null; // union of all accepted slice polygons so far
 
                 for (int start = 0; start + 1 < cps.Count; start += ControlPointsPerRiverCell - 1)
                 {
@@ -176,16 +176,8 @@ namespace Converter.Lemur.Rivers
                     if (window.Count < 2) continue;
 
                     var sliceRibbon = BuildRibbon(window, river.Width);
-                    // Clip to the full ribbon so slices don't bleed outside the river footprint
                     Geometry sliceGeom = sliceRibbon.Intersection(fullRibbon);
                     if (sliceGeom == null || sliceGeom.IsEmpty) continue;
-
-                    // Subtract already-claimed area to guarantee zero overlap with previous slices
-                    if (claimedArea != null)
-                    {
-                        sliceGeom = sliceGeom.Difference(claimedArea);
-                        if (sliceGeom == null || sliceGeom.IsEmpty) continue;
-                    }
 
                     var slicePoly = sliceGeom is Polygon sp ? sp
                         : sliceGeom is MultiPolygon smp
@@ -193,24 +185,7 @@ namespace Converter.Lemur.Rivers
                             : null;
                     if (slicePoly == null) continue;
 
-                    claimedArea = claimedArea == null ? slicePoly : claimedArea.Union(slicePoly);
-
-                    int id = nextCellId++;
-                    map.Cells[id] = new Cell
-                    {
-                        Id = id,
-                        GeoDataCoordinates = GeomToCoordinates(slicePoly),
-                        Neighbors = Array.Empty<int>(),
-                        IsRiverCell = true,
-                        Culture = 0,
-                        Religion = 0,
-                        Biome = 0,
-                        Area = 0,
-                        DistanceToCoast = 0,
-                        State = 0,
-                        AzProvince = 0,
-                    };
-                    ids.Add(id);
+                    ids.Add(CreateRiverCell(map, ref nextCellId, slicePoly));
                 }
 
                 result[river] = ids;
@@ -218,6 +193,21 @@ namespace Converter.Lemur.Rivers
             }
 
             return result;
+        }
+
+        private static int CreateRiverCell(Map map, ref int nextCellId, Polygon poly)
+        {
+            int id = nextCellId++;
+            map.Cells[id] = new Cell
+            {
+                Id = id,
+                GeoDataCoordinates = GeomToCoordinates(poly),
+                Neighbors = Array.Empty<int>(),
+                IsRiverCell = true,
+                Culture = 0, Religion = 0, Biome = 0, Area = 0,
+                DistanceToCoast = 0, State = 0, AzProvince = 0,
+            };
+            return id;
         }
 
         // ─── Phase 3 ──────────────────────────────────────────────────────────────
@@ -327,6 +317,46 @@ namespace Converter.Lemur.Rivers
                 Logger.Info("Phase 2 assertion OK: no river cell geometry overlaps.");
             else
                 Logger.Warning($"Phase 2 assertion FAILED: {violations} river cell overlap(s) detected.");
+        }
+
+        /// <summary>
+        /// Checks that the union of all river cells for each river covers the full ribbon area.
+        /// Reports coverage % per river; warns if any river falls below 99%.
+        /// </summary>
+        private static void AssertRiverCellsCoverRibbon(Map map, Dictionary<River, List<int>> riverCellIds)
+        {
+            foreach (var (river, ids) in riverCellIds)
+            {
+                if (ids.Count == 0) continue;
+
+                var ribbon = BuildRibbon(river.ControlPoints!, river.Width);
+                var ribbonArea = ribbon.Area;
+                if (ribbonArea <= 0) continue;
+
+                Geometry? cellUnion = null;
+                foreach (int id in ids)
+                {
+                    var poly = map.Cells.TryGetValue(id, out var cell) ? CellToPolygon(cell) : null;
+                    if (poly == null) continue;
+                    cellUnion = cellUnion == null ? (Geometry)poly : cellUnion.Union(poly);
+                }
+
+                if (cellUnion == null)
+                {
+                    Logger.Warning($"  [Assert] River '{river.Name}': no cell polygons to check coverage.");
+                    continue;
+                }
+
+                double coverageArea = cellUnion.Intersection(ribbon).Area;
+                double coveragePct = coverageArea / ribbonArea * 100.0;
+                double gapPct = 100.0 - coveragePct;
+
+                double gapArea = ribbonArea * gapPct / 100.0;
+                if (coveragePct >= 99.0)
+                    Logger.Info($"Phase 2 coverage OK: '{river.Name}' covers {coveragePct:F2}% of ribbon (gap {gapArea:F6} units²).");
+                else
+                    Logger.Warning($"  [Assert] River '{river.Name}' covers only {coveragePct:F2}% of ribbon (gap {gapArea:F6} units², ribbon total {ribbonArea:F4} units²).");
+            }
         }
 
         // ─── Helpers ──────────────────────────────────────────────────────────────
