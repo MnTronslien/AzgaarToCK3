@@ -34,6 +34,7 @@ namespace Converter.Lemur
             // ✅ Visualization checkpoint 1: Raw cells
             await ImageUtility.DrawCells(map.Cells!.Values.ToList(), map);
             await ImageUtility.DrawCellsWithNeighborLines(map.Cells!.Values.ToList(), map);
+            await ImageUtility.DrawCellsWithIds(map.Cells!.Values.ToList(), map);
 
             LinkCellsToBurgs(map);
 
