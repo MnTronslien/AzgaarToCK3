@@ -1,4 +1,5 @@
 using NetTopologySuite.Geometries;
+using NetTopologySuite.Operation.Distance;
 using Converter.Lemur.Entities;
 
 namespace Converter.Lemur.Rivers
@@ -52,7 +53,8 @@ namespace Converter.Lemur.Rivers
             }
 
             UpdateAllNeighborReferences(map, allReplacements);
-            Logger.Info($"Phase 1 complete: {totalLandSplits} land cells carved, {totalRiverCarved} tributary river cells trimmed.");
+            int burgNudges = NudgeBurgsOutOfRiver(map);
+            Logger.Info($"Phase 1 complete: {totalLandSplits} land cells carved, {totalRiverCarved} tributary river cells trimmed, {burgNudges} burgs nudged.");
 
             int totalRiverCells = riverCellIds.Values.Sum(l => l.Count);
             Logger.Info($"Phase 2 complete: {totalRiverCells} river cells created.");
@@ -69,6 +71,57 @@ namespace Converter.Lemur.Rivers
         }
 
         // ─── Helpers ──────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// For every land cell whose burg position now lies outside the cell polygon (displaced
+        /// by river carving), snaps the burg to the nearest point on the cell boundary then
+        /// nudges it inward toward the centroid by min(0.5, half the boundary-to-centroid distance).
+        /// Returns the number of burgs relocated.
+        /// </summary>
+        private static int NudgeBurgsOutOfRiver(Map map)
+        {
+            int count = 0;
+            foreach (var cell in map.Cells!.Values)
+            {
+                if (cell.Burg == null || cell.IsRiverCell) continue;
+
+                var poly = CellToPolygon(cell);
+                if (poly == null) continue;
+
+                var burgPt = GeoFactory.CreatePoint(
+                    new Coordinate(cell.Burg.Position.X, cell.Burg.Position.Y));
+
+                if (poly.Contains(burgPt)) continue; // still inside — nothing to do
+
+                // Nearest point on the cell boundary
+                var nearest = DistanceOp.NearestPoints(burgPt, poly.ExteriorRing);
+                var boundaryPt = nearest[1];
+
+                var centroid = poly.Centroid.Coordinate;
+                double dx = centroid.X - boundaryPt.X;
+                double dy = centroid.Y - boundaryPt.Y;
+                double distToCentroid = Math.Sqrt(dx * dx + dy * dy);
+
+                if (distToCentroid < 1e-10)
+                {
+                    // Degenerate cell — move straight to centroid
+                    cell.Burg.Position = new System.Numerics.Vector2((float)centroid.X, (float)centroid.Y);
+                }
+                else
+                {
+                    double epsilon = Math.Min(0.5, distToCentroid * 0.5);
+                    double nx = dx / distToCentroid;
+                    double ny = dy / distToCentroid;
+                    cell.Burg.Position = new System.Numerics.Vector2(
+                        (float)(boundaryPt.X + nx * epsilon),
+                        (float)(boundaryPt.Y + ny * epsilon));
+                }
+
+                Logger.Debug($"  Burg '{cell.Burg.Name}' nudged into cell {cell.Id} after river carving.");
+                count++;
+            }
+            return count;
+        }
 
         /// <summary>
         /// Topological sort: tributaries before the rivers they flow into.
