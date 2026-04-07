@@ -214,7 +214,7 @@ namespace Converter.Lemur
                 var cp = Helper.GeoToPixel(cx, cy, map);
 
                 drawables
-                    .FontPointSize(8)
+                    .FontPointSize(24)
                     .FillColor(MagickColors.Black)
                     .StrokeWidth(0)
                     .TextAlignment(TextAlignment.Center)

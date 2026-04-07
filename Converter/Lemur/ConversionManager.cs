@@ -34,7 +34,6 @@ namespace Converter.Lemur
             // ✅ Visualization checkpoint 1: Raw cells
             await ImageUtility.DrawCells(map.Cells!.Values.ToList(), map);
             await ImageUtility.DrawCellsWithNeighborLines(map.Cells!.Values.ToList(), map);
-            await ImageUtility.DrawCellsWithIds(map.Cells!.Values.ToList(), map);
 
             LinkCellsToBurgs(map);
 
@@ -65,6 +64,9 @@ namespace Converter.Lemur
                     ImageUtility.DrawCellsWithNeighborLines(map.Cells!.Values.ToList(), map, "1b_cells_neighbors_post_rivers.png"),
                     ImageUtility.DrawMajorRiverControlPoints(majorRivers, map));
             }
+
+            // ✅ Cell IDs after river insertion, before barony formation
+            await ImageUtility.DrawCellsWithIds(map.Cells!.Values.ToList(), map);
 
             GenerateDuchies(map);
             GenerateBaronies(map);
