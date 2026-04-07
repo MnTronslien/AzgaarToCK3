@@ -200,43 +200,120 @@ namespace Converter.Lemur.Rivers
                 }
                 else
                 {
-                    var newIds = new List<int>();
-                    bool burgAssigned = false;
+                    // River ribbon split this cell into exactly 2 pieces (the two pieces
+                    // are separated by the ribbon and cannot touch each other).
+                    // If the smaller piece is < 30% the area of the larger, absorb it into
+                    // its best geometric neighbor rather than creating a standalone sliver cell.
+                    var keepPiece = pieces.OrderByDescending(p => p.Area).First();
+                    var tinyPiece = pieces.OrderBy(p => p.Area).First();
 
-                    for (int k = 0; k < pieces.Count; k++)
+                    bool burgInTiny = false;
+                    if (cell.Burg != null)
                     {
-                        int newId   = nextCellId++;
-                        var newCell = CloneLandCell(cell, pieces[k], newId);
+                        var burgPt = GeoFactory.CreatePoint(
+                            new Coordinate(cell.Burg.Position.X, cell.Burg.Position.Y));
+                        burgInTiny = tinyPiece.Contains(burgPt) || tinyPiece.Distance(burgPt) < 1e-6;
+                    }
 
-                        if (cell.Burg != null && !burgAssigned)
+                    bool shouldMergeTiny = !burgInTiny
+                        && pieces.Count == 2
+                        && tinyPiece.Area / keepPiece.Area < 0.30;
+
+                    if (shouldMergeTiny)
+                    {
+                        // Find the neighbor with the most surface contact with the tiny piece
+                        Polygon? bestNeighborPoly = null;
+                        Cell?    bestNeighborCell = null;
+                        double   bestSharedArea   = 0;
+
+                        foreach (var nId in cell.Neighbors)
                         {
-                            var burgPt = GeoFactory.CreatePoint(
-                                new Coordinate(cell.Burg.Position.X, cell.Burg.Position.Y));
-                            if (pieces[k].Contains(burgPt) || pieces[k].Distance(burgPt) < 1e-6)
+                            if (!map.Cells.TryGetValue(nId, out var neighborCell)) continue;
+                            var neighborPoly = CellToPolygon(neighborCell);
+                            if (neighborPoly == null) continue;
+                            var shared = neighborPoly.Intersection(tinyPiece);
+                            if (shared.IsEmpty) continue;
+                            double sharedArea = shared.Area > 0 ? shared.Area : shared.Length;
+                            if (sharedArea > bestSharedArea)
                             {
-                                newCell.Burg      = cell.Burg;
-                                newCell.Burg.Cell = newCell;
-                                burgAssigned      = true;
+                                bestSharedArea   = sharedArea;
+                                bestNeighborCell = neighborCell;
+                                bestNeighborPoly = neighborPoly;
                             }
                         }
 
-                        map.Cells[newId] = newCell;
-                        newIds.Add(newId);
+                        if (bestNeighborCell == null || bestNeighborPoly == null)
+                        {
+                            Logger.Error($"  Cell {cell.Id}: tiny split piece has no touching neighbor — data integrity problem. Creating it as a cell anyway.");
+                            shouldMergeTiny = false; // fall through to normal path below
+                        }
+                        else
+                        {
+                            bestNeighborCell.GeoDataCoordinates = GeomToCoordinates(bestNeighborPoly.Union(tinyPiece));
+                            Logger.Verbose($"  Cell {cell.Id} (AzProvince {cell.AzProvince}): tiny piece (area={tinyPiece.Area:F2}) absorbed into neighbor {bestNeighborCell.Id}.");
+                        }
                     }
 
-                    if (cell.Burg != null && !burgAssigned)
+                    if (shouldMergeTiny)
                     {
-                        var largestId = newIds
-                            .OrderByDescending(id => CellToPolygon(map.Cells[id])?.Area ?? 0)
-                            .First();
-                        map.Cells[largestId].Burg      = cell.Burg;
-                        map.Cells[largestId].Burg!.Cell = map.Cells[largestId];
-                        Logger.Debug($"  Burg '{cell.Burg.Name}' fallback-assigned to largest split piece {largestId}.");
-                    }
+                        // Only register keepPiece as a new cell
+                        int newId   = nextCellId++;
+                        var newCell = CloneLandCell(cell, keepPiece, newId);
 
-                    map.Cells.Remove(cell.Id);
-                    cellReplacements[cell.Id] = newIds;
-                    landSplits++;
+                        if (cell.Burg != null)
+                        {
+                            newCell.Burg      = cell.Burg;
+                            newCell.Burg.Cell = newCell;
+                        }
+
+                        map.Cells[newId] = newCell;
+                        Logger.Verbose($"  Cell {cell.Id} (AzProvince {cell.AzProvince}) split into [{newId}] (tiny piece merged)");
+                        map.Cells.Remove(cell.Id);
+                        cellReplacements[cell.Id] = new List<int> { newId };
+                        landSplits++;
+                    }
+                    else
+                    {
+                        // Normal split: create a cell for each piece
+                        var newIds = new List<int>();
+                        bool burgAssigned = false;
+
+                        for (int k = 0; k < pieces.Count; k++)
+                        {
+                            int newId   = nextCellId++;
+                            var newCell = CloneLandCell(cell, pieces[k], newId);
+
+                            if (cell.Burg != null && !burgAssigned)
+                            {
+                                var burgPt = GeoFactory.CreatePoint(
+                                    new Coordinate(cell.Burg.Position.X, cell.Burg.Position.Y));
+                                if (pieces[k].Contains(burgPt) || pieces[k].Distance(burgPt) < 1e-6)
+                                {
+                                    newCell.Burg      = cell.Burg;
+                                    newCell.Burg.Cell = newCell;
+                                    burgAssigned      = true;
+                                }
+                            }
+
+                            map.Cells[newId] = newCell;
+                            newIds.Add(newId);
+                        }
+
+                        if (cell.Burg != null && !burgAssigned)
+                        {
+                            var largestId = newIds
+                                .OrderByDescending(id => CellToPolygon(map.Cells[id])?.Area ?? 0)
+                                .First();
+                            map.Cells[largestId].Burg      = cell.Burg;
+                            map.Cells[largestId].Burg!.Cell = map.Cells[largestId];
+                            Logger.Debug($"  Burg '{cell.Burg.Name}' fallback-assigned to largest split piece {largestId}.");
+                        }
+
+                        Logger.Verbose($"  Cell {cell.Id} (AzProvince {cell.AzProvince}) split into [{string.Join(", ", newIds)}]");
+                        map.Cells.Remove(cell.Id);
+                        cellReplacements[cell.Id] = newIds;
+                        landSplits++;
+                    }
                 }
             }
 
