@@ -229,6 +229,7 @@ namespace Converter.Lemur.Rivers
                         foreach (var nId in cell.Neighbors)
                         {
                             if (!map.Cells.TryGetValue(nId, out var neighborCell)) continue;
+                            if (neighborCell.IsRiverCell) continue; // never merge a land sliver into a river cell
                             var neighborPoly = CellToPolygon(neighborCell);
                             if (neighborPoly == null) continue;
                             var shared = neighborPoly.Intersection(tinyPiece);
