@@ -78,6 +78,79 @@ namespace Converter.Lemur.Rivers
         /// nudges it inward toward the centroid by min(0.5, half the boundary-to-centroid distance).
         /// Returns the number of burgs relocated.
         /// </summary>
+        /// <summary>
+        /// After all carving for a river is complete, merge each deferred tiny piece into
+        /// the land neighbor with the most surface contact. Runs after the main carving loop
+        /// so all split results (e.g. 800/801 from a subsequently carved neighbor) are stable.
+        /// </summary>
+        private static int MergeTinyPieces(
+            Map map,
+            List<(int tinyCellId, int originalCellId)> tinyPieces,
+            Dictionary<int, List<int>> cellReplacements)
+        {
+            int merged = 0;
+            foreach (var (tinyCellId, originalCellId) in tinyPieces)
+            {
+                if (!map.Cells.TryGetValue(tinyCellId, out var tinyCell)) continue;
+                var tinyPoly = CellToPolygon(tinyCell);
+                if (tinyPoly == null) continue;
+
+                // Gather candidate neighbor IDs: original neighbors + follow cellReplacements
+                // for any that were themselves carved during this pass.
+                var candidateIds = new HashSet<int>();
+                foreach (var nId in tinyCell.Neighbors)
+                {
+                    if (map.Cells.ContainsKey(nId))
+                        candidateIds.Add(nId);
+                    if (cellReplacements.TryGetValue(nId, out var replacements))
+                        foreach (var rId in replacements)
+                            candidateIds.Add(rId);
+                }
+                candidateIds.Remove(tinyCellId);
+
+                // Find the land neighbor with the most surface contact
+                Cell?    bestCell   = null;
+                Polygon? bestPoly   = null;
+                double   bestShared = 0;
+
+                foreach (var nId in candidateIds)
+                {
+                    if (!map.Cells.TryGetValue(nId, out var neighborCell)) continue;
+                    if (neighborCell.IsRiverCell) continue;
+                    var neighborPoly = CellToPolygon(neighborCell);
+                    if (neighborPoly == null) continue;
+                    var shared = neighborPoly.Intersection(tinyPoly);
+                    if (shared.IsEmpty) continue;
+                    double measure = shared.Area > 0 ? shared.Area : shared.Length;
+                    if (measure > bestShared)
+                    {
+                        bestShared = measure;
+                        bestCell   = neighborCell;
+                        bestPoly   = neighborPoly;
+                    }
+                }
+
+                if (bestCell == null || bestPoly == null)
+                {
+                    Logger.Error($"  Tiny piece {tinyCellId} (from original {originalCellId}): no touching land neighbor found — leaving as cell.");
+                    continue;
+                }
+
+                var unionResult = bestPoly.Union(tinyPoly);
+                if (unionResult is MultiPolygon)
+                    Logger.Error($"  Tiny piece {tinyCellId}: union with {bestCell.Id} produced MultiPolygon — geometry may be lost.");
+                bestCell.GeoDataCoordinates = GeomToCoordinates(unionResult);
+
+                map.Cells.Remove(tinyCellId);
+                if (cellReplacements.TryGetValue(originalCellId, out var repList))
+                    repList.Remove(tinyCellId);
+
+                Logger.Verbose($"  Tiny piece {tinyCellId} (area={tinyPoly.Area:F2}, from {originalCellId}) merged into {bestCell.Id}.");
+                merged++;
+            }
+            return merged;
+        }
+
         private static int NudgeBurgsOutOfRiver(Map map)
         {
             int count = 0;
@@ -175,6 +248,9 @@ namespace Converter.Lemur.Rivers
                 .ToList();
 
             int landSplits = 0;
+            // Tiny pieces deferred for post-carve merging: (tinyCellId, originalCellId)
+            var tinyPiecesToMerge = new List<(int tinyCellId, int originalCellId)>();
+
             foreach (var (cell, cellPoly) in landCandidates)
             {
                 if (!map.Cells.ContainsKey(cell.Id)) continue;
@@ -200,77 +276,43 @@ namespace Converter.Lemur.Rivers
                 }
                 else
                 {
-                    // River ribbon split this cell into exactly 2 pieces (the two pieces
-                    // are separated by the ribbon and cannot touch each other).
-                    // If the smaller piece is < 30% the area of the larger, absorb it into
-                    // its best geometric neighbor rather than creating a standalone sliver cell.
                     var keepPiece = pieces.OrderByDescending(p => p.Area).First();
                     var tinyPiece = pieces.OrderBy(p => p.Area).First();
 
                     bool burgInTiny = false;
-                    if (cell.Burg != null)
+                    if (cell.Burg != null && pieces.Count == 2)
                     {
                         var burgPt = GeoFactory.CreatePoint(
                             new Coordinate(cell.Burg.Position.X, cell.Burg.Position.Y));
                         burgInTiny = tinyPiece.Contains(burgPt) || tinyPiece.Distance(burgPt) < 1e-6;
                     }
 
-                    bool shouldMergeTiny = !burgInTiny
-                        && pieces.Count == 2
+                    bool deferTinyMerge = pieces.Count == 2
+                        && !burgInTiny
                         && tinyPiece.Area / keepPiece.Area < 0.30;
 
-                    if (shouldMergeTiny)
+                    if (deferTinyMerge)
                     {
-                        // Find the neighbor with the most surface contact with the tiny piece
-                        Polygon? bestNeighborPoly = null;
-                        Cell?    bestNeighborCell = null;
-                        double   bestSharedArea   = 0;
-
-                        foreach (var nId in cell.Neighbors)
-                        {
-                            if (!map.Cells.TryGetValue(nId, out var neighborCell)) continue;
-                            if (neighborCell.IsRiverCell) continue; // never merge a land sliver into a river cell
-                            var neighborPoly = CellToPolygon(neighborCell);
-                            if (neighborPoly == null) continue;
-                            var shared = neighborPoly.Intersection(tinyPiece);
-                            if (shared.IsEmpty) continue;
-                            double sharedArea = shared.Area > 0 ? shared.Area : shared.Length;
-                            if (sharedArea > bestSharedArea)
-                            {
-                                bestSharedArea   = sharedArea;
-                                bestNeighborCell = neighborCell;
-                                bestNeighborPoly = neighborPoly;
-                            }
-                        }
-
-                        if (bestNeighborCell == null || bestNeighborPoly == null)
-                        {
-                            Logger.Error($"  Cell {cell.Id}: tiny split piece has no touching neighbor — data integrity problem. Creating it as a cell anyway.");
-                            shouldMergeTiny = false; // fall through to normal path below
-                        }
-                        else
-                        {
-                            bestNeighborCell.GeoDataCoordinates = GeomToCoordinates(bestNeighborPoly.Union(tinyPiece));
-                            Logger.Verbose($"  Cell {cell.Id} (AzProvince {cell.AzProvince}): tiny piece (area={tinyPiece.Area:F2}) absorbed into neighbor {bestNeighborCell.Id}.");
-                        }
-                    }
-
-                    if (shouldMergeTiny)
-                    {
-                        // Only register keepPiece as a new cell
-                        int newId   = nextCellId++;
-                        var newCell = CloneLandCell(cell, keepPiece, newId);
+                        // Create both cells now; tiny piece will be merged in the post-carve pass
+                        // once all carving results for this river are stable.
+                        int keepId = nextCellId++;
+                        int tinyId = nextCellId++;
+                        var keepCell = CloneLandCell(cell, keepPiece, keepId);
+                        var tinyCell = CloneLandCell(cell, tinyPiece, tinyId);
 
                         if (cell.Burg != null)
                         {
-                            newCell.Burg      = cell.Burg;
-                            newCell.Burg.Cell = newCell;
+                            keepCell.Burg      = cell.Burg;
+                            keepCell.Burg.Cell = keepCell;
                         }
 
-                        map.Cells[newId] = newCell;
-                        Logger.Verbose($"  Cell {cell.Id} (AzProvince {cell.AzProvince}) split into [{newId}] (tiny piece merged)");
+                        map.Cells[keepId] = keepCell;
+                        map.Cells[tinyId] = tinyCell;
+                        tinyPiecesToMerge.Add((tinyId, cell.Id));
+
+                        Logger.Verbose($"  Cell {cell.Id} (AzProvince {cell.AzProvince}) split into [{keepId}] + deferred tiny [{tinyId}]");
                         map.Cells.Remove(cell.Id);
-                        cellReplacements[cell.Id] = new List<int> { newId };
+                        cellReplacements[cell.Id] = new List<int> { keepId, tinyId };
                         landSplits++;
                     }
                     else
@@ -318,7 +360,9 @@ namespace Converter.Lemur.Rivers
                 }
             }
 
-            Logger.Debug($"  River '{river.Name}': {landSplits} land cells carved.");
+            // Post-carve pass: merge deferred tiny pieces now that all carving results are stable
+            int tinyMerged = MergeTinyPieces(map, tinyPiecesToMerge, cellReplacements);
+            Logger.Debug($"  River '{river.Name}': {landSplits} land cells carved, {tinyMerged} tiny pieces merged.");
 
             // ── River cells from previously processed tributaries ─────────────────
             var riverCandidates = map.Cells.Values
