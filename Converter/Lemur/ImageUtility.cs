@@ -187,6 +187,51 @@ namespace Converter.Lemur
             RegisterGeneratedImage(path);
         }
 
+        public static async Task DrawCellsWithIds(List<Entities.Cell> cells, Entities.Map map)
+        {
+            if (!Settings.Instance.GenerateDebugImages) return;
+
+            var settings = new MagickReadSettings() { Width = Map.MapWidth, Height = Map.MapHeight };
+            using var img = new MagickImage("xc:white", settings);
+            var drawables = new Drawables();
+
+            // Pass 1: cell outlines
+            foreach (var cell in cells)
+            {
+                drawables
+                    .DisableStrokeAntialias()
+                    .StrokeWidth(1)
+                    .StrokeColor(MagickColors.Black)
+                    .FillOpacity(new Percentage(0))
+                    .Polygon(cell.GeoDataCoordinates.Select(n => Helper.GeoToPixel(n[0], n[1], map)));
+            }
+
+            // Pass 2: ID labels at cell centroids
+            foreach (var cell in cells)
+            {
+                var cx = cell.GeoDataCoordinates.Average(n => n[0]);
+                var cy = cell.GeoDataCoordinates.Average(n => n[1]);
+                var cp = Helper.GeoToPixel(cx, cy, map);
+
+                drawables
+                    .FontPointSize(24)
+                    .FillColor(MagickColors.Black)
+                    .StrokeWidth(0)
+                    .TextAlignment(TextAlignment.Center)
+                    .Text(cp.X, cp.Y, cell.Id.ToString());
+            }
+
+            img.Draw(drawables);
+
+            var path = Helper.GetPath(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "AzgaarToCK3", "debug", GetDebugFolderName(), "1_cells_ids.png");
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            await img.WriteAsync(path);
+            Logger.Debug($"Saved cells+ids image to '{path}'");
+            RegisterGeneratedImage(path);
+        }
+
         public static async Task DrawProvincesImage(Entities.Map map)
         {
             Logger.Info("Drawing provinces image...");

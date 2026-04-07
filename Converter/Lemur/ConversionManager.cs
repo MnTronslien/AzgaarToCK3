@@ -65,6 +65,9 @@ namespace Converter.Lemur
                     ImageUtility.DrawMajorRiverControlPoints(majorRivers, map));
             }
 
+            // ✅ Cell IDs after river insertion, before barony formation
+            await ImageUtility.DrawCellsWithIds(map.Cells!.Values.ToList(), map);
+
             GenerateDuchies(map);
             GenerateBaronies(map);
 
