@@ -17,30 +17,32 @@ Rivers are optional — export **Rivers** as `.geojson` if you want them drawn o
 
 Put all exported files in the same folder.
 
+> **Major rivers vs minor rivers:** What rivers are major vs minor is determined by the `MajorRiverThreshold` set in `settings.json`. This value matches the discharge value of your rivers in Azgaar. See [CONVERSION_RULES.md](CONVERSION_RULES.md#major-rivers) for how this works and tips for best results.
+
 ---
 
 ## 2. Run the converter
+When you are ready to run the converter there are two ways of doing it.
 
-Point the converter at that folder with `-d`:
-
-```
-./ConsoleUI -d "C:/path/to/your/azgaar/exports"
-```
+### Launch it directly
+Just launch the .exe file or your platform's version thereof as you normally would. Edit the `settings.json` to tweak the converter. This will open a terminal window where the converter displays its output.
 
 The converter auto-detects the most recent `.json`, cells `.geojson`, and rivers `.geojson` in that directory.
 
 On first run you'll be prompted for your CK3 install path, mods directory, and a mod name. These are saved to `settings.json` — subsequent runs need no prompts.
 
-**Skip rivers** (faster, useful during iteration):
+### Using CLI
+
+Point the converter at the Azgaar folder with `-d`:
 ```
-./ConsoleUI -d "..." --no-rivers
+./ConsoleUI -d "C:/path/to/your/azgaar/exports"
 ```
 
-**Reproducible output** — pass a seed to get the same cultures and faiths every run. The seed controls culture pillars, traditions, theme bundles, phenotype distributions, and faith doctrines. Title generation and character names are fully deterministic regardless of seed (CK3 assigns names from culture name lists at game start).
-```
-./ConsoleUI -d "..." --seed 12345
-```
+For a full list of supported arguments see usage with:
 
+```
+./ConsoleUI --help
+```
 ---
 
 ## 3. Enable the mod in CK3
@@ -52,39 +54,6 @@ On first run you'll be prompted for your CK3 install path, mods directory, and a
 
 ---
 
-## Common options
-
-| Flag | What it does |
-|------|-------------|
-| `-d <dir>` | Auto-detect input files in directory (recommended) |
-| `-j`, `-g`, `-r` | Explicit paths to `.json`, cells `.geojson`, rivers `.geojson` |
-| `--seed <N>` | Fix the random seed for reproducible output |
-| `--no-rivers` | Skip river drawing (faster runs) |
-| `--log-level <level>` | `Verbose` / `Debug` / `Info` / `Warning` / `Error` |
-| `--no-wipe` | Don't wipe the mod output folder before converting |
-| `--help` | Full flag reference |
-
-See [CONFIGURATION.md](CONFIGURATION.md) for the complete settings reference.
-
----
-
-## Test data
-
-The repo includes several test datasets under `TestData/`. Each lives in its own subdirectory — use `-d` to point at one:
-
-```
-./ConsoleUI -d "TestData/Oncyia" --no-rivers
-```
-
-| Dataset | Notes |
-|---------|-------|
-| `Oncyia/` | Primary test map, includes rivers |
-| `Minimum Rivers Test/` | Small map for river testing |
-| `Handcrafted Edge Cases/` | Stress-tests edge cases |
-| `10k Touria/` | Large map (~10k cells), no rivers |
-
----
-
 ## Debug images
 
 With `GenerateDebugImages = true` in `settings.json` (default), the converter saves intermediate map images to:
@@ -93,4 +62,4 @@ With `GenerateDebugImages = true` in `settings.json` (default), the converter sa
 %LOCALAPPDATA%\AzgaarToCK3\debug\<mapname>_<timestamp>\
 ```
 
-Useful for diagnosing province layout, river paths, and cell assignment.
+Useful for diagnosing province layout, river paths, and cell assignment without needing to launch CK3.

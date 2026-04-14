@@ -57,7 +57,8 @@ Explicit paths (`-j`, `-g`, `-r`) always override directory auto-detection.
 | Key | CLI | Type | Default | Description |
 |-----|-----|------|---------|-------------|
 | `EnableRivers` | `--no-rivers` | bool | `true` | Draw rivers to the province map |
-| `MajorRiverThreshold` | — | float | `999999` | Discharge threshold for major rivers (effectively disabled — major rivers are not yet implemented) |
+| `MajorRiverThreshold` | — | float | `999999` | Azgaar discharge value above which a river is treated as a major navigable river. Rivers at or above this threshold are carved into the cell map as river provinces. Set just below the discharge of the rivers you want navigable (e.g. `1000`). Default is effectively disabled — all rivers are drawn as minor. |
+| `RiverProvinceCellCount` | — | int | `2` | Width of the carved river ribbon in cells. Higher values produce wider rivers and more cell carving. `2` is the recommended value for most maps. |
 
 ---
 
