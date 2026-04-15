@@ -249,7 +249,7 @@ namespace Converter.Lemur
 
             Logger.Section("Generating sea zones");
             var seaCellsById = map.Cells!.Values
-                .Where(c => !Cell.IsDryLand(c.Type))
+                .Where(c => !Cell.IsDryLand(c.Type) && !c.IsRiverCell)
                 .ToDictionary(c => c.Id);
 
             var unassigned = new HashSet<int>(seaCellsById.Keys);
