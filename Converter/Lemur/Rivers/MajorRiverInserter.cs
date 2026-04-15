@@ -632,10 +632,9 @@ namespace Converter.Lemur.Rivers
                 for (int i = 0; i < ordered.Count; i += step)
                 {
                     var bucket = ordered.Skip(i).Take(step).ToList();
-                    var provinceName = $"{river.Name} {i / step + 1}";
-                    var province = new MajorRiverProvince(nextProvinceId++, bucket, provinceName, river.Id);
+                    var province = new MajorRiverProvince(nextProvinceId++, bucket, river.Name, river.Id);
                     map.MajorRiverProvinces.Add(province);
-                    Logger.Debug($"  Province '{provinceName}': {bucket.Count} cells, id {province.Id}");
+                    Logger.Debug($"  Province '{river.Name}' {i / step + 1}: {bucket.Count} cells, id {province.Id}");
                 }
             }
         }
