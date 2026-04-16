@@ -1,4 +1,5 @@
 using NetTopologySuite.Geometries;
+using NetTopologySuite.Index.Strtree;
 using NetTopologySuite.Operation.Distance;
 using Converter.Lemur.Entities;
 
@@ -580,6 +581,12 @@ namespace Converter.Lemur.Rivers
                 kv => kv.Key,
                 kv => CellToPolygon(kv.Value));
 
+            // Build spatial index — replaces O(N²) inner loop with O(log N + k) queries
+            var index = new STRtree<int>();
+            foreach (var (id, poly) in polyCache)
+                if (poly != null)
+                    index.Insert(poly.EnvelopeInternal, id);
+
             foreach (var (river, ids) in riverCellIds)
             {
                 if (ids.Count == 0) continue;
@@ -590,18 +597,25 @@ namespace Converter.Lemur.Rivers
                     if (!map.Cells.TryGetValue(rcId, out var rc)) continue;
                     if (!polyCache.TryGetValue(rcId, out var rcPoly) || rcPoly == null) continue;
 
-                    foreach (var (otherId, otherPoly) in polyCache)
+                    // Shared filter: given a candidate otherId, does it pass all wiring criteria?
+                    bool Qualifies(int otherId)
                     {
-                        if (otherId == rcId || otherPoly == null) continue;
+                        if (otherId == rcId) return false;
+                        if (!polyCache.TryGetValue(otherId, out var otherPoly) || otherPoly == null) return false;
                         // Skip river cells from other rivers — don't cross-wire different rivers
-                        if (map.Cells.TryGetValue(otherId, out var other) &&
-                            other.IsRiverCell && !sameRiverSet.Contains(otherId))
-                            continue;
-
-                        if (!rcPoly.Intersects(otherPoly)) continue;
+                        if (map.Cells.TryGetValue(otherId, out var other) && other.IsRiverCell && !sameRiverSet.Contains(otherId)) return false;
+                        if (!rcPoly.Intersects(otherPoly)) return false;
                         var shared = rcPoly.Intersection(otherPoly);
-                        if (shared == null || shared.IsEmpty || shared.Dimension < Dimension.Curve) continue;
+                        return shared != null && !shared.IsEmpty && shared.Dimension >= Dimension.Curve;
+                    }
 
+                    var candidates = index.Query(rcPoly.EnvelopeInternal)
+                        .Where(Qualifies)
+                        .ToHashSet();
+
+                    foreach (var otherId in candidates)
+                    {
+                        map.Cells.TryGetValue(otherId, out var other);
                         if (!rc.Neighbors.Contains(otherId))
                             rc.Neighbors = rc.Neighbors.Append(otherId).ToArray();
                         if (other != null && !other.Neighbors.Contains(rcId))
