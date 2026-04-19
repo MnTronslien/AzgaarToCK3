@@ -48,12 +48,13 @@ jobs:
           - os: windows-latest
             rid: win-x64
             aot: true
-          - os: ubuntu-latest
-            rid: linux-x64
-            aot: false
-          - os: macos-latest
-            rid: osx-x64
-            aot: false
+          # linux/mac disabled — no test hardware available to verify releases
+          # - os: ubuntu-latest
+          #   rid: linux-x64
+          #   aot: false
+          # - os: macos-latest
+          #   rid: osx-x64
+          #   aot: false
 
     runs-on: ${{ matrix.os }}
 
