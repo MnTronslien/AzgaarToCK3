@@ -94,6 +94,12 @@ public class Settings
     public float MajorRiverThreshold { get; set; } = 999999f;  // Very high for testing - all rivers will be minor
 
     /// <summary>
+    /// Number of river cells per major river province segment.
+    /// Each major river is divided into multiple MajorRiverProvince objects of this size.
+    /// </summary>
+    public int RiverProvinceCellCount { get; set; } = 2;
+
+    /// <summary>
     /// Target area per sea zone (Azgaar cell-area units). Zone grows until it hits this.
     /// </summary>
     public int SeaZoneTargetArea { get; set; } = 25000;

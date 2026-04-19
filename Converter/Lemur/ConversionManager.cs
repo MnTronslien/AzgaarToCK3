@@ -54,10 +54,19 @@ namespace Converter.Lemur
                     Settings.Instance.MajorRiverThreshold,
                     map);
 
-                // Phase 2 (future): Process major rivers (complex, cell splitting)
-                // var majorRivers = map.Rivers.Where(r => r.IsMajor(Settings.Instance.MajorRiverThreshold)).ToList();
-                // await MajorRiverProcessor.ProcessMajorRivers(majorRivers, map);
+                // Phase 2: Insert major river cells (must run before barony formation)
+                MajorRiverInserter.InsertMajorRivers(map, Settings.Instance.MajorRiverThreshold);
+
+                // Debug: visualize cells after river insertion (plain + neighbors + control points)
+                var majorRivers = map.Rivers!.Where(r => r.IsMajor(Settings.Instance.MajorRiverThreshold)).ToList();
+                await Task.WhenAll(
+                    ImageUtility.DrawCells(map.Cells!.Values.ToList(), map, "1b_cells_post_rivers.png"),
+                    ImageUtility.DrawCellsWithNeighborLines(map.Cells!.Values.ToList(), map, "1b_cells_neighbors_post_rivers.png"),
+                    ImageUtility.DrawMajorRiverControlPoints(majorRivers, map));
             }
+
+            // ✅ Cell IDs after river insertion, before barony formation
+            await ImageUtility.DrawCellsWithIds(map.Cells!.Values.ToList(), map);
 
             GenerateDuchies(map);
             GenerateBaronies(map);
@@ -92,8 +101,10 @@ namespace Converter.Lemur
                 .Select(w2 => map.AllProvinces!.IndexOf(w2) + 1);
             var farSeaZoneIndices = map.FarSeaZones!
                 .Select(fz => map.AllProvinces!.IndexOf(fz) + 1);
+            var riverProvinceIndices = map.MajorRiverProvinces
+                .Select(rp => map.AllProvinces!.IndexOf(rp) + 1);
             if (w.DefaultMap)
-                await DefaultMapWriter.Write(seaZoneIndices, wastelandIndices, farSeaZoneIndices, Settings.OutputDirectory);
+                await DefaultMapWriter.Write(seaZoneIndices, wastelandIndices, farSeaZoneIndices, riverProvinceIndices, Settings.OutputDirectory);
 
             GenerateBaronyAdjacency(map);
             GenerateCounties(map);
@@ -238,7 +249,7 @@ namespace Converter.Lemur
 
             Logger.Section("Generating sea zones");
             var seaCellsById = map.Cells!.Values
-                .Where(c => !Cell.IsDryLand(c.Type))
+                .Where(c => !Cell.IsDryLand(c.Type) && !c.IsRiverCell)
                 .ToDictionary(c => c.Id);
 
             var unassigned = new HashSet<int>(seaCellsById.Keys);
@@ -380,6 +391,7 @@ namespace Converter.Lemur
             List<IProvince> allProvinces = new();
             allProvinces.AddRange(map.Baronies!);
             allProvinces.AddRange(map.Wastelands!);
+            allProvinces.AddRange(map.MajorRiverProvinces);
             allProvinces.AddRange(map.SeaZones!);
             allProvinces.AddRange(map.FarSeaZones!);
 

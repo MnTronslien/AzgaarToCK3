@@ -1,6 +1,4 @@
 # Roadmap
-
-An honest account of what the converter produces today, what it doesn't, and what's planned.
 For bug reports and feature requests, see the [Issues tab](https://github.com/MnTronslien/AzgaarToCK3/issues).
 
 ---
@@ -9,11 +7,13 @@ For bug reports and feature requests, see the [Issues tab](https://github.com/Mn
 
 ### Map
 - Complete 5-tier title hierarchy: Barony → County → Duchy → Kingdom → Empire
-- 1,000+ baronies from burg-based mapping (exact 1:1)
+- Handles large maps
 - Population-balanced county grouping via graph partitioning
 - De jure capitals set at all tiers; baronies and counties ordered capital-first
 - Heightmap generated from Azgaar elevation data (all 4 CK3 files)
+    - But looks ugly
 - Minor rivers drawn via A\* pathfinding with correct tributary connections
+- Major navigable rivers carved into the cell map as river provinces — barony borders
 - Map object locators (buildings, sieges, combat, unit stacks) placed at Azgaar burg positions, nudged inland from coastlines
 
 ### Cultures
@@ -49,14 +49,11 @@ See the [Issues tab](https://github.com/MnTronslien/AzgaarToCK3/issues).
 **Province terrain — all provinces are plains.**
 Azgaar has rich biome data. None of it maps to CK3 terrain types yet. Every province renders as plains regardless of geography.
 
-**Major rivers not processed.**
-Minor rivers draw correctly. Major/navigable rivers — the kind that create crossing penalties — are not yet implemented.
-
 **Sea crossing adjacencies not generated.**
-`adjacencies.csv` is empty. Explicit strait and river crossing connections are absent; naval movement works through sea zone pixels only.
+`adjacencies.csv` is empty. Explicit strait and river crossing connections are absent; naval movement works through sea zone pixels only. More important now that major rivers are implemented.
 
 **No one holds empire titles at game start.**
-Empires exist as de jure structure only. Kings and dukes start independent; the empire tier is unclaimed.
+Empires exist as de jure structure only. Kings and dukes start independent; the empire tier is unclaimed. Look to
 
 **Ruler demesne sizes are hardcoded.**
 All rulers hold 1 county (weak kings by default). No setting to scale this up yet.
@@ -75,7 +72,6 @@ CK3 has regional textures (Mediterranean, Steppe, MENA, etc.). Every province cu
 ## Planned
 
 - Terrain types from Azgaar biome data
-- Major river processing
 - `adjacencies.csv` — sea and strait crossing connections
 - Per-region graphical regions from biome/climate data
 - GFX bundle selection from Azgaar `nameBase`
