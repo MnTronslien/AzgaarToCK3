@@ -159,7 +159,10 @@ namespace Converter.Lemur
             if (w.ProvinceTerrain)
                 await ProvinceTerrainWriter.Write(map, Settings.OutputDirectory);
             if (w.TerrainMasks)
-                await TerrainMaskWriter.Write(map, Settings.OutputDirectory);
+            {
+                var terrainMasks = TerrainMaskPreparer.Prepare(map);
+                await TerrainMaskWriter.Write(terrainMasks, map, Settings.Instance.TotalConversionSandboxPath, Settings.OutputDirectory);
+            }
             if (w.Flatmap)
                 await FlatmapWriter.Write(map, Settings.Instance.AzgaarSvgPath, Settings.OutputDirectory);
             if (w.MapStaticFiles)
