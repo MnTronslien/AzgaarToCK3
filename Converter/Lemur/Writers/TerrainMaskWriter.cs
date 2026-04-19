@@ -5,36 +5,18 @@ namespace Converter.Lemur.Writers;
 
 public static class TerrainMaskWriter
 {
-    // Maps mask filename → list of Azgaar biome ints that contribute white pixels to it.
-    // Source: upstream BiomeConverter.cs + inspection of UpstreamTest gfx/map/terrain/.
-    private static readonly Dictionary<string, int[]> BiomeMasks = new()
+    public static async Task Write(
+        IReadOnlyList<TerrainMaskEntry> masks,
+        L.Map map,
+        string tcsSandboxPath,
+        string outputDirectory)
     {
-        ["desert_01_mask.png"]          = new[] { 1 },
-        ["mountain_02_desert_mask.png"] = new[] { 2 },
-        ["plains_01_mask.png"]          = new[] { 3, 4 },
-        ["farmland_01_mask.png"]        = new[] { 5 },
-        ["forest_leaf_01_mask.png"]     = new[] { 6 },
-        ["forest_jungle_01_mask.png"]   = new[] { 7 },
-        ["forest_pine_01_mask.png"]     = new[] { 8, 9 },
-        ["mountain_02_snow_mask.png"]   = new[] { 10 },
-        ["mountain_02_c_snow_mask.png"] = new[] { 11 },
-        ["wetlands_02_mask.png"]        = new[] { 12 },
-    };
+        using var _ = OperationTimer.Start("Writing terrain mask files");
 
-    public static async Task Write(L.Map map, string outputDirectory)
-    {
-        using var _ = OperationTimer.Start("Writing terrain mask PNGs");
-
+        var masksDir = Helper.GetPath(outputDirectory, "gfx", "map", "terrain", "masks");
         var terrainDir = Helper.GetPath(outputDirectory, "gfx", "map", "terrain");
+        Directory.CreateDirectory(masksDir);
         Directory.CreateDirectory(terrainDir);
-
-        var landCells = map.Cells!.Values
-            .Where(c => L.Cell.IsDryLand(c.Type))
-            .ToList();
-
-        // Compute max height for height-derived masks (hills / mountains).
-        int maxHeight = landCells.Count > 0 ? landCells.Max(c => c.GeoHeight) : 1;
-        if (maxHeight == 0) maxHeight = 1;
 
         var readSettings = new MagickReadSettings
         {
@@ -42,42 +24,53 @@ public static class TerrainMaskWriter
             Height = L.Map.MapHeight,
         };
 
-        // Biome-based masks
-        foreach (var (fileName, biomes) in BiomeMasks)
-        {
-            var biomeSet = new HashSet<int>(biomes);
-            var matchingCells = landCells.Where(c => biomeSet.Contains(c.Biome)).ToList();
-            await WriteMask(matchingCells, map, terrainDir, fileName, readSettings);
-        }
+        await Task.WhenAll(masks.Select(entry => WriteBiomeMask(entry, masksDir, readSettings, map)));
 
-        // Height-derived: hills (40–70% of max height)
-        var hillsCells = landCells
-            .Where(c => c.GeoHeight >= maxHeight * 0.40 && c.GeoHeight < maxHeight * 0.70)
-            .ToList();
-        await WriteMask(hillsCells, map, terrainDir, "hills_01_mask.png", readSettings);
+        await WriteColormapAsync(tcsSandboxPath, terrainDir);
+        await WriteDetailIndexAsync(terrainDir);
+        await WriteDetailIntensityAsync(terrainDir);
 
-        // Height-derived: mountains (>70% of max height)
-        var mountainCells = landCells
-            .Where(c => c.GeoHeight >= maxHeight * 0.70)
-            .ToList();
-        await WriteMask(mountainCells, map, terrainDir, "mountain_02_mask.png", readSettings);
-
-        // Oasis: rare feature — empty mask for MVP
-        await WriteMask(new List<L.Cell>(), map, terrainDir, "oasis_mask.png", readSettings);
-
-        Logger.Info("Wrote 13 terrain mask PNGs to gfx/map/terrain/");
+        Logger.Info($"Wrote {masks.Count} terrain mask PNGs + colormap.dds + detail TGAs to gfx/map/terrain/");
     }
 
-    private static async Task WriteMask(
-        List<L.Cell> cells, L.Map map, string terrainDir, string fileName,
-        MagickReadSettings readSettings)
+    private static async Task WriteBiomeMask(
+        TerrainMaskEntry entry, string masksDir,
+        MagickReadSettings readSettings, L.Map map)
     {
         using var image = new MagickImage("xc:black", readSettings);
-        if (cells.Count > 0)
+        if (entry.WhiteCells.Count > 0)
         {
-            var drawables = ImageUtility.GenerateCellPolygons(cells, MagickColors.White, map);
+            var drawables = ImageUtility.GenerateCellPolygons(entry.WhiteCells, MagickColors.White, map);
             image.Draw(drawables);
         }
-        await image.WriteAsync(Path.Combine(terrainDir, fileName));
+        await image.WriteAsync(Path.Combine(masksDir, entry.FileName));
+    }
+
+    private static async Task WriteColormapAsync(string tcsSandboxPath, string terrainDir)
+    {
+        var src = Helper.GetPath(tcsSandboxPath, "gfx", "map", "terrain", "colormap.dds");
+        var dst = Helper.GetPath(terrainDir, "colormap.dds");
+        using var img = new MagickImage(src);
+        img.Resize(L.Map.MapWidth / 4, L.Map.MapHeight / 4);
+        await img.WriteAsync(dst);
+    }
+
+    private static async Task WriteDetailIndexAsync(string terrainDir)
+    {
+        var settings = new MagickReadSettings { Width = L.Map.MapWidth, Height = L.Map.MapHeight };
+        using var img = new MagickImage("xc:white", settings);
+        img.Alpha(AlphaOption.Set);
+        img.Evaluate(Channels.Alpha, EvaluateOperator.Set, new Percentage(100));
+        await img.WriteAsync(Helper.GetPath(terrainDir, "detail_index.tga"), MagickFormat.Tga);
+    }
+
+    private static async Task WriteDetailIntensityAsync(string terrainDir)
+    {
+        // Black fill with alpha=255 — prevents CK3 1.18 TGA reader from stripping the alpha channel
+        var settings = new MagickReadSettings { Width = L.Map.MapWidth, Height = L.Map.MapHeight };
+        using var img = new MagickImage("xc:black", settings);
+        img.Alpha(AlphaOption.Set);
+        img.Evaluate(Channels.Alpha, EvaluateOperator.Set, new Percentage(100));
+        await img.WriteAsync(Helper.GetPath(terrainDir, "detail_intensity.tga"), MagickFormat.Tga);
     }
 }
