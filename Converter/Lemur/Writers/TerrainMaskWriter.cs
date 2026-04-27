@@ -27,7 +27,7 @@ public static class TerrainMaskWriter
         await Task.WhenAll(masks.Select(entry => WriteBiomeMask(entry, masksDir, readSettings, map)));
 
         await WriteColormapAsync(tcsSandboxPath, terrainDir);
-        await WriteDetailIndexAsync(terrainDir);
+        await WriteDetailIndexAsync(terrainDir, map, readSettings);
         await WriteDetailIntensityAsync(terrainDir, map, readSettings);
 
         Logger.Info($"Wrote {masks.Count} terrain mask PNGs + colormap.dds + detail TGAs to gfx/map/terrain/");
@@ -55,12 +55,42 @@ public static class TerrainMaskWriter
         await img.WriteAsync(dst);
     }
 
-    private static async Task WriteDetailIndexAsync(string terrainDir)
+    // Azgaar biome index → CK3 biome index (R channel of detail_index.tga).
+    // Indices match the CK3Biome enum in upstream BiomeConverter.
+    private static readonly Dictionary<int, int> AzgaarBiomeToCk3Index = new()
     {
-        var settings = new MagickReadSettings { Width = L.Map.MapWidth, Height = L.Map.MapHeight };
-        using var img = new MagickImage("xc:white", settings);
+        [1]  = 32,  // HotDesert          → desert_01
+        [2]  = 33,  // ColdDesert         → desert_02
+        [3]  = 1,   // Savanna            → plains_01_dry
+        [4]  = 0,   // Grassland          → plains_01
+        [5]  = 5,   // TropicalSeasonalForest → farmland_01
+        [6]  = 28,  // TemperateDeciduousForest → forest_leaf_01
+        [7]  = 29,  // TropicalRainforest  → forest_jungle_01
+        [8]  = 30,  // TemperateRainforest → forest_pine_01
+        [9]  = 31,  // Taiga              → forestfloor
+        [10] = 50,  // Tundra             → northern_plains_01
+        [11] = 54,  // Glacier            → snow
+        [12] = 14,  // Wetland            → floodplains_01
+    };
+
+    private static async Task WriteDetailIndexAsync(string terrainDir, L.Map map, MagickReadSettings readSettings)
+    {
+        // R channel = CK3 biome index; G=255 B=255 per upstream BiomeConverter convention.
+        // Sea background = mud_wet_01 (index 6) — CK3 1.18 renders index 255 (all-white) as wrong colour.
+        using var img = new MagickImage("xc:#06FFFF", readSettings);
         img.Alpha(AlphaOption.Set);
         img.Evaluate(Channels.Alpha, EvaluateOperator.Set, new Percentage(100));
+
+        foreach (var group in map.Cells!.Values
+            .Where(c => L.Cell.IsDryLand(c.Type))
+            .GroupBy(c => c.Biome)
+            .Where(g => AzgaarBiomeToCk3Index.ContainsKey(g.Key)))
+        {
+            var colour = new MagickColor($"#{AzgaarBiomeToCk3Index[group.Key]:X2}FFFF");
+            var drawables = ImageUtility.GenerateCellPolygons(group.ToList(), colour, map);
+            img.Draw(drawables);
+        }
+
         await img.WriteAsync(Helper.GetPath(terrainDir, "detail_index.tga"), MagickFormat.Tga);
     }
 
