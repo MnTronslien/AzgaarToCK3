@@ -8,7 +8,7 @@ namespace Converter.Lemur.Entities
     {
 
         public int Id { get; init; }
-        public int GeoHeight { get; set; }  // GeoJSON properties.height (absolute elevation scale)
+        public int GeoHeight { get; set; }  // pack.cells[i].h — Azgaar normalised elevation (0–100)
         public float[][] GeoDataCoordinates { get; set; }
         public int[] Neighbors { get; set; }
         public required int Culture { get; set; }

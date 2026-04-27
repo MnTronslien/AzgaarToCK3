@@ -28,7 +28,7 @@ public static class TerrainMaskWriter
 
         await WriteColormapAsync(tcsSandboxPath, terrainDir);
         await WriteDetailIndexAsync(terrainDir);
-        await WriteDetailIntensityAsync(terrainDir);
+        await WriteDetailIntensityAsync(terrainDir, map, readSettings);
 
         Logger.Info($"Wrote {masks.Count} terrain mask PNGs + colormap.dds + detail TGAs to gfx/map/terrain/");
     }
@@ -64,13 +64,24 @@ public static class TerrainMaskWriter
         await img.WriteAsync(Helper.GetPath(terrainDir, "detail_index.tga"), MagickFormat.Tga);
     }
 
-    private static async Task WriteDetailIntensityAsync(string terrainDir)
+    private static async Task WriteDetailIntensityAsync(string terrainDir, L.Map map, MagickReadSettings readSettings)
     {
-        // Black fill with alpha=255 — prevents CK3 1.18 TGA reader from stripping the alpha channel
-        var settings = new MagickReadSettings { Width = L.Map.MapWidth, Height = L.Map.MapHeight };
-        using var img = new MagickImage("xc:black", settings);
+        // Red channel = intensity: land cells = 255 (full detail), sea = 0.
+        // Matches upstream BiomeConverter: black background + red fill per land biome cell.
+        using var img = new MagickImage("xc:black", readSettings);
         img.Alpha(AlphaOption.Set);
         img.Evaluate(Channels.Alpha, EvaluateOperator.Set, new Percentage(100));
+
+        var landCells = map.Cells!.Values
+            .Where(c => L.Cell.IsDryLand(c.Type))
+            .ToList();
+
+        if (landCells.Count > 0)
+        {
+            var drawables = ImageUtility.GenerateCellPolygons(landCells, MagickColors.Red, map);
+            img.Draw(drawables);
+        }
+
         await img.WriteAsync(Helper.GetPath(terrainDir, "detail_intensity.tga"), MagickFormat.Tga);
     }
 }

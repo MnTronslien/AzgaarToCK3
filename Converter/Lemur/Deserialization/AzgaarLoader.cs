@@ -92,16 +92,19 @@ namespace Converter.Lemur.Deserialization
                 // Get biome and area from JSON pack.cells (if available)
                 int biome = 0;
                 int area = 0;
+                int geoHeight = 0;
                 if (feature.properties.id < jsonMap.pack.cells.Length)
                 {
-                    biome = jsonMap.pack.cells[feature.properties.id].biome;
-                    area = jsonMap.pack.cells[feature.properties.id].area;
+                    var packCell = jsonMap.pack.cells[feature.properties.id];
+                    biome = packCell.biome;
+                    area = packCell.area;
+                    geoHeight = packCell.h;
                 }
 
                 var cell = new Entities.Cell()
                 {
                     Id = feature.properties.id,
-                    GeoHeight = feature.properties.height,
+                    GeoHeight = geoHeight,
                     Culture = feature.properties.culture,
                     Religion = feature.properties.religion,
                     State = feature.properties.state,

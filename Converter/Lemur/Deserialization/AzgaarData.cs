@@ -82,7 +82,7 @@ namespace Converter.Lemur.Deserialization
         bool removed        // True if burg is removed
     );
 
-    public record AzgaarPackCell(int i, int area, int biome);
+    public record AzgaarPackCell(int i, int area, int biome, int h);
 
     public record AzgaarProvince(int i, int state, int burg, string name);
 
