@@ -16,6 +16,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Converter", "Converter\Conv
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Converter.Tests", "Converter.Tests\Converter.Tests.csproj", "{4F7D7E7D-C578-44FC-9506-F2008DD515B6}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HeightmapLab", "HeightmapLab\HeightmapLab.csproj", "{B87B70B8-0503-4638-9CB3-A69DC082A48A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -41,6 +43,12 @@ Global
 		{4F7D7E7D-C578-44FC-9506-F2008DD515B6}.Publish|Any CPU.Build.0 = Debug|Any CPU
 		{4F7D7E7D-C578-44FC-9506-F2008DD515B6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4F7D7E7D-C578-44FC-9506-F2008DD515B6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B87B70B8-0503-4638-9CB3-A69DC082A48A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B87B70B8-0503-4638-9CB3-A69DC082A48A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B87B70B8-0503-4638-9CB3-A69DC082A48A}.Publish|Any CPU.ActiveCfg = Publish|Any CPU
+		{B87B70B8-0503-4638-9CB3-A69DC082A48A}.Publish|Any CPU.Build.0 = Publish|Any CPU
+		{B87B70B8-0503-4638-9CB3-A69DC082A48A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B87B70B8-0503-4638-9CB3-A69DC082A48A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

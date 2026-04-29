@@ -93,6 +93,16 @@ public class Settings
     /// </summary>
     public float MajorRiverThreshold { get; set; } = 999999f;  // Very high for testing - all rivers will be minor
 
+    /// Normalisation divisor for per-cell roughness (avg abs deviation from land neighbours).
+    /// Defines what counts as "maximally rough" terrain. Default 25 ≈ avg 25-unit height deviation per neighbour.
+    public float RoughnessNormalisation { get; set; } = 25.0f;
+
+    /// Roughness threshold [0,1] above which a cell is painted into hills_01_mask (exclusive of MountainsThreshold).
+    public float HillsThreshold { get; set; } = 0.25f;
+
+    /// Roughness threshold [0,1] above which a cell is painted into mountain_02_mask (exclusive with hills).
+    public float MountainsThreshold { get; set; } = 0.55f;
+
     /// <summary>
     /// Number of river cells per major river province segment.
     /// Each major river is divided into multiple MajorRiverProvince objects of this size.
