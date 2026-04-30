@@ -38,9 +38,10 @@ sealed class SpatialGrid<T>
         int row = Math.Clamp((int)(y / _cellH), 0, _rows - 1);
 
         var candidates = new List<(float dist, T item)>();
+        float minCellSize = Math.Min(_cellW, _cellH);
         int radius = 0;
 
-        while (candidates.Count < n && radius <= Math.Max(_cols, _rows))
+        while (radius <= Math.Max(_cols, _rows))
         {
             int c0 = Math.Max(0, col - radius), c1 = Math.Min(_cols - 1, col + radius);
             int r0 = Math.Max(0, row - radius), r1 = Math.Min(_rows - 1, row + radius);
@@ -48,7 +49,6 @@ sealed class SpatialGrid<T>
             for (int r = r0; r <= r1; r++)
                 for (int c = c0; c <= c1; c++)
                 {
-                    // Only visit cells on the ring boundary at this radius
                     if (radius > 0 && c > c0 && c < c1 && r > r0 && r < r1) continue;
                     foreach (var (bx, by, item) in _buckets[r * _cols + c])
                     {
@@ -58,6 +58,15 @@ sealed class SpatialGrid<T>
                 }
 
             radius++;
+
+            // Stop only once we have n candidates AND the nearest possible point
+            // in the next ring is guaranteed farther than our nth candidate.
+            // Any point in ring `radius` is at least (radius-1)*minCellSize away.
+            if (candidates.Count >= n)
+            {
+                candidates.Sort((a, b) => a.dist.CompareTo(b.dist));
+                if ((radius - 1) * minCellSize > candidates[n - 1].dist) break;
+            }
         }
 
         candidates.Sort((a, b) => a.dist.CompareTo(b.dist));
