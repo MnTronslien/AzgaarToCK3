@@ -11,21 +11,26 @@ static class Program
         // ── Parse CLI args ───────────────────────────────────────────────────
         string? jsonPath = null, geojsonPath = null, outputPath = null;
         int seed = 42;
-        float strength = 0.25f, nodeDensity = 2.0f, roughnessNorm = 25.0f;
+        float strength = 0.25f, roughnessNorm = 25.0f;
+        int nodesPerCell = 4;
         int sampleCount = 4;
+        bool baseOnly = false;
+        bool debug = false;
 
         for (int i = 0; i < args.Length; i++)
         {
             switch (args[i])
             {
-                case "--json":           jsonPath       = args[++i]; break;
-                case "--geojson":        geojsonPath    = args[++i]; break;
-                case "--output":         outputPath     = args[++i]; break;
-                case "--seed":           seed           = int.Parse(args[++i]); break;
-                case "--strength":       strength       = float.Parse(args[++i]); break;
-                case "--nodes":          nodeDensity    = float.Parse(args[++i]); break;
-                case "--sample-count":   sampleCount    = int.Parse(args[++i]); break;
-                case "--roughness-norm": roughnessNorm  = float.Parse(args[++i]); break;
+                case "--json":           jsonPath      = args[++i]; break;
+                case "--geojson":        geojsonPath   = args[++i]; break;
+                case "--output":         outputPath    = args[++i]; break;
+                case "--seed":           seed          = int.Parse(args[++i]); break;
+                case "--strength":       strength      = float.Parse(args[++i]); break;
+                case "--nodes":          nodesPerCell  = int.Parse(args[++i]); break;
+                case "--sample-count":   sampleCount   = int.Parse(args[++i]); break;
+                case "--roughness-norm": roughnessNorm = float.Parse(args[++i]); break;
+                case "--base-only":      baseOnly      = true; break;
+                case "--debug":          debug         = true; break;
                 default:
                     Console.Error.WriteLine($"Unknown argument: {args[i]}");
                     PrintUsage();
@@ -41,7 +46,7 @@ static class Program
         }
 
         // ── Minimal init so Logger + OperationTimer work ─────────────────────
-        if (!SettingsManager.TryLoad()) SettingsManager.CreateDefault();
+        SettingsManager.TryLoad();
         SettingsManager.Configure();
 
         // ── Load cells ───────────────────────────────────────────────────────
@@ -60,14 +65,15 @@ static class Program
             Height: Converter.Lemur.Entities.Map.MapHeight,
             Seed: seed,
             DisplacementStrength: strength,
-            PolyNodeDensity: nodeDensity,
+            NodesPerCell: nodesPerCell,
             PolyNodeSampleCount: sampleCount,
-            RoughnessNorm: roughnessNorm);
+            RoughnessNorm: roughnessNorm,
+            BaseOnly: baseOnly);
 
         // ── Generate ─────────────────────────────────────────────────────────
-        Console.WriteLine($"Generating heightmap (seed={seed}, strength={strength}, nodes×{nodeDensity}, samples={sampleCount}, roughnessNorm={roughnessNorm})…");
+        Console.WriteLine($"Generating heightmap (seed={seed}, strength={strength}, nodesPerCell={nodesPerCell}, samples={sampleCount}, roughnessNorm={roughnessNorm})…");
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        var pixels = HeightmapGenerator.Generate(cells, genParams);
+        var result = HeightmapGenerator.Generate(cells, genParams);
         sw.Stop();
         Console.WriteLine($"Generated in {sw.Elapsed.TotalSeconds:F1}s");
 
@@ -79,8 +85,29 @@ static class Program
             ColorSpace = ColorSpace.Gray,
             Format = MagickFormat.Gray,
         };
-        using var img = new MagickImage(pixels, readSettings);
+        using var img = new MagickImage(result.Pixels, readSettings);
         img.Depth = 8;
+
+        // ── Debug overlay: green dots = cell centroids, red dots = poly-nodes ─
+        if (debug)
+        {
+            img.ColorSpace = ColorSpace.sRGB;
+            var d = new Drawables();
+
+            // Cell centroids — green, radius 6
+            d.FillColor(MagickColors.Lime).StrokeColor(MagickColors.Lime);
+            foreach (var (px, py) in result.Centroids)
+                d.Circle(px, py, px + 6, py);
+
+            // Poly-nodes — red, radius 3
+            d.FillColor(MagickColors.Red).StrokeColor(MagickColors.Red);
+            foreach (var (px, py) in result.PolyNodes)
+                d.Circle(px, py, px + 3, py);
+
+            img.Draw(d);
+            Console.WriteLine($"Debug overlay: {result.Centroids.Count} centroids (green), {result.PolyNodes.Count} poly-nodes (red)");
+        }
+
         await img.WriteAsync(outputPath, MagickFormat.Png);
         Console.WriteLine($"Written to {outputPath}");
 
@@ -93,9 +120,11 @@ static class Program
             Usage: HeightmapLab --json <path> --geojson <path> --output <path.png>
                                 [--seed N]            default: 42
                                 [--strength F]        displacement strength, default: 0.25
-                                [--nodes F]           poly-node density multiplier, default: 2.0
+                                [--nodes N]           poly-nodes per land cell, default: 4
                                 [--sample-count N]    IDW nearest nodes, default: 4
                                 [--roughness-norm F]  normalisation factor, default: 25.0
+                                [--base-only]         skip poly-node displacement, show raw Delaunay layer
+                                [--debug]             overlay green dots (centroids) + red dots (poly-nodes)
             """);
     }
 }
