@@ -64,10 +64,12 @@ static class HeightmapGenerator
         // ── 3. Early-out: terrain-only IDW ────────────────────────────────────
         if (p.BaseOnly)
         {
+            var (baseMask, baseMaskW) = BuildLandMask(terrainGrid, p.Width, p.Height);
             var baseOnly = new byte[p.Width * p.Height];
             for (int py = 0; py < p.Height; py++)
                 for (int px = 0; px < p.Width; px++)
                 {
+                    if (!baseMask[(py / LandMaskScale) * baseMaskW + (px / LandMaskScale)]) continue;
                     var near = terrainGrid.NearestN(px, py, p.PolyNodeSampleCount);
                     float val = near.Count > 0 ? IdwWeightedAverage(near) : 0f;
                     baseOnly[py * p.Width + px] = (byte)Math.Clamp((int)Math.Round(val), 0, 255);
@@ -119,10 +121,12 @@ static class HeightmapGenerator
         }
 
         // ── 5. Rasterize: each pixel samples combined grid via IDW ────────────
+        var (landMask, maskW) = BuildLandMask(terrainGrid, p.Width, p.Height);
         var result = new byte[p.Width * p.Height];
         for (int py = 0; py < p.Height; py++)
             for (int px = 0; px < p.Width; px++)
             {
+                if (!landMask[(py / LandMaskScale) * maskW + (px / LandMaskScale)]) continue;
                 var nearby = combinedGrid.NearestN(px, py, p.PolyNodeSampleCount);
                 float val = nearby.Count > 0 ? IdwWeightedAverage(nearby) : 0f;
                 result[py * p.Width + px] = (byte)Math.Clamp((int)Math.Round(val), 0, 255);
@@ -132,6 +136,26 @@ static class HeightmapGenerator
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    const int LandMaskScale = 16;
+
+    // Coarse Voronoi sea/land mask at 1/LandMaskScale resolution.
+    // Each coarse cell checks the nearest terrain centroid; sea centroids have height 0.
+    static (bool[] mask, int maskW) BuildLandMask(SpatialGrid<float> terrainGrid, int width, int height)
+    {
+        int maskW = (width  + LandMaskScale - 1) / LandMaskScale;
+        int maskH = (height + LandMaskScale - 1) / LandMaskScale;
+        var mask = new bool[maskW * maskH];
+        for (int my = 0; my < maskH; my++)
+            for (int mx = 0; mx < maskW; mx++)
+            {
+                var near1 = terrainGrid.NearestN(
+                    mx * LandMaskScale + LandMaskScale / 2f,
+                    my * LandMaskScale + LandMaskScale / 2f, 1);
+                mask[my * maskW + mx] = near1.Count > 0 && near1[0].item >= 1f;
+            }
+        return (mask, maskW);
+    }
 
     static float GeoToPixelX(float lon, Params p) => (lon - p.LonW) / p.LonT * p.Width;
     static float GeoToPixelY(float lat, Params p) => p.Height - (lat - p.LatS) / p.LatT * p.Height;
