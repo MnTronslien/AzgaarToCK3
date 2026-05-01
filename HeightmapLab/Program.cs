@@ -13,13 +13,14 @@ static class Program
         // ── Parse CLI args ───────────────────────────────────────────────────
         string? jsonPath = null, geojsonPath = null, outputPath = null;
         int seed = 42;
-        float strength = 0.25f, roughnessNorm = 25.0f;
+        float strength = 0.25f, roughnessNorm = 1.0f;
         int nodesPerCell = 4;
         int sampleCount = 4;
         int relaxIters = 5;
         float terrainToPolySep = 0.25f;
         float relaxStep = 0.05f;
         int blurRadius = 3;
+        float roughnessPower = 2.0f;
         bool baseOnly = false;
         bool debug = false;
         bool mesh = false;
@@ -42,6 +43,7 @@ static class Program
                 case "--terrain-to-poly-sep": terrainToPolySep = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--relax-step":          relaxStep        = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--blur-radius":          blurRadius       = int.Parse(args[++i]); break;
+                case "--roughness-power":      roughnessPower   = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--base-only":           baseOnly         = true; break;
                 case "--debug":          debug         = true; break;
                 case "--mesh":           mesh          = true; break;
@@ -88,6 +90,7 @@ static class Program
             PolyNodeSampleCount: sampleCount,
             RoughnessNorm: roughnessNorm,
             BlurRadius: blurRadius,
+            RoughnessPower: roughnessPower,
             BaseOnly: baseOnly);
 
         // ── Generate ─────────────────────────────────────────────────────────

@@ -17,11 +17,12 @@ static class HeightmapGenerator
         float DisplacementStrength,
         int NodesPerCell,
         int PolyNodeSampleCount,
-        float RoughnessNorm,
+        float RoughnessNorm = 1f,
         int RelaxIterations = 5,
         float TerrainToPolySep = 0.25f,
         float RelaxStep = 0.05f,
         int BlurRadius = 3,
+        float RoughnessPower = 2.0f,
         bool BaseOnly = false);
 
     public record GenerateResult(
@@ -39,7 +40,27 @@ static class HeightmapGenerator
         if (landCells.Count == 0)
             return new GenerateResult(new byte[p.Width * p.Height], [], []);
 
-        var roughness = Helper.ComputeRoughness(cells, p.RoughnessNorm);
+        // Compute raw avg-height-diff per cell (no clamping), find p95, use that
+        // as the normalization ceiling. RoughnessNorm > 1 pushes p95 below 1.0,
+        // further suppressing the overall displacement contribution.
+        var rawDiffs = new Dictionary<int, float>(cells.Count);
+        foreach (var cell in cells.Values)
+        {
+            if (!Cell.IsDryLand(cell.Type)) continue;
+            var nh = cell.Neighbors
+                .Select(id => cells.TryGetValue(id, out var n) ? n : null)
+                .Where(n => n != null && Cell.IsDryLand(n!.Type))
+                .Select(n => n!.GeoHeight).ToList();
+            rawDiffs[cell.Id] = nh.Count > 0
+                ? (float)nh.Average(h => Math.Abs(cell.GeoHeight - h))
+                : 0f;
+        }
+        var sortedDiffs = rawDiffs.Values.OrderBy(x => x).ToList();
+        float p95val  = sortedDiffs.Count > 0 ? sortedDiffs[(int)(sortedDiffs.Count * 0.95f)] : 1f;
+        float autoNorm = (p95val > 0f ? p95val : 1f) * p.RoughnessNorm;
+        var roughness = rawDiffs.ToDictionary(kv => kv.Key, kv => Math.Clamp(kv.Value / autoNorm, 0f, 1f));
+        var rv = roughness.Values;
+        Console.WriteLine($"Roughness (p95raw={p95val:F1} autoNorm={autoNorm:F1}) — min:{rv.Min():F3} avg:{rv.Average():F3} p50:{rv.OrderBy(x=>x).ElementAt(rv.Count/2):F3} p75:{rv.OrderBy(x=>x).ElementAt(rv.Count*3/4):F3} max:{rv.Max():F3}");
 
         int minH = landCells.Min(c => c.GeoHeight);
         int maxH = landCells.Max(c => c.GeoHeight);
@@ -133,8 +154,11 @@ static class HeightmapGenerator
             }
 
             float rawRand     = (float)(rng.NextDouble() * 2.0 - 1.0);
-            float perturbation = rawRand * idwRoughness * p.DisplacementStrength * (255f - CK3WaterLevel);
+            float perturbation = rawRand * MathF.Pow(idwRoughness, p.RoughnessPower) * p.DisplacementStrength * (255f - CK3WaterLevel);
             float nodeHeight  = Math.Clamp(baseHeight + perturbation, 0f, 255f);
+            // Land poly nodes must not carve below sea level
+            if (baseHeight > CK3WaterLevel)
+                nodeHeight = Math.Max(nodeHeight, CK3WaterLevel + 1f);
 
             // Top 3 contributors for debug (NearestN returns sorted by distance)
             int   c0 = nearest.Count > 0 ? nearest[0].item : -1;
