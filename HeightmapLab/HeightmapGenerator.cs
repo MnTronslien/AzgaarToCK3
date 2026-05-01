@@ -1,5 +1,7 @@
 using Converter.Lemur;
 using Converter.Lemur.Entities;
+using NetTopologySuite.Geometries;
+using NetTopologySuite.Triangulate;
 
 namespace HeightmapLab;
 
@@ -36,7 +38,7 @@ static class HeightmapGenerator
         int maxH = landCells.Max(c => c.GeoHeight);
         if (maxH == minH) maxH = minH + 1;
 
-        // Land cells → scaled to [CK3WaterLevel, 255]; sea cells → 0
+        // Land cells → [CK3WaterLevel, 255]; sea cells → 0
         var allCentroids = cells.Values.Select(c =>
         {
             bool isLand = Cell.IsDryLand(c.Type);
@@ -54,43 +56,28 @@ static class HeightmapGenerator
 
         var centroidPositions = allCentroids.Select(c => (c.px, c.py)).ToList();
 
-        // ── 2. Terrain spatial grid ───────────────────────────────────────────
+        // ── 2. Terrain spatial grid (used only during poly-node spawning) ─────
         int terrainCols = Math.Max(1, (int)Math.Sqrt(allCentroids.Count));
         int terrainRows = Math.Max(1, terrainCols * p.Height / p.Width);
         var terrainGrid = new SpatialGrid<float>(p.Width, p.Height, terrainCols, terrainRows);
         foreach (var c in allCentroids)
             terrainGrid.Add(c.px, c.py, c.h);
 
-        // ── 3. Early-out: terrain-only IDW ────────────────────────────────────
+        // ── 3. Early-out: terrain-only Delaunay rasterization ────────────────
         if (p.BaseOnly)
         {
-            var (baseMask, baseMaskW) = BuildLandMask(terrainGrid, p.Width, p.Height);
-            var baseOnly = new byte[p.Width * p.Height];
-            for (int py = 0; py < p.Height; py++)
-                for (int px = 0; px < p.Width; px++)
-                {
-                    if (!baseMask[(py / LandMaskScale) * baseMaskW + (px / LandMaskScale)]) continue;
-                    var near = terrainGrid.NearestN(px, py, p.PolyNodeSampleCount);
-                    float val = near.Count > 0 ? IdwWeightedAverage(near) : 0f;
-                    baseOnly[py * p.Width + px] = (byte)Math.Clamp((int)Math.Round(val), 0, 255);
-                }
-            return new GenerateResult(baseOnly, centroidPositions, []);
+            var coordIndex = BuildCoordIndex(allCentroids.Select(c => (c.px, c.py, c.h)));
+            var heightMap = Rasterize(coordIndex, allCentroids.Select(c => new Coordinate(c.px, c.py)), p);
+            return new GenerateResult(ToBytes(heightMap), centroidPositions, []);
         }
 
         // ── 4. Poly-node spawning ─────────────────────────────────────────────
         var rng = new Random(p.Seed);
-        int estimatedNodeCount = landCells.Count * p.NodesPerCell;
         float scaleX = p.Width / p.LonT;
         float scaleY = p.Height / p.LatT;
 
-        // Combined grid: terrain nodes + poly-nodes
-        int combinedCols = Math.Max(1, (int)Math.Sqrt(allCentroids.Count + estimatedNodeCount));
-        int combinedRows = Math.Max(1, combinedCols * p.Height / p.Width);
-        var combinedGrid = new SpatialGrid<float>(p.Width, p.Height, combinedCols, combinedRows);
-        foreach (var c in allCentroids)
-            combinedGrid.Add(c.px, c.py, c.h);
-
-        var polyNodePositions = new List<(float px, float py)>(estimatedNodeCount);
+        var polyNodePositions = new List<(float px, float py)>(landCells.Count * p.NodesPerCell);
+        var polyNodeHeights   = new List<float>(landCells.Count * p.NodesPerCell);
 
         foreach (var c in allCentroids.Where(c => c.isLand))
         {
@@ -104,58 +91,115 @@ static class HeightmapGenerator
                 float nx = Math.Clamp(c.px + r * MathF.Cos(angle), 0, p.Width - 1);
                 float ny = Math.Clamp(c.py + r * MathF.Sin(angle), 0, p.Height - 1);
 
-                // Base height from 3 nearest terrain nodes via IDW
+                // Base height from 3 nearest terrain nodes
                 var nearTerrain = terrainGrid.NearestN(nx, ny, 3);
                 float baseH = IdwWeightedAverage(nearTerrain);
-
-                // Skip nodes that landed in ocean territory
-                if (baseH < CK3WaterLevel) continue;
+                if (baseH < CK3WaterLevel) continue; // landed in ocean territory
 
                 float perturbation = (float)(rng.NextDouble() * 2.0 - 1.0)
                     * c.r * p.DisplacementStrength * (255f - CK3WaterLevel);
                 float nodeHeight = Math.Clamp(baseH + perturbation, CK3WaterLevel, 255f);
 
-                combinedGrid.Add(nx, ny, nodeHeight);
                 polyNodePositions.Add((nx, ny));
+                polyNodeHeights.Add(nodeHeight);
             }
         }
 
-        // ── 5. Rasterize: each pixel samples combined grid via IDW ────────────
-        var (landMask, maskW) = BuildLandMask(terrainGrid, p.Width, p.Height);
-        var result = new byte[p.Width * p.Height];
-        for (int py = 0; py < p.Height; py++)
-            for (int px = 0; px < p.Width; px++)
-            {
-                if (!landMask[(py / LandMaskScale) * maskW + (px / LandMaskScale)]) continue;
-                var nearby = combinedGrid.NearestN(px, py, p.PolyNodeSampleCount);
-                float val = nearby.Count > 0 ? IdwWeightedAverage(nearby) : 0f;
-                result[py * p.Width + px] = (byte)Math.Clamp((int)Math.Round(val), 0, 255);
-            }
+        // ── 5. Delaunay triangulation + rasterization ─────────────────────────
+        // Combined coordinate → height lookup (terrain centroids + poly-nodes)
+        var allPoints = allCentroids.Select(c => (c.px, c.py, c.h))
+            .Concat(polyNodePositions.Select((pos, i) => (pos.px, pos.py, polyNodeHeights[i])));
 
-        return new GenerateResult(result, centroidPositions, polyNodePositions);
+        var combinedCoordIndex = BuildCoordIndex(allPoints);
+
+        var allCoords = allCentroids.Select(c => new Coordinate(c.px, c.py))
+            .Concat(polyNodePositions.Select(pos => new Coordinate(pos.px, pos.py)));
+
+        var heightMap2 = Rasterize(combinedCoordIndex, allCoords, p);
+        return new GenerateResult(ToBytes(heightMap2), centroidPositions, polyNodePositions);
+    }
+
+    // ── Core rasterization ────────────────────────────────────────────────────
+
+    static float[] Rasterize(
+        Dictionary<(int, int), float> coordIndex,
+        IEnumerable<Coordinate> points,
+        Params p)
+    {
+        var gf = new GeometryFactory();
+        var builder = new DelaunayTriangulationBuilder();
+        builder.SetSites(gf.CreateMultiPointFromCoords(points.ToArray()));
+        var triangles = builder.GetTriangles(gf);
+
+        var heightMap = new float[p.Width * p.Height];
+
+        foreach (var geom in triangles.Geometries)
+        {
+            var ring = geom.Boundary.Coordinates;
+            if (ring.Length < 3) continue;
+
+            var v0 = ring[0]; var v1 = ring[1]; var v2 = ring[2];
+            float h0 = Lookup(coordIndex, v0);
+            float h1 = Lookup(coordIndex, v1);
+            float h2 = Lookup(coordIndex, v2);
+
+            RasterizeTriangle(v0, v1, v2, h0, h1, h2, heightMap, p.Width, p.Height);
+        }
+
+        return heightMap;
+    }
+
+    static void RasterizeTriangle(
+        Coordinate v0, Coordinate v1, Coordinate v2,
+        float h0, float h1, float h2,
+        float[] heightMap, int width, int height)
+    {
+        int xMin = Math.Max(0, (int)Math.Min(v0.X, Math.Min(v1.X, v2.X)));
+        int xMax = Math.Min(width  - 1, (int)Math.Ceiling(Math.Max(v0.X, Math.Max(v1.X, v2.X))));
+        int yMin = Math.Max(0, (int)Math.Min(v0.Y, Math.Min(v1.Y, v2.Y)));
+        int yMax = Math.Min(height - 1, (int)Math.Ceiling(Math.Max(v0.Y, Math.Max(v1.Y, v2.Y))));
+
+        float denom = (float)((v1.Y - v2.Y) * (v0.X - v2.X) + (v2.X - v1.X) * (v0.Y - v2.Y));
+        if (MathF.Abs(denom) < 1e-6f) return;
+
+        for (int py = yMin; py <= yMax; py++)
+            for (int px = xMin; px <= xMax; px++)
+            {
+                float w0 = (float)((v1.Y - v2.Y) * (px - v2.X) + (v2.X - v1.X) * (py - v2.Y)) / denom;
+                float w1 = (float)((v2.Y - v0.Y) * (px - v2.X) + (v0.X - v2.X) * (py - v2.Y)) / denom;
+                float w2 = 1f - w0 - w1;
+
+                if (w0 < -0.001f || w1 < -0.001f || w2 < -0.001f) continue;
+
+                heightMap[py * width + px] = Math.Clamp(w0 * h0 + w1 * h1 + w2 * h2, 0f, 255f);
+            }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    const int LandMaskScale = 16;
-
-    // Coarse Voronoi sea/land mask at 1/LandMaskScale resolution.
-    // Each coarse cell checks the nearest terrain centroid; sea centroids have height 0.
-    static (bool[] mask, int maskW) BuildLandMask(SpatialGrid<float> terrainGrid, int width, int height)
+    static Dictionary<(int, int), float> BuildCoordIndex(IEnumerable<(float px, float py, float h)> points)
     {
-        int maskW = (width  + LandMaskScale - 1) / LandMaskScale;
-        int maskH = (height + LandMaskScale - 1) / LandMaskScale;
-        var mask = new bool[maskW * maskH];
-        for (int my = 0; my < maskH; my++)
-            for (int mx = 0; mx < maskW; mx++)
-            {
-                var near1 = terrainGrid.NearestN(
-                    mx * LandMaskScale + LandMaskScale / 2f,
-                    my * LandMaskScale + LandMaskScale / 2f, 1);
-                mask[my * maskW + mx] = near1.Count > 0 && near1[0].item >= 1f;
-            }
-        return (mask, maskW);
+        var index = new Dictionary<(int, int), float>();
+        foreach (var (px, py, h) in points)
+            index.TryAdd((RoundCoord(px), RoundCoord(py)), h);
+        return index;
     }
+
+    static float Lookup(Dictionary<(int, int), float> index, Coordinate v)
+    {
+        index.TryGetValue((RoundCoord((float)v.X), RoundCoord((float)v.Y)), out float h);
+        return h;
+    }
+
+    static byte[] ToBytes(float[] heightMap)
+    {
+        var bytes = new byte[heightMap.Length];
+        for (int i = 0; i < heightMap.Length; i++)
+            bytes[i] = (byte)Math.Clamp((int)Math.Round(heightMap[i]), 0, 255);
+        return bytes;
+    }
+
+    static int RoundCoord(float v) => (int)Math.Round(v);
 
     static float GeoToPixelX(float lon, Params p) => (lon - p.LonW) / p.LonT * p.Width;
     static float GeoToPixelY(float lat, Params p) => p.Height - (lat - p.LatS) / p.LatT * p.Height;

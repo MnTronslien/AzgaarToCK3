@@ -1,6 +1,8 @@
 using Converter;
 using Converter.Lemur.Deserialization;
 using ImageMagick;
+using NetTopologySuite.Geometries;
+using NetTopologySuite.Triangulate;
 
 namespace HeightmapLab;
 
@@ -16,6 +18,7 @@ static class Program
         int sampleCount = 4;
         bool baseOnly = false;
         bool debug = false;
+        bool mesh = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -31,6 +34,7 @@ static class Program
                 case "--roughness-norm": roughnessNorm = float.Parse(args[++i]); break;
                 case "--base-only":      baseOnly      = true; break;
                 case "--debug":          debug         = true; break;
+                case "--mesh":           mesh          = true; break;
                 default:
                     Console.Error.WriteLine($"Unknown argument: {args[i]}");
                     PrintUsage();
@@ -77,7 +81,56 @@ static class Program
         sw.Stop();
         Console.WriteLine($"Generated in {sw.Elapsed.TotalSeconds:F1}s");
 
-        // ── Write PNG ────────────────────────────────────────────────────────
+        // ── Mesh visualisation ────────────────────────────────────────────────
+        if (mesh)
+        {
+            using var meshImg = new MagickImage(MagickColors.White, genParams.Width, genParams.Height);
+
+            var allPts = result.Centroids.Concat(result.PolyNodes).ToList();
+
+            // Delaunay triangulation of the combined point set
+            var gf = new GeometryFactory();
+            var builder = new DelaunayTriangulationBuilder();
+            builder.SetSites(gf.CreateMultiPointFromCoords(
+                allPts.Select(p => new Coordinate(p.px, p.py)).ToArray()));
+            var triangles = builder.GetTriangles(gf);
+
+            var d = new Drawables();
+            d.StrokeColor(new MagickColor(180, 180, 180)).StrokeWidth(1).FillColor(MagickColors.None);
+
+            // Draw each unique triangle edge once
+            var drawnEdges = new HashSet<long>();
+            foreach (var geom in triangles.Geometries)
+            {
+                var ring = geom.Boundary.Coordinates;
+                for (int e = 0; e < 3; e++)
+                {
+                    var a = ring[e]; var b = ring[e + 1];
+                    long ak = (long)Math.Round(a.X) * 5000 + (long)Math.Round(a.Y);
+                    long bk = (long)Math.Round(b.X) * 5000 + (long)Math.Round(b.Y);
+                    long key = Math.Min(ak, bk) * 50_000_000L + Math.Max(ak, bk);
+                    if (drawnEdges.Add(key))
+                        d.Line(a.X, a.Y, b.X, b.Y);
+                }
+            }
+
+            // Terrain centroids — green, radius 6
+            d.FillColor(MagickColors.Lime).StrokeColor(MagickColors.Lime).StrokeWidth(1);
+            foreach (var (px, py) in result.Centroids)
+                d.Circle(px, py, px + 6, py);
+
+            // Poly-nodes — red, radius 3
+            d.FillColor(MagickColors.Red).StrokeColor(MagickColors.Red);
+            foreach (var (px, py) in result.PolyNodes)
+                d.Circle(px, py, px + 3, py);
+
+            meshImg.Draw(d);
+            await meshImg.WriteAsync(outputPath, MagickFormat.Png);
+            Console.WriteLine($"Mesh written to {outputPath} ({result.Centroids.Count} centroids, {result.PolyNodes.Count} poly-nodes, {triangles.NumGeometries} triangles)");
+            return 0;
+        }
+
+        // ── Write heightmap PNG ───────────────────────────────────────────────
         var readSettings = new MagickReadSettings
         {
             Width = genParams.Width,
@@ -94,12 +147,10 @@ static class Program
             img.ColorSpace = ColorSpace.sRGB;
             var d = new Drawables();
 
-            // Cell centroids — green, radius 6
             d.FillColor(MagickColors.Lime).StrokeColor(MagickColors.Lime);
             foreach (var (px, py) in result.Centroids)
                 d.Circle(px, py, px + 6, py);
 
-            // Poly-nodes — red, radius 3
             d.FillColor(MagickColors.Red).StrokeColor(MagickColors.Red);
             foreach (var (px, py) in result.PolyNodes)
                 d.Circle(px, py, px + 3, py);
