@@ -31,13 +31,17 @@ static class HeightmapMasks
         Directory.CreateDirectory(masksDir);
 
         // ── 1. Compute gradient magnitude per pixel ───────────────────────────
+        // Kernel half-width kd: measuring height difference over 2*kd pixels rather
+        // than ±1 suppresses 8-bit quantization banding (which spikes at every discrete
+        // height step) and gives genuine regional slope instead of contour lines.
+        const int kd = 8;
         var gradMag = new float[width * height];
-        for (int y = 1; y < height - 1; y++)
-        for (int x = 1; x < width  - 1; x++)
+        for (int y = kd; y < height - kd; y++)
+        for (int x = kd; x < width  - kd; x++)
         {
             int i  = y * width + x;
-            float dx = pixels[i + 1]     - pixels[i - 1];
-            float dy = pixels[i + width] - pixels[i - width];
+            float dx = pixels[i + kd]         - pixels[i - kd];
+            float dy = pixels[i + kd * width] - pixels[i - kd * width];
             gradMag[i] = MathF.Sqrt(dx * dx + dy * dy);
         }
 
