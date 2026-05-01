@@ -42,81 +42,37 @@ public static class HeightmapWriter
 
         var heightmapPath = Helper.GetPath(mapDataDir, "heightmap.png");
 
-        await DrawHeightmap(map, heightmapPath);
-        var packed = await CreatePackedHeightmap(heightmapPath, L.Map.MapWidth, L.Map.MapHeight);
+        var pixels = await GenerateHeightmap(map, heightmapPath);
+        var packed = await CreatePackedHeightmap(pixels, L.Map.MapWidth, L.Map.MapHeight);
         await WritePackedHeightmap(packed, mapDataDir);
 
         Logger.Info("HeightmapWriter: wrote heightmap.png, packed_heightmap.png, indirection_heightmap.png, heightmap.heightmap");
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    //  Step 1: Draw heightmap.png from cell elevation data
+    //  Step 1: Generate heightmap pixels via Delaunay + poly-node algorithm
     // ──────────────────────────────────────────────────────────────────────────
-    private static async Task DrawHeightmap(L.Map map, string outputPath)
+    private static async Task<byte[]> GenerateHeightmap(L.Map map, string outputPath)
     {
-        using var timerDraw = OperationTimer.Start("  Drawing heightmap.png");
+        using var timer = OperationTimer.Start("  Generating heightmap.png");
 
+        var genParams = HeightmapAlgorithm.Params.FromMap(map);
+        var result    = HeightmapAlgorithm.Generate(map.Cells!, genParams);
+
+        // Write heightmap.png from pixel bytes (no intermediate image processing)
         var readSettings = new MagickReadSettings
         {
-            Width = L.Map.MapWidth,
-            Height = L.Map.MapHeight,
+            Width      = L.Map.MapWidth,
+            Height     = L.Map.MapHeight,
             ColorSpace = ColorSpace.Gray,
+            Format     = MagickFormat.Gray,
         };
-
-        using var image = new MagickImage("xc:black", readSettings);
-        image.Depth = 8; // 8-bit grayscale (values 0–255)
-
-        // Compute land height range for normalization
-        int minLandHeight = int.MaxValue;
-        int maxLandHeight = int.MinValue;
-        foreach (var cell in map.Cells!.Values)
-        {
-            if (!L.Cell.IsDryLand(cell.Type)) continue;
-            if (cell.GeoHeight < minLandHeight) minLandHeight = cell.GeoHeight;
-            if (cell.GeoHeight > maxLandHeight) maxLandHeight = cell.GeoHeight;
-        }
-        // Guard: flat maps or no land at all
-        if (minLandHeight == int.MaxValue || minLandHeight >= maxLandHeight)
-        {
-            minLandHeight = 0;
-            maxLandHeight = 1;
-        }
-
-        var drawables = new Drawables();
-        drawables.DisableStrokeAntialias();
-
-        foreach (var cell in map.Cells!.Values)
-        {
-            byte grey;
-            if (!L.Cell.IsDryLand(cell.Type))
-            {
-                // Ocean/lake/sea: leave black (0) — well below CK3 water level
-                continue;
-            }
-            else
-            {
-                // Scale GeoHeight [minLandHeight, maxLandHeight] → CK3 range [CK3WaterLevel, 255]
-                int scaled = (int)((cell.GeoHeight - minLandHeight) * (255.0 - CK3WaterLevel)
-                    / (maxLandHeight - minLandHeight)) + CK3WaterLevel;
-                grey = (byte)Math.Clamp(scaled, CK3WaterLevel, 255);
-            }
-
-            var color = new MagickColor(grey, grey, grey);
-            var points = cell.GeoDataCoordinates.Select(c => Helper.GeoToPixel(c[0], c[1], map));
-
-            drawables
-                .StrokeColor(color)
-                .FillColor(color)
-                .Polygon(points);
-        }
-
-        image.Draw(drawables);
-
-        // Gaussian blur sigma=1 to smooth terrain
-        image.GaussianBlur(1, 1);
-
+        using var image = new MagickImage(result.Pixels, readSettings);
+        image.Depth = 8;
         await image.WriteAsync(outputPath, MagickFormat.Png);
-        Logger.Info($"  heightmap.png drawn ({L.Map.MapWidth}x{L.Map.MapHeight}, land height range={minLandHeight}-{maxLandHeight})");
+
+        Logger.Info($"  heightmap.png written ({L.Map.MapWidth}x{L.Map.MapHeight}, {result.TerrainNodes.Count} terrain nodes, {result.PolyNodes.Count} poly-nodes)");
+        return result.Pixels;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -149,32 +105,10 @@ public static class HeightmapWriter
     //  (adapted from upstream CreatePackedHeightMap, using ImageMagick instead
     //   of SixLabors to stay consistent with the Lemur codebase)
     // ──────────────────────────────────────────────────────────────────────────
-    private static async Task<PackedHeightmap> CreatePackedHeightmap(
-        string heightmapPath, int mapWidth, int mapHeight)
+    private static Task<PackedHeightmap> CreatePackedHeightmap(
+        byte[] pixels, int mapWidth, int mapHeight)
     {
         using var _ = OperationTimer.Start("  Building packed heightmap structure");
-
-        // Load pixel data as 8-bit grayscale
-        using var file = new MagickImage(heightmapPath);
-        file.ColorSpace = ColorSpace.Gray;
-        file.Depth = 8;
-
-        var pixelCount = mapWidth * mapHeight;
-        var pixels = new byte[pixelCount];
-
-        // Use GetPixels to extract grayscale byte values row by row
-        using (var pixelCollection = file.GetPixels())
-        {
-            for (int y = 0; y < mapHeight; y++)
-            {
-                for (int x = 0; x < mapWidth; x++)
-                {
-                    var pixel = pixelCollection.GetPixel(x, y);
-                    // Q8: GetChannel returns 0–255 directly, no bit shift needed
-                    pixels[y * mapWidth + x] = (byte)pixel.GetChannel(0);
-                }
-            }
-        }
 
         const int samplesPerTile = 32;
 
@@ -242,14 +176,14 @@ public static class HeightmapWriter
                 previousI = i;
         }
 
-        return new PackedHeightmap
+        return Task.FromResult(new PackedHeightmap
         {
             Details = details,
             PixelHeight = packedHeightPixels,
             MapWidth = mapWidth,
             MapHeight = mapHeight,
             RowCount = rowCount,
-        };
+        });
     }
 
     // ──────────────────────────────────────────────────────────────────────────
