@@ -19,6 +19,7 @@ static class Program
         int relaxIters = 5;
         float terrainToPolySep = 0.25f;
         float relaxStep = 0.05f;
+        int blurRadius = 3;
         bool baseOnly = false;
         bool debug = false;
         bool mesh = false;
@@ -40,6 +41,7 @@ static class Program
                 case "--relax":                relaxIters       = int.Parse(args[++i]); break;
                 case "--terrain-to-poly-sep": terrainToPolySep = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--relax-step":          relaxStep        = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--blur-radius":          blurRadius       = int.Parse(args[++i]); break;
                 case "--base-only":           baseOnly         = true; break;
                 case "--debug":          debug         = true; break;
                 case "--mesh":           mesh          = true; break;
@@ -85,6 +87,7 @@ static class Program
             RelaxStep: relaxStep,
             PolyNodeSampleCount: sampleCount,
             RoughnessNorm: roughnessNorm,
+            BlurRadius: blurRadius,
             BaseOnly: baseOnly);
 
         // ── Generate ─────────────────────────────────────────────────────────
@@ -273,6 +276,7 @@ static class Program
                                 [--roughness-norm F]  normalisation factor, default: 25.0
                                 [--relax N]                 repulsion relaxation iterations, default: 5
                                 [--terrain-to-poly-sep F]  min distance from terrain centroid as fraction of avg terrain spacing, default: 0.25
+                                [--blur-radius N]           Gaussian blur radius in pixels, default: 3
                                 [--base-only]              skip poly-node displacement, show raw Delaunay layer
                                 [--debug]             overlay green dots (centroids) + red dots (poly-nodes)
             """);

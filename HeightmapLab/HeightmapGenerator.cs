@@ -21,6 +21,7 @@ static class HeightmapGenerator
         int RelaxIterations = 5,
         float TerrainToPolySep = 0.25f,
         float RelaxStep = 0.05f,
+        int BlurRadius = 3,
         bool BaseOnly = false);
 
     public record GenerateResult(
@@ -72,6 +73,7 @@ static class HeightmapGenerator
         {
             var coordIndex = BuildCoordIndex(terrainNodes.Select(t => (t.Px, t.Py, t.Height)));
             var heightMap  = Rasterize(coordIndex, terrainNodes.Select(t => new Coordinate(t.Px, t.Py)), p);
+            ApplyGaussianBlur(heightMap, p);
             return new GenerateResult(ToBytes(heightMap), terrainNodes, []);
         }
 
@@ -161,6 +163,7 @@ static class HeightmapGenerator
         var allCoords = terrainNodes.Select(t  => new Coordinate(t.Px,  t.Py))
                            .Concat(polyNodes.Select(pn => new Coordinate(pn.Px, pn.Py)));
         var heightMap2 = Rasterize(combinedCoordIndex, allCoords, p);
+        ApplyGaussianBlur(heightMap2, p);
 
         return new GenerateResult(ToBytes(heightMap2), terrainNodes, polyNodes);
     }
@@ -226,6 +229,56 @@ static class HeightmapGenerator
         }
 
         return nodes.Select((n, i) => n with { Px = pos[i].px, Py = pos[i].py }).ToList();
+    }
+
+    // ── Gaussian blur ─────────────────────────────────────────────────────────
+
+    static void ApplyGaussianBlur(float[] heightMap, Params p)
+    {
+        int r = p.BlurRadius;
+        if (r <= 0) return;
+
+        // Precompute 1-D kernel (sigma = r/2)
+        float sigma = r / 2f;
+        int kLen = 2 * r + 1;
+        var kernel = new float[kLen];
+        float kSum = 0f;
+        for (int i = 0; i < kLen; i++)
+        {
+            float x = i - r;
+            kernel[i] = MathF.Exp(-(x * x) / (2 * sigma * sigma));
+            kSum += kernel[i];
+        }
+        for (int i = 0; i < kLen; i++) kernel[i] /= kSum;
+
+        int w = p.Width, h = p.Height;
+        var temp = new float[w * h];  // one extra buffer, same size as heightMap
+
+        // Horizontal pass: heightMap → temp  (sequential row access, cache-friendly)
+        for (int y = 0; y < h; y++)
+        {
+            int row = y * w;
+            for (int x = 0; x < w; x++)
+            {
+                float val = 0f;
+                for (int k = -r; k <= r; k++)
+                    val += kernel[k + r] * heightMap[row + Math.Clamp(x + k, 0, w - 1)];
+                temp[row + x] = val;
+            }
+        }
+
+        // Vertical pass: temp → heightMap  (strided column access, unavoidable)
+        for (int y = 0; y < h; y++)
+        {
+            int row = y * w;
+            for (int x = 0; x < w; x++)
+            {
+                float val = 0f;
+                for (int k = -r; k <= r; k++)
+                    val += kernel[k + r] * temp[Math.Clamp(y + k, 0, h - 1) * w + x];
+                heightMap[row + x] = Math.Clamp(val, 0f, 255f);
+            }
+        }
     }
 
     // ── Core rasterization ────────────────────────────────────────────────────
