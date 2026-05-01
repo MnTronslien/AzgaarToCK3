@@ -16,9 +16,14 @@ static class Program
         float strength = 0.25f, roughnessNorm = 25.0f;
         int nodesPerCell = 4;
         int sampleCount = 4;
+        int relaxIters = 5;
+        float terrainToPolySep = 0.25f;
+        float relaxStep = 0.05f;
         bool baseOnly = false;
         bool debug = false;
         bool mesh = false;
+        bool spawnLines = false;
+        bool driftLines = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -28,13 +33,18 @@ static class Program
                 case "--geojson":        geojsonPath   = args[++i]; break;
                 case "--output":         outputPath    = args[++i]; break;
                 case "--seed":           seed          = int.Parse(args[++i]); break;
-                case "--strength":       strength      = float.Parse(args[++i]); break;
+                case "--strength":       strength      = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--nodes":          nodesPerCell  = int.Parse(args[++i]); break;
                 case "--sample-count":   sampleCount   = int.Parse(args[++i]); break;
-                case "--roughness-norm": roughnessNorm = float.Parse(args[++i]); break;
-                case "--base-only":      baseOnly      = true; break;
+                case "--roughness-norm": roughnessNorm = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--relax":                relaxIters       = int.Parse(args[++i]); break;
+                case "--terrain-to-poly-sep": terrainToPolySep = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--relax-step":          relaxStep        = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--base-only":           baseOnly         = true; break;
                 case "--debug":          debug         = true; break;
                 case "--mesh":           mesh          = true; break;
+                case "--spawn-lines":    spawnLines    = true; break;
+                case "--drift-lines":    driftLines    = true; break;
                 default:
                     Console.Error.WriteLine($"Unknown argument: {args[i]}");
                     PrintUsage();
@@ -70,6 +80,9 @@ static class Program
             Seed: seed,
             DisplacementStrength: strength,
             NodesPerCell: nodesPerCell,
+            RelaxIterations: relaxIters,
+            TerrainToPolySep: terrainToPolySep,
+            RelaxStep: relaxStep,
             PolyNodeSampleCount: sampleCount,
             RoughnessNorm: roughnessNorm,
             BaseOnly: baseOnly);
@@ -86,13 +99,13 @@ static class Program
         {
             using var meshImg = new MagickImage(MagickColors.White, genParams.Width, genParams.Height);
 
-            var allPts = result.Centroids.Concat(result.PolyNodes).ToList();
-
             // Delaunay triangulation of the combined point set
             var gf = new GeometryFactory();
             var builder = new DelaunayTriangulationBuilder();
             builder.SetSites(gf.CreateMultiPointFromCoords(
-                allPts.Select(p => new Coordinate(p.px, p.py)).ToArray()));
+                result.TerrainNodes.Select(t  => new Coordinate(t.Px,  t.Py))
+                    .Concat(result.PolyNodes.Select(pn => new Coordinate(pn.Px, pn.Py)))
+                    .ToArray()));
             var triangles = builder.GetTriangles(gf);
 
             var d = new Drawables();
@@ -114,19 +127,95 @@ static class Program
                 }
             }
 
-            // Terrain centroids — green, radius 6
+            // Terrain nodes — green, radius 6
             d.FillColor(MagickColors.Lime).StrokeColor(MagickColors.Lime).StrokeWidth(1);
-            foreach (var (px, py) in result.Centroids)
-                d.Circle(px, py, px + 6, py);
+            foreach (var t in result.TerrainNodes)
+                d.Circle(t.Px, t.Py, t.Px + 6, t.Py);
 
             // Poly-nodes — red, radius 3
             d.FillColor(MagickColors.Red).StrokeColor(MagickColors.Red);
-            foreach (var (px, py) in result.PolyNodes)
-                d.Circle(px, py, px + 3, py);
+            foreach (var pn in result.PolyNodes)
+                d.Circle(pn.Px, pn.Py, pn.Px + 3, pn.Py);
 
             meshImg.Draw(d);
             await meshImg.WriteAsync(outputPath, MagickFormat.Png);
-            Console.WriteLine($"Mesh written to {outputPath} ({result.Centroids.Count} centroids, {result.PolyNodes.Count} poly-nodes, {triangles.NumGeometries} triangles)");
+            Console.WriteLine($"Mesh written to {outputPath} ({result.TerrainNodes.Count} terrain, {result.PolyNodes.Count} poly-nodes, {triangles.NumGeometries} triangles)");
+            return 0;
+        }
+
+        // ── Spawn-lines visualisation ─────────────────────────────────────────
+        if (spawnLines)
+        {
+            using var slImg = new MagickImage(MagickColors.White, genParams.Width, genParams.Height);
+            var d = new Drawables();
+
+            // Lines: poly-node current position → parent terrain node
+            d.StrokeColor(new MagickColor(180, 180, 180)).StrokeWidth(1).FillColor(MagickColors.None);
+            foreach (var pn in result.PolyNodes)
+            {
+                var parent = result.TerrainNodes[pn.ParentId];
+                d.Line(pn.Px, pn.Py, parent.Px, parent.Py);
+            }
+
+            // Terrain nodes — green, radius 5
+            d.FillColor(MagickColors.Lime).StrokeColor(MagickColors.Lime).StrokeWidth(1);
+            foreach (var t in result.TerrainNodes)
+                d.Circle(t.Px, t.Py, t.Px + 5, t.Py);
+
+            // Poly-nodes — same blue/red/alpha scheme as debug
+            foreach (var pn in result.PolyNodes)
+            {
+                float tv  = (pn.RawRand + 1f) / 2f;
+                byte  r   = (byte)(255 * tv);
+                byte  b   = (byte)(255 * (1f - tv));
+                byte  alpha = (byte)(pn.IdwRoughness * 255f);
+                var color = new MagickColor(r, 0, b, alpha);
+                d.FillColor(color).StrokeColor(color).StrokeWidth(1);
+                d.Circle(pn.Px, pn.Py, pn.Px + 3, pn.Py);
+            }
+
+            slImg.Draw(d);
+            await slImg.WriteAsync(outputPath, MagickFormat.Png);
+            Console.WriteLine($"Spawn-lines written to {outputPath} ({result.TerrainNodes.Count} terrain, {result.PolyNodes.Count} poly-nodes)");
+            return 0;
+        }
+
+        // ── Drift-lines visualisation (spawn position → final position) ──────
+        if (driftLines)
+        {
+            using var dlImg = new MagickImage(MagickColors.White, genParams.Width, genParams.Height);
+            var d = new Drawables();
+
+            // Lines: spawn position → final position
+            d.StrokeColor(new MagickColor(180, 180, 180)).StrokeWidth(1).FillColor(MagickColors.None);
+            foreach (var pn in result.PolyNodes)
+                d.Line(pn.SpawnPx, pn.SpawnPy, pn.Px, pn.Py);
+
+            // Spawn positions — small grey dot
+            d.FillColor(new MagickColor(150, 150, 150)).StrokeColor(new MagickColor(150, 150, 150));
+            foreach (var pn in result.PolyNodes)
+                d.Circle(pn.SpawnPx, pn.SpawnPy, pn.SpawnPx + 2, pn.SpawnPy);
+
+            // Final positions — blue/red/alpha by rawRand and roughness
+            foreach (var pn in result.PolyNodes)
+            {
+                float tv  = (pn.RawRand + 1f) / 2f;
+                byte  r   = (byte)(255 * tv);
+                byte  b   = (byte)(255 * (1f - tv));
+                byte  alpha = (byte)(pn.IdwRoughness * 255f);
+                var color = new MagickColor(r, 0, b, alpha);
+                d.FillColor(color).StrokeColor(color).StrokeWidth(1);
+                d.Circle(pn.Px, pn.Py, pn.Px + 3, pn.Py);
+            }
+
+            // Terrain nodes — green, on top
+            d.FillColor(MagickColors.Lime).StrokeColor(MagickColors.Lime).StrokeWidth(1);
+            foreach (var t in result.TerrainNodes)
+                d.Circle(t.Px, t.Py, t.Px + 5, t.Py);
+
+            dlImg.Draw(d);
+            await dlImg.WriteAsync(outputPath, MagickFormat.Png);
+            Console.WriteLine($"Drift-lines written to {outputPath} ({result.PolyNodes.Count} poly-nodes)");
             return 0;
         }
 
@@ -141,22 +230,30 @@ static class Program
         using var img = new MagickImage(result.Pixels, readSettings);
         img.Depth = 8;
 
-        // ── Debug overlay: green dots = cell centroids, red dots = poly-nodes ─
+        // ── Debug overlay: green = centroids; poly-nodes colored by contribution ─
+        // Poly-node color: blue=negative displacement, red=positive; alpha=roughness (50%→100%)
         if (debug)
         {
             img.ColorSpace = ColorSpace.sRGB;
             var d = new Drawables();
 
-            d.FillColor(MagickColors.Lime).StrokeColor(MagickColors.Lime);
-            foreach (var (px, py) in result.Centroids)
-                d.Circle(px, py, px + 6, py);
+            d.FillColor(MagickColors.Lime).StrokeColor(MagickColors.Lime).StrokeWidth(1);
+            foreach (var t in result.TerrainNodes)
+                d.Circle(t.Px, t.Py, t.Px + 6, t.Py);
 
-            d.FillColor(MagickColors.Red).StrokeColor(MagickColors.Red);
-            foreach (var (px, py) in result.PolyNodes)
-                d.Circle(px, py, px + 3, py);
+            foreach (var pn in result.PolyNodes)
+            {
+                float tv  = (pn.RawRand + 1f) / 2f;                    // 0=blue, 1=red
+                byte  r   = (byte)(255 * tv);
+                byte  b   = (byte)(255 * (1f - tv));
+                byte  alpha = (byte)(pn.IdwRoughness * 255f);    // 50%–100% opaque
+                var color = new MagickColor(r, 0, b, alpha);
+                d.FillColor(color).StrokeColor(color).StrokeWidth(1);
+                d.Circle(pn.Px, pn.Py, pn.Px + 3, pn.Py);
+            }
 
             img.Draw(d);
-            Console.WriteLine($"Debug overlay: {result.Centroids.Count} centroids (green), {result.PolyNodes.Count} poly-nodes (red)");
+            Console.WriteLine($"Debug overlay: {result.TerrainNodes.Count} terrain (green), {result.PolyNodes.Count} poly-nodes (blue=negative, red=positive, alpha=idwRoughness)");
         }
 
         await img.WriteAsync(outputPath, MagickFormat.Png);
@@ -174,7 +271,9 @@ static class Program
                                 [--nodes N]           poly-nodes per land cell, default: 4
                                 [--sample-count N]    IDW nearest nodes, default: 4
                                 [--roughness-norm F]  normalisation factor, default: 25.0
-                                [--base-only]         skip poly-node displacement, show raw Delaunay layer
+                                [--relax N]                 repulsion relaxation iterations, default: 5
+                                [--terrain-to-poly-sep F]  min distance from terrain centroid as fraction of avg terrain spacing, default: 0.25
+                                [--base-only]              skip poly-node displacement, show raw Delaunay layer
                                 [--debug]             overlay green dots (centroids) + red dots (poly-nodes)
             """);
     }
