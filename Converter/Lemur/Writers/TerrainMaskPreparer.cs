@@ -39,7 +39,6 @@ public static class TerrainMaskPreparer
         ["forest_jungle_01_mask.png"]     = [7],        // Tropical rainforest
         ["forest_pine_01_mask.png"]       = [8],        // Temperate rainforest
         ["plains_01_dry_mask.png"]        = [9],        // Taiga
-        ["mountain_02_c_snow_mask.png"]   = [11],       // Glacier
         ["wetlands_02_mask.png"]          = [12],       // Wetland
         ["farmland_01_mask.png"]          = [],         // reserved for future population+biome logic
         ["oasis_mask.png"]               = [],          // reserved
@@ -49,8 +48,6 @@ public static class TerrainMaskPreparer
     {
         var allCells = map.Cells!;
         var landCells = allCells.Values.Where(c => Cell.IsDryLand(c.Type)).ToList();
-
-        var roughness = Helper.ComputeRoughness(allCells, Settings.Instance.RoughnessNormalisation);
 
         var entries = new List<TerrainMaskEntry>();
 
@@ -63,18 +60,6 @@ public static class TerrainMaskPreparer
                     ? landCells.Where(c => biomeSet.Contains(c.Biome)).ToList()
                     : []));
         }
-
-        // Roughness-driven masks — mutually exclusive
-        entries.Add(new TerrainMaskEntry(
-            "hills_01_mask.png",
-            landCells.Where(c => roughness.TryGetValue(c.Id, out var r)
-                              && r >= Settings.Instance.HillsThreshold
-                              && r <  Settings.Instance.MountainsThreshold).ToList()));
-
-        entries.Add(new TerrainMaskEntry(
-            "mountain_02_mask.png",
-            landCells.Where(c => roughness.TryGetValue(c.Id, out var r)
-                              && r >= Settings.Instance.MountainsThreshold).ToList()));
 
         return entries;
     }

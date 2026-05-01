@@ -43,10 +43,14 @@ public static class HeightmapWriter
         var heightmapPath = Helper.GetPath(mapDataDir, "heightmap.png");
 
         var pixels = await GenerateHeightmap(map, heightmapPath);
-        var packed = await CreatePackedHeightmap(pixels, L.Map.MapWidth, L.Map.MapHeight);
-        await WritePackedHeightmap(packed, mapDataDir);
 
-        Logger.Info("HeightmapWriter: wrote heightmap.png, packed_heightmap.png, indirection_heightmap.png, heightmap.heightmap");
+        var masksDir = Helper.GetPath(outputDirectory, "gfx", "map", "terrain", "masks");
+        var packed = await CreatePackedHeightmap(pixels, L.Map.MapWidth, L.Map.MapHeight);
+        await Task.WhenAll(
+            WritePackedHeightmap(packed, mapDataDir),
+            HeightmapMasks.Write(pixels, L.Map.MapWidth, L.Map.MapHeight, masksDir));
+
+        Logger.Info("HeightmapWriter: wrote heightmap.png, packed_heightmap.png, indirection_heightmap.png, heightmap.heightmap + geometry masks");
     }
 
     // ──────────────────────────────────────────────────────────────────────────
