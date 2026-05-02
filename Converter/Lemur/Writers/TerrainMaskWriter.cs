@@ -42,7 +42,7 @@ public static class TerrainMaskWriter
         await WriteColormapAsync(tcsSandboxPath, terrainDir);
         await WriteMasksGenAsync(tcsSandboxPath, terrainDir);
         await WriteDetailIndexAsync(terrainDir, map, readSettings);
-        await WriteDetailIntensityAsync(terrainDir, map, readSettings);
+        await WriteDetailIntensityAsync(tcsSandboxPath, terrainDir);
 
         Logger.Info($"Wrote {allMasks.Count} terrain mask PNGs ({masks.Count} biome + {blanks.Count} blank) + colormap.dds + masks_gen + detail TGAs to gfx/map/terrain/");
     }
@@ -133,24 +133,14 @@ public static class TerrainMaskWriter
         await img.WriteAsync(Helper.GetPath(terrainDir, "detail_index.tga"), MagickFormat.Tga);
     }
 
-    private static async Task WriteDetailIntensityAsync(string terrainDir, L.Map map, MagickReadSettings readSettings)
+    private static async Task WriteDetailIntensityAsync(string tcsSandboxPath, string terrainDir)
     {
-        // Red channel = intensity: land cells = 255 (full detail), sea = 0.
-        // Matches upstream BiomeConverter: black background + red fill per land biome cell.
-        using var img = new MagickImage("xc:black", readSettings);
-        img.Alpha(AlphaOption.Set);
-        img.Evaluate(Channels.Alpha, EvaluateOperator.Set, new Percentage(100));
-
-        var landCells = map.Cells!.Values
-            .Where(c => L.Cell.IsDryLand(c.Type))
-            .ToList();
-
-        if (landCells.Count > 0)
-        {
-            var drawables = ImageUtility.GenerateCellPolygons(landCells, MagickColors.Red, map);
-            img.Draw(drawables);
-        }
-
-        await img.WriteAsync(Helper.GetPath(terrainDir, "detail_intensity.tga"), MagickFormat.Tga);
+        // detail_intensity.tga is a baked multi-channel texture (R/G/B all carry terrain detail
+        // weights). We copy the TCS version and resize to our map dimensions — same as colormap.dds.
+        var src = Helper.GetPath(tcsSandboxPath, "gfx", "map", "terrain", "detail_intensity.tga");
+        var dst = Helper.GetPath(terrainDir, "detail_intensity.tga");
+        using var img = new MagickImage(src);
+        img.Resize(L.Map.MapWidth, L.Map.MapHeight);
+        await img.WriteAsync(dst, MagickFormat.Tga);
     }
 }
