@@ -28,6 +28,7 @@ static class Program
         bool driftLines = false;
         bool steepnessMap = false;
         bool roughnessMap = false;
+        bool coastMap = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -53,6 +54,7 @@ static class Program
                 case "--drift-lines":    driftLines    = true; break;
                 case "--steepness-map":  steepnessMap  = true; break;
                 case "--roughness-map":  roughnessMap  = true; break;
+                case "--coast-map":      coastMap      = true; break;
                 default:
                     Console.Error.WriteLine($"Unknown argument: {args[i]}");
                     PrintUsage();
@@ -315,6 +317,37 @@ static class Program
             roughImg.Depth = 8;
             await roughImg.WriteAsync(outputPath, MagickFormat.Png);
             Console.WriteLine($"Roughness map written to {outputPath} (Delaunay barycentric, terrain nodes only)");
+            return 0;
+        }
+
+        // ── Coast map: blue tint below water level, greyscale above ─────────
+        if (coastMap)
+        {
+            int w = genParams.Width, h = genParams.Height;
+            const byte wl = HeightmapGenerator.CK3WaterLevel;
+
+            var rgb = new byte[w * h * 3];
+            for (int idx = 0; idx < result.Pixels.Length; idx++)
+            {
+                byte px = result.Pixels[idx];
+                int o = idx * 3;
+                if (px < wl)
+                {
+                    rgb[o]     = 0;
+                    rgb[o + 1] = (byte)(px * 3);        // slight green tint near shore
+                    rgb[o + 2] = (byte)(120 + px * 6);  // blue, brighter closer to shore
+                }
+                else
+                {
+                    rgb[o] = rgb[o + 1] = rgb[o + 2] = px;
+                }
+            }
+
+            var cm = new MagickReadSettings { Width = w, Height = h, ColorSpace = ColorSpace.sRGB, Format = MagickFormat.Rgb };
+            using var coastImg = new MagickImage(rgb, cm);
+            coastImg.Depth = 8;
+            await coastImg.WriteAsync(outputPath, MagickFormat.Png);
+            Console.WriteLine($"Coast map written to {outputPath} (blue=sea, grey=land; water level={wl})");
             return 0;
         }
 
