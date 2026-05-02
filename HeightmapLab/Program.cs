@@ -294,40 +294,27 @@ static class Program
         }
 
         // ── Roughness map: black=smooth, white=rough ─────────────────────────
+        // Rasterizes the Delaunay triangulation of terrain nodes only, interpolating
+        // TerrainNode.Roughness barycentrically — the same approach used for the heightmap.
         if (roughnessMap)
         {
             int w = genParams.Width, h = genParams.Height;
             const byte wl = 20;
 
-            // Build spatial grid of all nodes (terrain + poly) with their roughness
-            var grid = new SpatialGrid<float>(w, h, 128, 64);
-            foreach (var t in result.TerrainNodes)
-                grid.Add(t.Px, t.Py, 0f);                 // terrain centroids = 0 roughness contribution
-            foreach (var pn in result.PolyNodes)
-                grid.Add(pn.Px, pn.Py, pn.IdwRoughness);
+            var roughF = HeightmapGenerator.RasterizeRoughness(result.TerrainNodes, genParams);
 
-            // For each land pixel, IDW from nearest 4 nodes
             var roughBytes = new byte[w * h];
-            for (int y = 0; y < h; y++)
-            for (int x = 0; x < w; x++)
+            for (int idx = 0; idx < roughF.Length; idx++)
             {
-                int idx = y * w + x;
                 if (result.Pixels[idx] < wl) continue;
-                var nearest = grid.NearestN(x, y, 4);
-                float sumW = 0f, sumR = 0f;
-                foreach (var (dist, r) in nearest)
-                {
-                    float wt = dist < 0.001f ? 1e6f : 1f / (dist * dist);
-                    sumW += wt; sumR += wt * r;
-                }
-                roughBytes[idx] = (byte)Math.Clamp((int)(sumR / sumW * 255f), 0, 255);
+                roughBytes[idx] = (byte)Math.Clamp((int)(roughF[idx] * 255f), 0, 255);
             }
 
             var rm = new MagickReadSettings { Width = w, Height = h, ColorSpace = ColorSpace.Gray, Format = MagickFormat.Gray };
             using var roughImg = new MagickImage(roughBytes, rm);
             roughImg.Depth = 8;
             await roughImg.WriteAsync(outputPath, MagickFormat.Png);
-            Console.WriteLine($"Roughness map written to {outputPath}");
+            Console.WriteLine($"Roughness map written to {outputPath} (Delaunay barycentric, terrain nodes only)");
             return 0;
         }
 

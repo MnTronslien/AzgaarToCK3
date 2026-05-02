@@ -306,12 +306,29 @@ static class HeightmapGenerator
         }
     }
 
+    // ── Public diagnostic rasters ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns a float[width*height] where each pixel is the barycentric-interpolated
+    /// roughness of the Delaunay triangle it falls in, using terrain nodes only.
+    /// Values are in [0, 1] (same scale as TerrainNode.Roughness).
+    /// </summary>
+    public static float[] RasterizeRoughness(IReadOnlyList<TerrainNode> terrainNodes, Params p)
+    {
+        var coordIndex = BuildCoordIndex(
+            terrainNodes.Select(t => (t.Px, t.Py, t.Roughness)));
+        return Rasterize(coordIndex,
+            terrainNodes.Select(t => new Coordinate(t.Px, t.Py)),
+            p, clampMax: 1f);
+    }
+
     // ── Core rasterization ────────────────────────────────────────────────────
 
     static float[] Rasterize(
         Dictionary<(int, int), float> coordIndex,
         IEnumerable<Coordinate> points,
-        Params p)
+        Params p,
+        float clampMax = 255f)
     {
         var gf      = new GeometryFactory();
         var builder = new DelaunayTriangulationBuilder();
@@ -327,7 +344,7 @@ static class HeightmapGenerator
             var v0 = ring[0]; var v1 = ring[1]; var v2 = ring[2];
             RasterizeTriangle(v0, v1, v2,
                 Lookup(coordIndex, v0), Lookup(coordIndex, v1), Lookup(coordIndex, v2),
-                heightMap, p.Width, p.Height);
+                heightMap, p.Width, p.Height, clampMax);
         }
 
         return heightMap;
@@ -336,11 +353,12 @@ static class HeightmapGenerator
     static void RasterizeTriangle(
         Coordinate v0, Coordinate v1, Coordinate v2,
         float h0, float h1, float h2,
-        float[] heightMap, int width, int height)
+        float[] heightMap, int width, int height,
+        float clampMax = 255f)
     {
-        int xMin = Math.Max(0,        (int)Math.Min(v0.X, Math.Min(v1.X, v2.X)));
+        int xMin = Math.Max(0,          (int)Math.Min(v0.X, Math.Min(v1.X, v2.X)));
         int xMax = Math.Min(width  - 1, (int)Math.Ceiling(Math.Max(v0.X, Math.Max(v1.X, v2.X))));
-        int yMin = Math.Max(0,        (int)Math.Min(v0.Y, Math.Min(v1.Y, v2.Y)));
+        int yMin = Math.Max(0,          (int)Math.Min(v0.Y, Math.Min(v1.Y, v2.Y)));
         int yMax = Math.Min(height - 1, (int)Math.Ceiling(Math.Max(v0.Y, Math.Max(v1.Y, v2.Y))));
 
         float denom = (float)((v1.Y - v2.Y) * (v0.X - v2.X) + (v2.X - v1.X) * (v0.Y - v2.Y));
@@ -353,7 +371,7 @@ static class HeightmapGenerator
                 float w1 = (float)((v2.Y - v0.Y) * (px - v2.X) + (v0.X - v2.X) * (py - v2.Y)) / denom;
                 float w2 = 1f - w0 - w1;
                 if (w0 < -0.001f || w1 < -0.001f || w2 < -0.001f) continue;
-                heightMap[py * width + px] = Math.Clamp(w0 * h0 + w1 * h1 + w2 * h2, 0f, 255f);
+                heightMap[py * width + px] = Math.Clamp(w0 * h0 + w1 * h1 + w2 * h2, 0f, clampMax);
             }
     }
 
