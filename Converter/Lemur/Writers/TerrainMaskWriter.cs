@@ -42,7 +42,7 @@ public static class TerrainMaskWriter
         await WriteColormapAsync(tcsSandboxPath, terrainDir);
         await WriteMasksGenAsync(tcsSandboxPath, terrainDir);
         await WriteDetailIndexAsync(terrainDir, map, readSettings);
-        await WriteDetailIntensityAsync(terrainDir);
+        await WriteDetailIntensityAsync(terrainDir, map, readSettings);
 
         Logger.Info($"Wrote {allMasks.Count} terrain mask PNGs ({masks.Count} biome + {blanks.Count} blank) + colormap.dds + masks_gen + detail TGAs to gfx/map/terrain/");
     }
@@ -133,29 +133,24 @@ public static class TerrainMaskWriter
         await img.WriteAsync(Helper.GetPath(terrainDir, "detail_index.tga"), MagickFormat.Tga);
     }
 
-    private static async Task WriteDetailIntensityAsync(string terrainDir)
+    private static async Task WriteDetailIntensityAsync(string terrainDir, L.Map map, MagickReadSettings readSettings)
     {
-        // DIAGNOSTIC: matrix checkerboard — rows cycle R/G/B, columns cycle R/G/B independently.
-        // Each pixel gets 255 in a channel if that channel is active on EITHER its row or column band.
-        // 9 unique combinations visible at intersections. 128px tiles (readable at medium zoom).
-        const int tileSize = 128;
-        int w = L.Map.MapWidth, h = L.Map.MapHeight;
-        var pixels = new byte[w * h * 3]; // RGB — Magick writes as BGRA TGA automatically
+        // Red channel = intensity: land cells painted red (R=255), sea remains black.
+        // Alpha=255 throughout — CK3 1.18 crashes the GPU driver if the TGA lacks an alpha channel.
+        using var img = new MagickImage("xc:black", readSettings);
+        img.Alpha(AlphaOption.Set);
+        img.Evaluate(Channels.Alpha, EvaluateOperator.Set, new Percentage(100));
 
-        for (int y = 0; y < h; y++)
-        for (int x = 0; x < w; x++)
+        var landCells = map.Cells!.Values
+            .Where(c => L.Cell.IsDryLand(c.Type))
+            .ToList();
+
+        if (landCells.Count > 0)
         {
-            int rowCh = (y / tileSize) % 3; // 0=R 1=G 2=B
-            int colCh = (x / tileSize) % 3;
-            int o = (y * w + x) * 3;
-            pixels[o]     = (rowCh == 0 || colCh == 0) ? (byte)255 : (byte)0; // R
-            pixels[o + 1] = (rowCh == 1 || colCh == 1) ? (byte)255 : (byte)0; // G
-            pixels[o + 2] = (rowCh == 2 || colCh == 2) ? (byte)255 : (byte)0; // B
+            var drawables = ImageUtility.GenerateCellPolygons(landCells, MagickColors.Red, map);
+            img.Draw(drawables);
         }
 
-        var settings = new MagickReadSettings { Width = w, Height = h, ColorSpace = ColorSpace.sRGB, Format = MagickFormat.Rgb };
-        using var img = new MagickImage(pixels, settings);
-        img.Alpha(AlphaOption.Off);
         await img.WriteAsync(Helper.GetPath(terrainDir, "detail_intensity.tga"), MagickFormat.Tga);
     }
 }
