@@ -11,7 +11,7 @@ static class Program
     static async Task<int> Main(string[] args)
     {
         // ── Parse CLI args ───────────────────────────────────────────────────
-        string? jsonPath = null, geojsonPath = null, outputPath = null;
+        string? jsonPath = null, geojsonPath = null, outputPath = null, terrainOut = null;
         int seed = 42;
         float strength = 0.25f, roughnessNorm = 1.0f;
         int nodesPerCell = 4;
@@ -29,6 +29,7 @@ static class Program
         bool steepnessMap = false;
         bool roughnessMap = false;
         bool coastMap = false;
+        bool detailIntensity = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -37,24 +38,26 @@ static class Program
                 case "--json":           jsonPath      = args[++i]; break;
                 case "--geojson":        geojsonPath   = args[++i]; break;
                 case "--output":         outputPath    = args[++i]; break;
+                case "--terrain-out":    terrainOut    = args[++i]; break;
                 case "--seed":           seed          = int.Parse(args[++i]); break;
                 case "--strength":       strength      = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--nodes":          nodesPerCell  = int.Parse(args[++i]); break;
                 case "--sample-count":   sampleCount   = int.Parse(args[++i]); break;
                 case "--roughness-norm": roughnessNorm = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
-                case "--relax":                relaxIters       = int.Parse(args[++i]); break;
+                case "--relax":               relaxIters       = int.Parse(args[++i]); break;
                 case "--terrain-to-poly-sep": terrainToPolySep = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--relax-step":          relaxStep        = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
-                case "--blur-radius":          blurRadius       = int.Parse(args[++i]); break;
-                case "--roughness-power":      roughnessPower   = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--blur-radius":         blurRadius       = int.Parse(args[++i]); break;
+                case "--roughness-power":     roughnessPower   = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--base-only":           baseOnly         = true; break;
-                case "--debug":          debug         = true; break;
-                case "--mesh":           mesh          = true; break;
-                case "--spawn-lines":    spawnLines    = true; break;
-                case "--drift-lines":    driftLines    = true; break;
-                case "--steepness-map":  steepnessMap  = true; break;
-                case "--roughness-map":  roughnessMap  = true; break;
-                case "--coast-map":      coastMap      = true; break;
+                case "--debug":               debug            = true; break;
+                case "--mesh":                mesh             = true; break;
+                case "--spawn-lines":         spawnLines       = true; break;
+                case "--drift-lines":         driftLines       = true; break;
+                case "--steepness-map":       steepnessMap     = true; break;
+                case "--roughness-map":       roughnessMap     = true; break;
+                case "--coast-map":           coastMap         = true; break;
+                case "--detail-intensity":    detailIntensity  = true; break;
                 default:
                     Console.Error.WriteLine($"Unknown argument: {args[i]}");
                     PrintUsage();
@@ -62,11 +65,23 @@ static class Program
             }
         }
 
-        if (jsonPath == null || geojsonPath == null || outputPath == null)
+        // --output is required unless --terrain-out covers all outputs for the chosen mode
+        bool outputRequired = !detailIntensity;
+        if (jsonPath == null || geojsonPath == null || (outputRequired && outputPath == null))
         {
             Console.Error.WriteLine("Missing required arguments.");
             PrintUsage();
             return 1;
+        }
+
+        // ── detail-intensity: write diagnostic TGA, no generation needed ────
+        if (detailIntensity)
+        {
+            var dir = terrainOut ?? Path.GetDirectoryName(outputPath!)!;
+            Directory.CreateDirectory(dir);
+            await WriteCheckerboardDetailIntensity(dir);
+            Console.WriteLine($"detail_intensity.tga written to {dir}");
+            return 0;
         }
 
         // ── Minimal init so Logger + OperationTimer work ─────────────────────
@@ -388,10 +403,46 @@ static class Program
             Console.WriteLine($"Debug overlay: {result.TerrainNodes.Count} terrain (green), {result.PolyNodes.Count} poly-nodes (blue=negative, red=positive, alpha=idwRoughness)");
         }
 
-        await img.WriteAsync(outputPath, MagickFormat.Png);
+        await img.WriteAsync(outputPath!, MagickFormat.Png);
         Console.WriteLine($"Written to {outputPath}");
 
+        // ── Hot-reload: write geometry masks directly into mod terrain folder ─
+        if (terrainOut != null)
+        {
+            var masksDir = Path.Combine(terrainOut, "masks");
+            Directory.CreateDirectory(masksDir);
+            await Converter.Lemur.Writers.HeightmapMasks.Write(
+                result.HeightmapF, result.Pixels,
+                genParams.Width, genParams.Height,
+                masksDir);
+            Console.WriteLine($"Hills/mountains/snow masks written to {masksDir}");
+        }
+
         return 0;
+    }
+
+    // Tri-colour 512px checkerboard: tile (col+row)%3 → pure R / G / B.
+    static async Task WriteCheckerboardDetailIntensity(string terrainDir)
+    {
+        const int tileSize = 512;
+        int w = Converter.Lemur.Entities.Map.MapWidth;
+        int h = Converter.Lemur.Entities.Map.MapHeight;
+        var pixels = new byte[w * h * 3];
+
+        for (int y = 0; y < h; y++)
+        for (int x = 0; x < w; x++)
+        {
+            int color = ((x / tileSize) + (y / tileSize)) % 3;
+            int o = (y * w + x) * 3;
+            pixels[o]     = color == 0 ? (byte)255 : (byte)0;
+            pixels[o + 1] = color == 1 ? (byte)255 : (byte)0;
+            pixels[o + 2] = color == 2 ? (byte)255 : (byte)0;
+        }
+
+        var settings = new MagickReadSettings { Width = w, Height = h, ColorSpace = ColorSpace.sRGB, Format = MagickFormat.Rgb };
+        using var img = new MagickImage(pixels, settings);
+        img.Alpha(AlphaOption.Off);
+        await img.WriteAsync(Path.Combine(terrainDir, "detail_intensity.tga"), MagickFormat.Tga);
     }
 
     static void PrintUsage()

@@ -22,7 +22,7 @@ namespace Converter.Lemur.Writers;
 ///   steepness is 0 for flat terrain and approaches 1 for a vertical cliff.
 ///   p95 over land pixels auto-calibrates the ramps per map.
 /// </summary>
-static class HeightmapMasks
+public static class HeightmapMasks
 {
     // Hills: tent function — ramps up from HillsFloor, peaks full-white at HillsPeak,
     // then fades back to black by HillsCeiling. Keeps hills out of the mountain zone.
