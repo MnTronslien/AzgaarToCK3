@@ -34,6 +34,7 @@ static class HeightmapAlgorithm
 
     public record GenerateResult(
         byte[] Pixels,
+        float[] HeightmapF,
         IReadOnlyList<TerrainNode> TerrainNodes,
         IReadOnlyList<PolyNode> PolyNodes);
 
@@ -44,7 +45,7 @@ static class HeightmapAlgorithm
         // ── 1. Build terrain nodes ────────────────────────────────────────────
         var landCells = cells.Values.Where(c => Cell.IsDryLand(c.Type)).ToList();
         if (landCells.Count == 0)
-            return new GenerateResult(new byte[p.Width * p.Height], [], []);
+            return new GenerateResult(new byte[p.Width * p.Height], new float[p.Width * p.Height], [], []);
 
         // Auto-normalize roughness: find p95 of raw avg height-diffs so the
         // distribution spans [0,1] regardless of the map's height scale.
@@ -175,7 +176,7 @@ static class HeightmapAlgorithm
         var heightMap = Rasterize(coordIndex, allCoords, p);
         ApplyGaussianBlur(heightMap, p);
 
-        return new GenerateResult(ToBytes(heightMap), terrainNodes, polyNodes);
+        return new GenerateResult(ToBytes(heightMap), heightMap, terrainNodes, polyNodes);
     }
 
     // ── Relaxation ────────────────────────────────────────────────────────────

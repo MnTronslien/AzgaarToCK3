@@ -27,6 +27,7 @@ static class HeightmapGenerator
 
     public record GenerateResult(
         byte[] Pixels,
+        float[] HeightmapF,
         IReadOnlyList<TerrainNode> TerrainNodes,
         IReadOnlyList<PolyNode> PolyNodes);
 
@@ -38,7 +39,7 @@ static class HeightmapGenerator
         // ── 1. Build terrain nodes ────────────────────────────────────────────
         var landCells = cells.Values.Where(c => Cell.IsDryLand(c.Type)).ToList();
         if (landCells.Count == 0)
-            return new GenerateResult(new byte[p.Width * p.Height], [], []);
+            return new GenerateResult(new byte[p.Width * p.Height], new float[p.Width * p.Height], [], []);
 
         // Compute raw avg-height-diff per cell (no clamping), find p95, use that
         // as the normalization ceiling. RoughnessNorm > 1 pushes p95 below 1.0,
@@ -95,7 +96,7 @@ static class HeightmapGenerator
             var coordIndex = BuildCoordIndex(terrainNodes.Select(t => (t.Px, t.Py, t.Height)));
             var heightMap  = Rasterize(coordIndex, terrainNodes.Select(t => new Coordinate(t.Px, t.Py)), p);
             ApplyGaussianBlur(heightMap, p);
-            return new GenerateResult(ToBytes(heightMap), terrainNodes, []);
+            return new GenerateResult(ToBytes(heightMap), heightMap, terrainNodes, []);
         }
 
         // ── 4. Poly-node spawning — positions + spawn context only ────────────
@@ -189,7 +190,7 @@ static class HeightmapGenerator
         var heightMap2 = Rasterize(combinedCoordIndex, allCoords, p);
         ApplyGaussianBlur(heightMap2, p);
 
-        return new GenerateResult(ToBytes(heightMap2), terrainNodes, polyNodes);
+        return new GenerateResult(ToBytes(heightMap2), heightMap2, terrainNodes, polyNodes);
     }
 
     // ── Relaxation ────────────────────────────────────────────────────────────

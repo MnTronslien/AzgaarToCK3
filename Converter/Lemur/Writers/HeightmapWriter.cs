@@ -42,13 +42,13 @@ public static class HeightmapWriter
 
         var heightmapPath = Helper.GetPath(mapDataDir, "heightmap.png");
 
-        var pixels = await GenerateHeightmap(map, heightmapPath);
+        var (pixels, heightmapF) = await GenerateHeightmap(map, heightmapPath);
 
         var masksDir = Helper.GetPath(outputDirectory, "gfx", "map", "terrain", "masks");
         var packed = await CreatePackedHeightmap(pixels, L.Map.MapWidth, L.Map.MapHeight);
         await Task.WhenAll(
             WritePackedHeightmap(packed, mapDataDir),
-            HeightmapMasks.Write(pixels, L.Map.MapWidth, L.Map.MapHeight, masksDir));
+            HeightmapMasks.Write(heightmapF, pixels, L.Map.MapWidth, L.Map.MapHeight, masksDir));
 
         Logger.Info("HeightmapWriter: wrote heightmap.png, packed_heightmap.png, indirection_heightmap.png, heightmap.heightmap + geometry masks");
     }
@@ -56,14 +56,13 @@ public static class HeightmapWriter
     // ──────────────────────────────────────────────────────────────────────────
     //  Step 1: Generate heightmap pixels via Delaunay + poly-node algorithm
     // ──────────────────────────────────────────────────────────────────────────
-    private static async Task<byte[]> GenerateHeightmap(L.Map map, string outputPath)
+    private static async Task<(byte[] pixels, float[] heightmapF)> GenerateHeightmap(L.Map map, string outputPath)
     {
         using var timer = OperationTimer.Start("  Generating heightmap.png");
 
         var genParams = HeightmapAlgorithm.Params.FromMap(map);
         var result    = HeightmapAlgorithm.Generate(map.Cells!, genParams);
 
-        // Write heightmap.png from pixel bytes (no intermediate image processing)
         var readSettings = new MagickReadSettings
         {
             Width      = L.Map.MapWidth,
@@ -76,7 +75,7 @@ public static class HeightmapWriter
         await image.WriteAsync(outputPath, MagickFormat.Png);
 
         Logger.Info($"  heightmap.png written ({L.Map.MapWidth}x{L.Map.MapHeight}, {result.TerrainNodes.Count} terrain nodes, {result.PolyNodes.Count} poly-nodes)");
-        return result.Pixels;
+        return (result.Pixels, result.HeightmapF);
     }
 
     // ──────────────────────────────────────────────────────────────────────────

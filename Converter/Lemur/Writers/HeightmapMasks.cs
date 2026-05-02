@@ -7,68 +7,83 @@ namespace Converter.Lemur.Writers;
 /// The biome-driven masks (forest, desert, wetlands etc.) are handled separately
 /// by TerrainMaskPreparer / TerrainMaskWriter.
 ///
-/// hills_01_mask.png        — derived from per-pixel surface steepness (gradient magnitude)
-/// mountain_02_mask.png     — derived from per-pixel surface steepness (higher threshold)
+/// hills_01_mask.png        — derived from surface steepness (surface normal dot up)
+/// mountain_02_mask.png     — derived from surface steepness (higher threshold)
 /// mountain_02_c_snow_mask  — derived from pixel height (elevation above snow line)
 ///
 /// All three are 8-bit greyscale, 8192×4096, written to gfx/map/terrain/masks/.
 /// White = full texture weight, black = none. CK3 blends masks additively.
+///
+/// Algorithm:
+///   The incoming pixel array is already Gaussian-blurred by HeightmapAlgorithm,
+///   so facet edges are pre-smoothed. We compute the surface normal directly:
+///     N = normalize(-Gx, -Gy, 1)   (central difference, kernel half-width kd)
+///     steepness = 1 - N.z = 1 - 1/sqrt(Gx²+Gy²+1)
+///   steepness is 0 for flat terrain and approaches 1 for a vertical cliff.
+///   p95 over land pixels auto-calibrates the ramps per map.
 /// </summary>
 static class HeightmapMasks
 {
-    // Steepness ramps — fraction of p95 normalised gradient magnitude
-    private const float HillsLow      = 0.15f;
-    private const float HillsHigh     = 0.55f;
-    private const float MountainsLow  = 0.45f;
-    private const float MountainsHigh = 0.85f;
+    // Fraction of p95 steepness below which each mask is black (linear ramp to white at 1.0)
+    private const float HillsFloor     = 0.25f;
+    private const float MountainsFloor = 0.65f;
 
     // Snow ramp — normalised height (0–1 over the full 0–255 range)
     private const float SnowLow  = 0.82f;  // ~209 / 255
     private const float SnowHigh = 0.95f;  // ~242 / 255
 
-    public static async Task Write(byte[] pixels, int width, int height, string masksDir)
+    // Gradient kernel half-width. The heightmap is already Gaussian-blurred (radius 3),
+    // so kd=4 safely lands within smoothed terrain rather than on triangle facet edges.
+    private const int kd = 4;
+
+    // heightmapF: float heightmap (pre-quantization) for smooth normal computation.
+    // pixels: byte heightmap used only for ocean masking (land/sea boundary).
+    public static async Task Write(float[] heightmapF, byte[] pixels, int width, int height, string masksDir)
     {
         Directory.CreateDirectory(masksDir);
+        byte wl = HeightmapAlgorithm.CK3WaterLevel;
 
-        // ── 1. Compute gradient magnitude per pixel ───────────────────────────
-        // Kernel half-width kd: measuring height difference over 2*kd pixels rather
-        // than ±1 suppresses 8-bit quantization banding (which spikes at every discrete
-        // height step) and gives genuine regional slope instead of contour lines.
-        const int kd = 8;
-        var gradMag = new float[width * height];
+        // ── 1. Surface steepness = 1 − N.z ───────────────────────────────────
+        // Use float heights for smooth gradients (byte quantization causes terracing).
+        // Divide by 2*kd so gx/gy are gradient per pixel.
+        // Zero out component if either sample crosses ocean boundary.
+        var steep = new float[width * height];
         for (int y = kd; y < height - kd; y++)
         for (int x = kd; x < width  - kd; x++)
         {
-            int i  = y * width + x;
-            float dx = pixels[i + kd]         - pixels[i - kd];
-            float dy = pixels[i + kd * width] - pixels[i - kd * width];
-            gradMag[i] = MathF.Sqrt(dx * dx + dy * dy);
+            int i = y * width + x;
+            if (pixels[i] < wl) continue;
+            float gx = (pixels[i + kd]         >= wl && pixels[i - kd]         >= wl)
+                ? (heightmapF[i + kd]         - heightmapF[i - kd])         / (2f * kd) : 0f;
+            float gy = (pixels[i + kd * width] >= wl && pixels[i - kd * width] >= wl)
+                ? (heightmapF[i + kd * width] - heightmapF[i - kd * width]) / (2f * kd) : 0f;
+            steep[i] = 1f - 1f / MathF.Sqrt(gx * gx + gy * gy + 1f);
         }
 
-        // ── 2. Auto-normalise: find p95 gradient over land pixels via histogram
-        var hist = new long[1024]; // bin width = 0.1 gradient units, covers 0–102
+        // ── 2. p95 of steepness over land pixels ─────────────────────────────
+        // 1024 bins covering [0, 1.024), bin width = 0.001
+        var hist = new long[1024];
         int landCount = 0;
         for (int i = 0; i < pixels.Length; i++)
         {
-            if (pixels[i] < HeightmapAlgorithm.CK3WaterLevel) continue;
+            if (pixels[i] < wl) continue;
             landCount++;
-            hist[Math.Clamp((int)(gradMag[i] * 10f), 0, 1023)]++;
+            hist[Math.Clamp((int)(steep[i] * 1000f), 0, 1023)]++;
         }
 
-        float normGrad = 1f;
+        float p95 = 0.001f;
         if (landCount > 0)
         {
-            long target = (long)(landCount * 0.95), cumulative = 0;
+            long target = (long)(landCount * 0.95), cum = 0;
             for (int b = 0; b < hist.Length; b++)
             {
-                cumulative += hist[b];
-                if (cumulative >= target) { normGrad = Math.Max(0.1f, b / 10f); break; }
+                cum += hist[b];
+                if (cum >= target) { p95 = Math.Max(0.001f, b / 1000f); break; }
             }
         }
+        Logger.Info($"HeightmapMasks: steepness p95={p95:F4} (normalisation ceiling)");
 
-        Logger.Info($"HeightmapMasks: gradient p95={normGrad:F2} (normalisation ceiling)");
-
-        // ── 3. Single pass: fill all three mask arrays ────────────────────────
+        // ── 3. Fill mask arrays ───────────────────────────────────────────────
         var hillsMask     = new byte[width * height];
         var mountainsMask = new byte[width * height];
         var snowMask      = new byte[width * height];
@@ -76,14 +91,13 @@ static class HeightmapMasks
         for (int i = 0; i < pixels.Length; i++)
         {
             byte h = pixels[i];
-            if (h < HeightmapAlgorithm.CK3WaterLevel) continue;
+            if (h < wl) continue;
 
-            float steepness = Math.Clamp(gradMag[i] / normGrad, 0f, 1f);
-            float heightN   = h / 255f;
+            float s = p95 > 0f ? steep[i] / p95 : 0f;
 
-            hillsMask[i]     = FloatToByte(Smoothstep(steepness, HillsLow,     HillsHigh));
-            mountainsMask[i] = FloatToByte(Smoothstep(steepness, MountainsLow, MountainsHigh));
-            snowMask[i]      = FloatToByte(Smoothstep(heightN,   SnowLow,      SnowHigh));
+            hillsMask[i]     = FloatToByte(LinearRamp(s,        HillsFloor,     1f));
+            mountainsMask[i] = FloatToByte(LinearRamp(s,        MountainsFloor, 1f));
+            snowMask[i]      = FloatToByte(LinearRamp(h / 255f, SnowLow,        SnowHigh));
         }
 
         // ── 4. Write PNGs ─────────────────────────────────────────────────────
@@ -95,9 +109,9 @@ static class HeightmapMasks
         };
 
         await Task.WhenAll(
-            WriteMask(hillsMask,     "hills_01_mask.png",             masksDir, settings),
-            WriteMask(mountainsMask, "mountain_02_mask.png",          masksDir, settings),
-            WriteMask(snowMask,      "mountain_02_c_snow_mask.png",   masksDir, settings));
+            WriteMask(hillsMask,     "hills_01_mask.png",           masksDir, settings),
+            WriteMask(mountainsMask, "mountain_02_mask.png",        masksDir, settings),
+            WriteMask(snowMask,      "mountain_02_c_snow_mask.png", masksDir, settings));
 
         Logger.Info("HeightmapMasks: hills_01_mask.png, mountain_02_mask.png, mountain_02_c_snow_mask.png written");
     }
@@ -109,11 +123,8 @@ static class HeightmapMasks
         await img.WriteAsync(Path.Combine(dir, fileName), MagickFormat.Png);
     }
 
-    static float Smoothstep(float x, float edge0, float edge1)
-    {
-        float t = Math.Clamp((x - edge0) / (edge1 - edge0), 0f, 1f);
-        return t * t * (3f - 2f * t);
-    }
+    static float LinearRamp(float x, float low, float high)
+        => Math.Clamp((x - low) / (high - low), 0f, 1f);
 
     static byte FloatToByte(float v) => (byte)Math.Clamp((int)(v * 255f), 0, 255);
 }

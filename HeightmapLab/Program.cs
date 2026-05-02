@@ -26,6 +26,8 @@ static class Program
         bool mesh = false;
         bool spawnLines = false;
         bool driftLines = false;
+        bool steepnessMap = false;
+        bool roughnessMap = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -49,6 +51,8 @@ static class Program
                 case "--mesh":           mesh          = true; break;
                 case "--spawn-lines":    spawnLines    = true; break;
                 case "--drift-lines":    driftLines    = true; break;
+                case "--steepness-map":  steepnessMap  = true; break;
+                case "--roughness-map":  roughnessMap  = true; break;
                 default:
                     Console.Error.WriteLine($"Unknown argument: {args[i]}");
                     PrintUsage();
@@ -222,6 +226,108 @@ static class Program
             dlImg.Draw(d);
             await dlImg.WriteAsync(outputPath, MagickFormat.Png);
             Console.WriteLine($"Drift-lines written to {outputPath} ({result.PolyNodes.Count} poly-nodes)");
+            return 0;
+        }
+
+        // ── Steepness map: black=flat, white=vertical ────────────────────────
+        if (steepnessMap)
+        {
+            // Use float heightmap (pre-quantization) — byte pixels have only 256 discrete
+            // levels, which produces terracing artifacts in the normal computation.
+            var hf = result.HeightmapF;
+            var pixels = result.Pixels;  // still needed for ocean mask
+            int w = genParams.Width, h = genParams.Height;
+            const int kd = 4;
+            const float wl = HeightmapGenerator.CK3WaterLevel;
+
+            // Surface normal: N = normalize(-Gx, -Gy, 1)
+            // Divide by 2*kd so Gx/Gy are gradient per pixel, not per 2*kd pixels.
+            // steepness = 1 - N.z = 1 - 1/sqrt(Gx²+Gy²+1)
+            var steep = new float[w * h];
+            for (int y = kd; y < h - kd; y++)
+            for (int x = kd; x < w - kd; x++)
+            {
+                int idx = y * w + x;
+                if (pixels[idx] < wl) continue;
+                float gx = (pixels[idx + kd]     >= wl && pixels[idx - kd]     >= wl)
+                    ? (hf[idx + kd]     - hf[idx - kd])     / (2f * kd) : 0f;
+                float gy = (pixels[idx + kd * w] >= wl && pixels[idx - kd * w] >= wl)
+                    ? (hf[idx + kd * w] - hf[idx - kd * w]) / (2f * kd) : 0f;
+                steep[idx] = 1f - 1f / MathF.Sqrt(gx * gx + gy * gy + 1f);
+            }
+
+            // p95 over land pixels — maps the full range to 0–255
+            var hist = new long[10000];
+            int landN = 0;
+            for (int idx = 0; idx < pixels.Length; idx++)
+            {
+                if (pixels[idx] < wl) continue;
+                landN++;
+                hist[Math.Clamp((int)(steep[idx] * 10000f), 0, 9999)]++;
+            }
+            float p95 = 0.0001f;
+            if (landN > 0)
+            {
+                long target = (long)(landN * 0.95), cum = 0;
+                for (int b = 0; b < hist.Length; b++)
+                {
+                    cum += hist[b];
+                    if (cum >= target) { p95 = Math.Max(0.0001f, b / 10000f); break; }
+                }
+            }
+            Console.WriteLine($"Steepness p95={p95:F5} (maps to white)");
+
+            var steepBytes = new byte[w * h];
+            for (int idx = 0; idx < pixels.Length; idx++)
+            {
+                if (pixels[idx] < wl) continue;
+                float s = Math.Clamp(steep[idx] / p95, 0f, 1f);
+                steepBytes[idx] = (byte)(s * 255f);
+            }
+
+            var sm = new MagickReadSettings { Width = w, Height = h, ColorSpace = ColorSpace.Gray, Format = MagickFormat.Gray };
+            using var steepImg = new MagickImage(steepBytes, sm);
+            steepImg.Depth = 8;
+            await steepImg.WriteAsync(outputPath, MagickFormat.Png);
+            Console.WriteLine($"Steepness map written to {outputPath}");
+            return 0;
+        }
+
+        // ── Roughness map: black=smooth, white=rough ─────────────────────────
+        if (roughnessMap)
+        {
+            int w = genParams.Width, h = genParams.Height;
+            const byte wl = 20;
+
+            // Build spatial grid of all nodes (terrain + poly) with their roughness
+            var grid = new SpatialGrid<float>(w, h, 128, 64);
+            foreach (var t in result.TerrainNodes)
+                grid.Add(t.Px, t.Py, 0f);                 // terrain centroids = 0 roughness contribution
+            foreach (var pn in result.PolyNodes)
+                grid.Add(pn.Px, pn.Py, pn.IdwRoughness);
+
+            // For each land pixel, IDW from nearest 4 nodes
+            var roughBytes = new byte[w * h];
+            for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                int idx = y * w + x;
+                if (result.Pixels[idx] < wl) continue;
+                var nearest = grid.NearestN(x, y, 4);
+                float sumW = 0f, sumR = 0f;
+                foreach (var (dist, r) in nearest)
+                {
+                    float wt = dist < 0.001f ? 1e6f : 1f / (dist * dist);
+                    sumW += wt; sumR += wt * r;
+                }
+                roughBytes[idx] = (byte)Math.Clamp((int)(sumR / sumW * 255f), 0, 255);
+            }
+
+            var rm = new MagickReadSettings { Width = w, Height = h, ColorSpace = ColorSpace.Gray, Format = MagickFormat.Gray };
+            using var roughImg = new MagickImage(roughBytes, rm);
+            roughImg.Depth = 8;
+            await roughImg.WriteAsync(outputPath, MagickFormat.Png);
+            Console.WriteLine($"Roughness map written to {outputPath}");
             return 0;
         }
 
