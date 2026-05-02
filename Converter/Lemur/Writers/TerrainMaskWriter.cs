@@ -42,7 +42,7 @@ public static class TerrainMaskWriter
         await WriteColormapAsync(tcsSandboxPath, terrainDir);
         await WriteMasksGenAsync(tcsSandboxPath, terrainDir);
         await WriteDetailIndexAsync(terrainDir, map, readSettings);
-        await WriteDetailIntensityAsync(tcsSandboxPath, terrainDir);
+        await WriteDetailIntensityAsync(terrainDir);
 
         Logger.Info($"Wrote {allMasks.Count} terrain mask PNGs ({masks.Count} biome + {blanks.Count} blank) + colormap.dds + masks_gen + detail TGAs to gfx/map/terrain/");
     }
@@ -133,14 +133,29 @@ public static class TerrainMaskWriter
         await img.WriteAsync(Helper.GetPath(terrainDir, "detail_index.tga"), MagickFormat.Tga);
     }
 
-    private static async Task WriteDetailIntensityAsync(string tcsSandboxPath, string terrainDir)
+    private static async Task WriteDetailIntensityAsync(string terrainDir)
     {
-        // detail_intensity.tga is a baked multi-channel texture (R/G/B all carry terrain detail
-        // weights). We copy the TCS version and resize to our map dimensions — same as colormap.dds.
-        var src = Helper.GetPath(tcsSandboxPath, "gfx", "map", "terrain", "detail_intensity.tga");
-        var dst = Helper.GetPath(terrainDir, "detail_intensity.tga");
-        using var img = new MagickImage(src);
-        img.Resize(L.Map.MapWidth, L.Map.MapHeight);
-        await img.WriteAsync(dst, MagickFormat.Tga);
+        // DIAGNOSTIC: tri-colour checkerboard to determine which channel drives which visual.
+        // Tile (col+row) % 3:  0 = pure R=255  1 = pure G=255  2 = pure B=255
+        // Tile size 512px — clearly visible at medium map zoom.
+        // Once we know what each channel does, replace with real data.
+        const int tileSize = 512;
+        int w = L.Map.MapWidth, h = L.Map.MapHeight;
+        var pixels = new byte[w * h * 3]; // RGB — Magick writes as BGRA TGA automatically
+
+        for (int y = 0; y < h; y++)
+        for (int x = 0; x < w; x++)
+        {
+            int color = ((x / tileSize) + (y / tileSize)) % 3;
+            int o = (y * w + x) * 3;
+            pixels[o]     = color == 0 ? (byte)255 : (byte)0; // R
+            pixels[o + 1] = color == 1 ? (byte)255 : (byte)0; // G
+            pixels[o + 2] = color == 2 ? (byte)255 : (byte)0; // B
+        }
+
+        var settings = new MagickReadSettings { Width = w, Height = h, ColorSpace = ColorSpace.sRGB, Format = MagickFormat.Rgb };
+        using var img = new MagickImage(pixels, settings);
+        img.Alpha(AlphaOption.Off);
+        await img.WriteAsync(Helper.GetPath(terrainDir, "detail_intensity.tga"), MagickFormat.Tga);
     }
 }
