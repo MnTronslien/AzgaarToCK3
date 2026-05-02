@@ -135,22 +135,22 @@ public static class TerrainMaskWriter
 
     private static async Task WriteDetailIntensityAsync(string terrainDir)
     {
-        // DIAGNOSTIC: tri-colour checkerboard to determine which channel drives which visual.
-        // Tile (col+row) % 3:  0 = pure R=255  1 = pure G=255  2 = pure B=255
-        // Tile size 512px — clearly visible at medium map zoom.
-        // Once we know what each channel does, replace with real data.
-        const int tileSize = 512;
+        // DIAGNOSTIC: matrix checkerboard — rows cycle R/G/B, columns cycle R/G/B independently.
+        // Each pixel gets 255 in a channel if that channel is active on EITHER its row or column band.
+        // 9 unique combinations visible at intersections. 128px tiles (readable at medium zoom).
+        const int tileSize = 128;
         int w = L.Map.MapWidth, h = L.Map.MapHeight;
         var pixels = new byte[w * h * 3]; // RGB — Magick writes as BGRA TGA automatically
 
         for (int y = 0; y < h; y++)
         for (int x = 0; x < w; x++)
         {
-            int color = ((x / tileSize) + (y / tileSize)) % 3;
+            int rowCh = (y / tileSize) % 3; // 0=R 1=G 2=B
+            int colCh = (x / tileSize) % 3;
             int o = (y * w + x) * 3;
-            pixels[o]     = color == 0 ? (byte)255 : (byte)0; // R
-            pixels[o + 1] = color == 1 ? (byte)255 : (byte)0; // G
-            pixels[o + 2] = color == 2 ? (byte)255 : (byte)0; // B
+            pixels[o]     = (rowCh == 0 || colCh == 0) ? (byte)255 : (byte)0; // R
+            pixels[o + 1] = (rowCh == 1 || colCh == 1) ? (byte)255 : (byte)0; // G
+            pixels[o + 2] = (rowCh == 2 || colCh == 2) ? (byte)255 : (byte)0; // B
         }
 
         var settings = new MagickReadSettings { Width = w, Height = h, ColorSpace = ColorSpace.sRGB, Format = MagickFormat.Rgb };

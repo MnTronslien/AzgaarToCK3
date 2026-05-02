@@ -65,9 +65,10 @@ static class Program
             }
         }
 
-        // --output is required unless --terrain-out covers all outputs for the chosen mode
+        // --detail-intensity needs only --terrain-out (or --output for its dir); no Azgaar data needed
+        bool dataRequired = !detailIntensity;
         bool outputRequired = !detailIntensity;
-        if (jsonPath == null || geojsonPath == null || (outputRequired && outputPath == null))
+        if ((dataRequired && (jsonPath == null || geojsonPath == null)) || (outputRequired && outputPath == null && terrainOut == null))
         {
             Console.Error.WriteLine("Missing required arguments.");
             PrintUsage();
@@ -421,10 +422,13 @@ static class Program
         return 0;
     }
 
-    // Tri-colour 512px checkerboard: tile (col+row)%3 → pure R / G / B.
+    // Matrix checkerboard: rows cycle R/G/B, columns cycle R/G/B independently.
+    // Each pixel gets 255 in a channel if that channel is active on EITHER its row or column band.
+    // 9 unique combinations: R, G, B, R+G, R+B, G+B, R+G, R+B, G+B (tiling 3×3 matrix).
+    // Tile size 128px (quarter of old 512).
     static async Task WriteCheckerboardDetailIntensity(string terrainDir)
     {
-        const int tileSize = 512;
+        const int tileSize = 128;
         int w = Converter.Lemur.Entities.Map.MapWidth;
         int h = Converter.Lemur.Entities.Map.MapHeight;
         var pixels = new byte[w * h * 3];
@@ -432,11 +436,12 @@ static class Program
         for (int y = 0; y < h; y++)
         for (int x = 0; x < w; x++)
         {
-            int color = ((x / tileSize) + (y / tileSize)) % 3;
+            int rowCh = (y / tileSize) % 3; // 0=R 1=G 2=B
+            int colCh = (x / tileSize) % 3;
             int o = (y * w + x) * 3;
-            pixels[o]     = color == 0 ? (byte)255 : (byte)0;
-            pixels[o + 1] = color == 1 ? (byte)255 : (byte)0;
-            pixels[o + 2] = color == 2 ? (byte)255 : (byte)0;
+            pixels[o]     = (rowCh == 0 || colCh == 0) ? (byte)255 : (byte)0; // R
+            pixels[o + 1] = (rowCh == 1 || colCh == 1) ? (byte)255 : (byte)0; // G
+            pixels[o + 2] = (rowCh == 2 || colCh == 2) ? (byte)255 : (byte)0; // B
         }
 
         var settings = new MagickReadSettings { Width = w, Height = h, ColorSpace = ColorSpace.sRGB, Format = MagickFormat.Rgb };
