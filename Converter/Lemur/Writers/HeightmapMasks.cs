@@ -24,8 +24,14 @@ namespace Converter.Lemur.Writers;
 /// </summary>
 static class HeightmapMasks
 {
-    // Fraction of p95 steepness below which each mask is black (linear ramp to white at 1.0)
-    private const float HillsFloor     = 0.25f;
+    // Hills: tent function — ramps up from HillsFloor, peaks full-white at HillsPeak,
+    // then fades back to black by HillsCeiling. Keeps hills out of the mountain zone.
+    private const float HillsFloor   = 0.20f;
+    private const float HillsPeak    = 0.40f;
+    private const float HillsCeiling = 0.75f;
+
+    // Mountains: plain ramp from MountainsFloor to 1.0 (no ceiling — steepest = whitest).
+    // Overlap with hills: 0.65–0.75, both near-zero at the edges of that band.
     private const float MountainsFloor = 0.65f;
 
     // Snow ramp — normalised height (0–1 over the full 0–255 range)
@@ -95,8 +101,8 @@ static class HeightmapMasks
 
             float s = p95 > 0f ? steep[i] / p95 : 0f;
 
-            hillsMask[i]     = FloatToByte(LinearRamp(s,        HillsFloor,     1f));
-            mountainsMask[i] = FloatToByte(LinearRamp(s,        MountainsFloor, 1f));
+            hillsMask[i]     = FloatToByte(Tent(s,        HillsFloor, HillsPeak, HillsCeiling));
+            mountainsMask[i] = FloatToByte(LinearRamp(s, MountainsFloor, 1f));
             snowMask[i]      = FloatToByte(LinearRamp(h / 255f, SnowLow,        SnowHigh));
         }
 
@@ -123,8 +129,13 @@ static class HeightmapMasks
         await img.WriteAsync(Path.Combine(dir, fileName), MagickFormat.Png);
     }
 
+    // Ramps 0→1 over [low, high].
     static float LinearRamp(float x, float low, float high)
         => Math.Clamp((x - low) / (high - low), 0f, 1f);
+
+    // Tent: rises 0→1 over [low, peak], falls 1→0 over [peak, high].
+    static float Tent(float x, float low, float peak, float high)
+        => Math.Min(LinearRamp(x, low, peak), 1f - LinearRamp(x, peak, high));
 
     static byte FloatToByte(float v) => (byte)Math.Clamp((int)(v * 255f), 0, 255);
 }
