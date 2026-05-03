@@ -122,8 +122,8 @@ static class Program
         sw.Stop();
         Console.WriteLine($"Generated in {sw.Elapsed.TotalSeconds:F1}s");
 
-        // ── Mesh visualisation ────────────────────────────────────────────────
-        if (mesh)
+        // ── Mesh visualisation (skipped when --coast-map is set; mesh is drawn there instead) ─
+        if (mesh && !coastMap)
         {
             using var meshImg = new MagickImage(MagickColors.White, genParams.Width, genParams.Height);
 
@@ -390,6 +390,32 @@ static class Program
                     d.Circle(cn.Px, cn.Py, cn.Px + 2, cn.Py);
 
                 coastImg.Draw(d);
+            }
+
+            // Delaunay mesh overlay — white triangle edges
+            if (mesh)
+            {
+                var allCoords = result.TerrainNodes.Select(t  => new Coordinate(t.Px,  t.Py))
+                                    .Concat(result.PolyNodes.Select(pn => new Coordinate(pn.Px, pn.Py)))
+                                    .Concat(result.CoastNodes.Select(cn => new Coordinate(cn.Px, cn.Py)))
+                                    .ToArray();
+                var gf = new GeometryFactory();
+                var builder = new DelaunayTriangulationBuilder();
+                builder.SetSites(gf.CreateMultiPointFromCoords(allCoords));
+                var triangles = builder.GetTriangles(gf);
+
+                var dm = new Drawables();
+                dm.StrokeColor(MagickColors.White).StrokeWidth(1).FillColor(new MagickColor(0, 0, 0, 0));
+                foreach (var geom in triangles.Geometries)
+                {
+                    var ring = geom.Boundary.Coordinates;
+                    if (ring.Length < 3) continue;
+                    dm.Line(ring[0].X, ring[0].Y, ring[1].X, ring[1].Y);
+                    dm.Line(ring[1].X, ring[1].Y, ring[2].X, ring[2].Y);
+                    dm.Line(ring[2].X, ring[2].Y, ring[0].X, ring[0].Y);
+                }
+                coastImg.Draw(dm);
+                Console.WriteLine($"Mesh overlay: {triangles.NumGeometries} triangles drawn");
             }
 
             await coastImg.WriteAsync(outputPath, MagickFormat.Png);
