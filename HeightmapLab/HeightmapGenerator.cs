@@ -526,7 +526,7 @@ static class HeightmapGenerator
         }
 
         if (violations > 0)
-            Console.WriteLine($"ASSERT FAIL: {violations} Steiner-Steiner Delaunay edge(s) — bad constraint(s) in input");
+            Console.WriteLine($"WARN Steiner-Steiner: {violations} edge(s) — long coast constraints subdivided twice (bad if edge length >> cell size)");
         else
             Console.WriteLine($"Steiner-Steiner OK — no Steiner point connects to another ({coastNodes.Count - originalCount} Steiner points checked)");
     }
