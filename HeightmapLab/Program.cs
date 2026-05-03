@@ -384,10 +384,23 @@ static class Program
                     }
                 }
 
-                // Coast constraint nodes — yellow (always shown on coast-map)
-                d.FillColor(MagickColors.Yellow).StrokeColor(MagickColors.Yellow).StrokeWidth(1);
-                foreach (var cn in result.CoastNodes)
+                // Coast nodes — three colours based on connectivity:
+                //   yellow  = OK (≥2 coast-coast edges)
+                //   orange  = degenerate + hull edge = probable valid exception
+                //   red     = degenerate + interior   = real problem
+                for (int ci = 0; ci < result.CoastNodes.Count; ci++)
+                {
+                    var cn   = result.CoastNodes[ci];
+                    int conn = result.Connectivity.Connections[ci];
+                    bool hull = result.Connectivity.IsHullNode[ci];
+
+                    MagickColor color = conn >= 2
+                        ? MagickColors.Yellow
+                        : hull ? new MagickColor("#FF8800") // orange
+                               : MagickColors.Red;
+                    d.FillColor(color).StrokeColor(color).StrokeWidth(1);
                     d.Circle(cn.Px, cn.Py, cn.Px + 2, cn.Py);
+                }
 
                 coastImg.Draw(d);
             }
@@ -419,9 +432,12 @@ static class Program
             }
 
             await coastImg.WriteAsync(outputPath, MagickFormat.Png);
-            Console.WriteLine($"Coast map written to {outputPath} ({result.CoastNodes.Count} coast nodes yellow" +
-                (debug ? $", {result.TerrainNodes.Count} terrain green, {result.PolyNodes.Count} poly-nodes red/blue" : "") +
-                $"; water level={wl})");
+            int nOk     = result.Connectivity.Connections.Count(c => c >= 2);
+            int nHull   = result.Connectivity.Connections.Select((c,i) => c < 2 &&  result.Connectivity.IsHullNode[i]).Count(x => x);
+            int nBad    = result.Connectivity.Connections.Select((c,i) => c < 2 && !result.Connectivity.IsHullNode[i]).Count(x => x);
+            Console.WriteLine($"Coast map written to {outputPath} — {nOk} yellow (OK), {nBad} red (bad), {nHull} orange (hull exception)" +
+                (debug ? $"; {result.TerrainNodes.Count} terrain green, {result.PolyNodes.Count} poly-nodes red/blue" : "") +
+                $"; water level={wl}");
             return 0;
         }
 

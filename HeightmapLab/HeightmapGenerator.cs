@@ -25,12 +25,18 @@ static class HeightmapGenerator
         float RoughnessPower = 2.0f,
         bool BaseOnly = false);
 
+    // Per-node coast connectivity result, indexed parallel to the CoastNodes list.
+    public record CoastConnectivity(
+        IReadOnlyList<int>  Connections, // coast-coast Delaunay edge count per node
+        IReadOnlyList<bool> IsHullNode); // true = node has a boundary (hull) Delaunay edge → probably a valid exception
+
     public record GenerateResult(
         byte[] Pixels,
         float[] HeightmapF,
         IReadOnlyList<TerrainNode> TerrainNodes,
         IReadOnlyList<PolyNode> PolyNodes,
-        IReadOnlyList<CoastNode> CoastNodes);
+        IReadOnlyList<CoastNode> CoastNodes,
+        CoastConnectivity Connectivity);
 
     // Internal to this file — carries spawn position + parent context through relaxation
     private record struct SpawnedNode(float Px, float Py, float SpawnPx, float SpawnPy, int ParentIdx);
@@ -40,7 +46,7 @@ static class HeightmapGenerator
         // ── 1. Build terrain nodes ────────────────────────────────────────────
         var landCells = cells.Values.Where(c => Cell.IsDryLand(c.Type)).ToList();
         if (landCells.Count == 0)
-            return new GenerateResult(new byte[p.Width * p.Height], new float[p.Width * p.Height], [], [], []);
+            return new GenerateResult(new byte[p.Width * p.Height], new float[p.Width * p.Height], [], [], [], new CoastConnectivity([], []));
 
         // Compute raw avg-height-diff per cell (no clamping), find p95, use that
         // as the normalization ceiling. RoughnessNorm > 1 pushes p95 below 1.0,
@@ -120,11 +126,11 @@ static class HeightmapGenerator
             var baseCoords = terrainNodes.Select(t  => new Coordinate(t.Px, t.Py))
                                 .Concat(coastNodes.Select(cn => new Coordinate(cn.Px, cn.Py)));
             var coordIndex   = BuildCoordIndex(basePoints);
-            var triangulation = Triangulate(baseCoords);
-            CheckCoastConnectivity(triangulation, coastNodes);
-            var heightMap    = RasterizeTriangles(triangulation, coordIndex, p);
+            var triangulation   = Triangulate(baseCoords);
+            var connectivity    = CheckCoastConnectivity(triangulation, coastNodes);
+            var heightMap       = RasterizeTriangles(triangulation, coordIndex, p);
             ApplyGaussianBlur(heightMap, p);
-            return new GenerateResult(ToBytes(heightMap), heightMap, terrainNodes, [], coastNodes);
+            return new GenerateResult(ToBytes(heightMap), heightMap, terrainNodes, [], coastNodes, connectivity);
         }
 
         // ── 4. Poly-node spawning — positions + spawn context only ────────────
@@ -252,11 +258,11 @@ static class HeightmapGenerator
                            .Concat(polyNodes.Select(pn => new Coordinate(pn.Px, pn.Py)))
                            .Concat(coastNodes.Select(cn => new Coordinate(cn.Px, cn.Py)));
         var triangulation2 = Triangulate(allCoords);
-        CheckCoastConnectivity(triangulation2, coastNodes);
-        var heightMap2 = RasterizeTriangles(triangulation2, combinedCoordIndex, p);
+        var connectivity2  = CheckCoastConnectivity(triangulation2, coastNodes);
+        var heightMap2     = RasterizeTriangles(triangulation2, combinedCoordIndex, p);
         ApplyGaussianBlur(heightMap2, p);
 
-        return new GenerateResult(ToBytes(heightMap2), heightMap2, terrainNodes, polyNodes, coastNodes);
+        return new GenerateResult(ToBytes(heightMap2), heightMap2, terrainNodes, polyNodes, coastNodes, connectivity2);
     }
 
     // ── Relaxation ────────────────────────────────────────────────────────────
@@ -402,40 +408,76 @@ static class HeightmapGenerator
         return heightMap;
     }
 
-    // Assert that every coast node has ≥ 2 Delaunay edges connecting it to other coast nodes.
-    // A node with only 1 such edge is a degenerate "spike" — the waterline can't form a closed
-    // loop through it, which produces visible artefacts in the heightmap.
-    static void CheckCoastConnectivity(GeometryCollection triangles, List<CoastNode> coastNodes)
+    // Returns per-node connectivity data indexed parallel to coastNodes.
+    // Connections[i] = number of unique Delaunay edges from node i to another coast node.
+    // IsHullNode[i]  = true if node i has at least one hull edge (appears in only 1 triangle),
+    //                  making it a probable valid exception to the ≥2 rule.
+    static CoastConnectivity CheckCoastConnectivity(GeometryCollection triangles, List<CoastNode> coastNodes)
     {
-        if (coastNodes.Count == 0) return;
+        int n = coastNodes.Count;
+        var connections = new int[n];
+        var isHull      = new bool[n];
 
-        var coastKeys = new HashSet<(int, int)>(
-            coastNodes.Select(cn => (RoundCoord(cn.Px), RoundCoord(cn.Py))));
+        if (n == 0) return new CoastConnectivity(connections, isHull);
 
-        var connections = coastKeys.ToDictionary(k => k, _ => 0);
-        var seen        = new HashSet<((int, int), (int, int))>();
+        // Build key → index map for O(1) lookup
+        var keyToIdx = new Dictionary<(int, int), int>(n);
+        for (int i = 0; i < n; i++)
+            keyToIdx[(RoundCoord(coastNodes[i].Px), RoundCoord(coastNodes[i].Py))] = i;
+        var coastKeys = keyToIdx.Keys.ToHashSet();
 
+        // Pass 1: count triangles per edge (ALL edges, not just coast-coast).
+        //         Edges with count == 1 are hull (boundary) edges.
+        var edgeCount = new Dictionary<((int,int),(int,int)), int>();
         foreach (var geom in triangles.Geometries)
         {
             var ring = geom.Boundary.Coordinates;
             for (int e = 0; e < 3; e++)
             {
-                var a = (RoundCoord((float)ring[e].X),         RoundCoord((float)ring[e].Y));
-                var b = (RoundCoord((float)ring[(e + 1) % 3].X), RoundCoord((float)ring[(e + 1) % 3].Y));
-                if (!coastKeys.Contains(a) || !coastKeys.Contains(b)) continue;
-                // Normalise edge key so (a,b) and (b,a) are the same entry
+                var a = (RoundCoord((float)ring[e].X),             RoundCoord((float)ring[e].Y));
+                var b = (RoundCoord((float)ring[(e + 1) % 3].X),   RoundCoord((float)ring[(e + 1) % 3].Y));
                 var edge = (a.CompareTo(b) <= 0) ? (a, b) : (b, a);
-                if (!seen.Add(edge)) continue;
-                connections[a]++;
-                connections[b]++;
+                edgeCount.TryGetValue(edge, out int cnt);
+                edgeCount[edge] = cnt + 1;
             }
         }
 
-        var degenerate = connections.Where(kv => kv.Value < 2).ToList();
-        if (degenerate.Count > 0)
-            Console.WriteLine($"WARN: {degenerate.Count}/{coastNodes.Count} coast nodes have <2 coast–coast Delaunay edges (degenerate coastline spike)");
+        // Pass 2: for each coast node, check hull status and count coast-coast connections.
+        var seenCoastEdges = new HashSet<((int,int),(int,int))>();
+        foreach (var (edge, cnt) in edgeCount)
+        {
+            var (a, b) = edge;
+            bool aIsCoast = coastKeys.Contains(a);
+            bool bIsCoast = coastKeys.Contains(b);
+
+            // Hull detection: any edge with count==1 marks its coast endpoints as hull nodes
+            if (cnt == 1)
+            {
+                if (aIsCoast && keyToIdx.TryGetValue(a, out int ai)) isHull[ai] = true;
+                if (bIsCoast && keyToIdx.TryGetValue(b, out int bi)) isHull[bi] = true;
+            }
+
+            // Coast-coast connection count (deduplicated via seenCoastEdges)
+            if (aIsCoast && bIsCoast && seenCoastEdges.Add(edge))
+            {
+                connections[keyToIdx[a]]++;
+                connections[keyToIdx[b]]++;
+            }
+        }
+
+        int degenReal = 0, degenHull = 0;
+        for (int i = 0; i < n; i++)
+        {
+            if (connections[i] < 2)
+                (isHull[i] ? ref degenHull : ref degenReal)++;
+        }
+        if (degenReal + degenHull > 0)
+            Console.WriteLine($"WARN: {degenReal + degenHull}/{n} coast nodes <2 coast-coast edges " +
+                              $"({degenReal} real problems, {degenHull} probable hull exceptions)");
         else
-            Console.WriteLine($"Coast connectivity OK — all {coastNodes.Count} nodes have ≥2 coast–coast edges");
+            Console.WriteLine($"Coast connectivity OK — all {n} nodes ≥2 coast-coast edges");
+
+        return new CoastConnectivity(connections, isHull);
     }
 
     // ── Public diagnostic rasters ─────────────────────────────────────────────
