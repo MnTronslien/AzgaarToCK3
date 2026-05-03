@@ -400,20 +400,24 @@ static class Program
                     coastImg.Draw(rings);
                 }
 
-                // Coast nodes — three colours based on connectivity:
-                //   yellow  = OK (≥2 coast-coast edges)
+                // Coast nodes — four colours:
+                //   yellow  = OK original node (≥2 coast-coast edges)
                 //   orange  = degenerate + hull edge = probable valid exception
                 //   red     = degenerate + interior   = real problem
+                //   magenta = Steiner point absorbed from CDT constraint enforcement
+                int origCount = result.OriginalCoastNodeCount;
                 for (int ci = 0; ci < result.CoastNodes.Count; ci++)
                 {
                     var cn   = result.CoastNodes[ci];
                     int conn = result.Connectivity.Connections[ci];
                     bool hull = result.Connectivity.IsHullNode[ci];
+                    bool steiner = ci >= origCount;
 
-                    MagickColor color = conn >= 2
-                        ? MagickColors.Yellow
-                        : hull ? new MagickColor("#FF8800") // orange
-                               : MagickColors.Red;
+                    MagickColor color = steiner
+                        ? MagickColors.Magenta
+                        : conn >= 2 ? MagickColors.Yellow
+                        : hull      ? new MagickColor("#FF8800")
+                                    : MagickColors.Red;
                     d.FillColor(color).StrokeColor(color).StrokeWidth(1);
                     d.Circle(cn.Px, cn.Py, cn.Px + 2, cn.Py);
                 }
@@ -421,7 +425,19 @@ static class Program
                 coastImg.Draw(d);
             }
 
-            // Delaunay mesh overlay — white triangle edges
+            // Write nodes-only image first
+            string nodesPath = mesh
+                ? System.IO.Path.ChangeExtension(outputPath, null) + "-nodes.png"
+                : outputPath;
+            await coastImg.WriteAsync(nodesPath, MagickFormat.Png);
+
+            int nOk   = result.Connectivity.Connections.Count(c => c >= 2);
+            int nHull = result.Connectivity.Connections.Select((c,i) => c < 2 &&  result.Connectivity.IsHullNode[i]).Count(x => x);
+            int nBad  = result.Connectivity.Connections.Select((c,i) => c < 2 && !result.Connectivity.IsHullNode[i]).Count(x => x);
+            int nSteiner = result.CoastNodes.Count - result.OriginalCoastNodeCount;
+            Console.WriteLine($"Coast nodes: {nOk} yellow (OK), {nBad} red (bad), {nHull} orange (hull), {nSteiner} magenta (Steiner)");
+
+            // Delaunay mesh overlay — white triangle edges, separate file
             if (mesh)
             {
                 var allCoords = result.TerrainNodes.Select(t  => new Coordinate(t.Px,  t.Py))
@@ -444,16 +460,12 @@ static class Program
                     dm.Line(ring[2].X, ring[2].Y, ring[0].X, ring[0].Y);
                 }
                 coastImg.Draw(dm);
-                Console.WriteLine($"Mesh overlay: {triangles.NumGeometries} triangles drawn");
+                string meshPath = outputPath; // mesh goes to the specified output path
+                await coastImg.WriteAsync(meshPath, MagickFormat.Png);
+                Console.WriteLine($"Mesh: {triangles.NumGeometries} triangles → {meshPath}");
             }
 
-            await coastImg.WriteAsync(outputPath, MagickFormat.Png);
-            int nOk     = result.Connectivity.Connections.Count(c => c >= 2);
-            int nHull   = result.Connectivity.Connections.Select((c,i) => c < 2 &&  result.Connectivity.IsHullNode[i]).Count(x => x);
-            int nBad    = result.Connectivity.Connections.Select((c,i) => c < 2 && !result.Connectivity.IsHullNode[i]).Count(x => x);
-            Console.WriteLine($"Coast map written to {outputPath} — {nOk} yellow (OK), {nBad} red (bad), {nHull} orange (hull exception)" +
-                (debug ? $"; {result.TerrainNodes.Count} terrain green, {result.PolyNodes.Count} poly-nodes red/blue" : "") +
-                $"; water level={wl}");
+            Console.WriteLine($"Nodes image → {nodesPath}");
             return 0;
         }
 

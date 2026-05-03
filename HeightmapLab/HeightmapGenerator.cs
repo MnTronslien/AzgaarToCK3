@@ -37,7 +37,8 @@ static class HeightmapGenerator
         IReadOnlyList<TerrainNode> TerrainNodes,
         IReadOnlyList<PolyNode> PolyNodes,
         IReadOnlyList<CoastNode> CoastNodes,
-        CoastConnectivity Connectivity);
+        CoastConnectivity Connectivity,
+        int OriginalCoastNodeCount); // nodes at index ≥ this were absorbed as Steiner points
 
     // Internal to this file — carries spawn position + parent context through relaxation
     private record struct SpawnedNode(float Px, float Py, float SpawnPx, float SpawnPy, int ParentIdx);
@@ -47,7 +48,7 @@ static class HeightmapGenerator
         // ── 1. Build terrain nodes ────────────────────────────────────────────
         var landCells = cells.Values.Where(c => Cell.IsDryLand(c.Type)).ToList();
         if (landCells.Count == 0)
-            return new GenerateResult(new byte[p.Width * p.Height], new float[p.Width * p.Height], [], [], [], new CoastConnectivity([], []));
+            return new GenerateResult(new byte[p.Width * p.Height], new float[p.Width * p.Height], [], [], [], new CoastConnectivity([], []), 0);
 
         // Compute raw avg-height-diff per cell (no clamping), find p95, use that
         // as the normalization ceiling. RoughnessNorm > 1 pushes p95 below 1.0,
@@ -145,6 +146,7 @@ static class HeightmapGenerator
             }
         }
         Console.WriteLine($"Coast nodes: {coastNodes.Count} vertices, {constraintSegs.Count} CDT constraint edges");
+        int originalCoastCount = coastNodes.Count; // nodes added after this are Steiner points
 
         // ── 4. Early-out: terrain-only Delaunay rasterization ────────────────
         if (p.BaseOnly)
@@ -159,7 +161,7 @@ static class HeightmapGenerator
             var connectivity  = CheckCoastConnectivity(triangulation, coastNodes);
             var heightMap     = RasterizeTriangles(triangulation, coordIndex, p);
             ApplyGaussianBlur(heightMap, p);
-            return new GenerateResult(ToBytes(heightMap), heightMap, terrainNodes, [], coastNodes, connectivity);
+            return new GenerateResult(ToBytes(heightMap), heightMap, terrainNodes, [], coastNodes, connectivity, originalCoastCount);
         }
 
         // ── 4. Poly-node spawning — positions + spawn context only ────────────
@@ -312,7 +314,7 @@ static class HeightmapGenerator
         var heightMap2     = RasterizeTriangles(triangulation2, combinedCoordIndex, p);
         ApplyGaussianBlur(heightMap2, p);
 
-        return new GenerateResult(ToBytes(heightMap2), heightMap2, terrainNodes, polyNodes, coastNodes, connectivity2);
+        return new GenerateResult(ToBytes(heightMap2), heightMap2, terrainNodes, polyNodes, coastNodes, connectivity2, originalCoastCount);
     }
 
     // ── Relaxation ────────────────────────────────────────────────────────────
