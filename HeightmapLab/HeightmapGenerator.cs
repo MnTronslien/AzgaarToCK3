@@ -124,32 +124,40 @@ static class HeightmapGenerator
             .ToList();
 
         // Collect unique adjacent coast-node pairs → CDT constraint edges.
-        // Only iterate LAND cells: every legitimate shoreline edge is shared between
-        // exactly one land cell and one sea cell, so land-only iteration captures all
-        // of them. Sea-only pairs (consecutive coast vertices in a sea cell that are on
-        // OPPOSITE shores of a narrow strait) are cross-water edges that must NOT be
-        // constrained — they cause Steiner points to be inserted mid-strait.
-        var gfConstr     = new GeometryFactory();
-        var seenEdges    = new HashSet<((float, float), (float, float))>();
-        var constraintSegs = new List<NetTopologySuite.Geometries.LineString>();
+        // A valid shoreline edge is shared between EXACTLY ONE land cell and ONE sea
+        // cell, so it appears as a consecutive coast pair in BOTH a land ring AND a sea
+        // ring. Two failure modes if we don't enforce this:
+        //   • Cross-strait:  sea cell with coast vertices on opposite shores → sea-only pair
+        //                    → Steiner point inserted mid-water
+        //   • Cross-land:    land cell at peninsula tip with coast vertices on opposite
+        //                    flanks → land-only pair → Steiner point inserted mid-land
+        // Fix: only emit constraints for pairs present in BOTH land and sea rings.
+        var gfConstr  = new GeometryFactory();
+        var landPairs = new HashSet<((float, float), (float, float))>();
+        var seaPairs  = new HashSet<((float, float), (float, float))>();
         foreach (var cell in cells.Values)
         {
-            if (!Cell.IsDryLand(cell.Type)) continue; // sea cells excluded — see comment above
             var coords = cell.GeoDataCoordinates;
             if (coords == null) continue;
-            int n = coords.Length - 1;
+            int n   = coords.Length - 1;
+            var bag = Cell.IsDryLand(cell.Type) ? landPairs : seaPairs;
             for (int vi = 0; vi < n; vi++)
             {
                 var a = (coords[vi][0],           coords[vi][1]);
                 var b = (coords[(vi + 1) % n][0], coords[(vi + 1) % n][1]);
                 if (!coastGeoSet.Contains(a) || !coastGeoSet.Contains(b)) continue;
-                var edgeKey = a.CompareTo(b) <= 0 ? (a, b) : (b, a);
-                if (!seenEdges.Add(edgeKey)) continue;
-                constraintSegs.Add(gfConstr.CreateLineString([
-                    new Coordinate(GeoToPixelX(a.Item1, p), GeoToPixelY(a.Item2, p)),
-                    new Coordinate(GeoToPixelX(b.Item1, p), GeoToPixelY(b.Item2, p)),
-                ]));
+                bag.Add(a.CompareTo(b) <= 0 ? (a, b) : (b, a));
             }
+        }
+        var constraintSegs = new List<NetTopologySuite.Geometries.LineString>();
+        foreach (var edge in landPairs)
+        {
+            if (!seaPairs.Contains(edge)) continue; // cross-land pair — skip
+            var (a, b) = edge;
+            constraintSegs.Add(gfConstr.CreateLineString([
+                new Coordinate(GeoToPixelX(a.Item1, p), GeoToPixelY(a.Item2, p)),
+                new Coordinate(GeoToPixelX(b.Item1, p), GeoToPixelY(b.Item2, p)),
+            ]));
         }
         Console.WriteLine($"Coast nodes: {coastNodes.Count} vertices, {constraintSegs.Count} CDT constraint edges");
         int originalCoastCount = coastNodes.Count; // nodes added after this are Steiner points
