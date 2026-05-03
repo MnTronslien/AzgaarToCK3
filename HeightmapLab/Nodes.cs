@@ -24,3 +24,11 @@ record struct PolyNode(
     float IdwRoughness,
     float RawRand,
     float Height) : INode;
+
+// Inserted at polygon vertices shared between a land cell and a sea cell.
+// Pinned to CK3WaterLevel — forces the Delaunay waterline to cross at the
+// actual cell boundary rather than drifting inland.
+record struct CoastNode(float Px, float Py) : INode
+{
+    public float Height => HeightmapGenerator.CK3WaterLevel;
+}

@@ -362,8 +362,19 @@ static class Program
             var cm = new MagickReadSettings { Width = w, Height = h, ColorSpace = ColorSpace.sRGB, Format = MagickFormat.Rgb };
             using var coastImg = new MagickImage(rgb, cm);
             coastImg.Depth = 8;
+
+            // Overlay coast constraint nodes as yellow dots
+            if (result.CoastNodes.Count > 0)
+            {
+                var d = new Drawables();
+                d.FillColor(MagickColors.Yellow).StrokeColor(MagickColors.Yellow).StrokeWidth(1);
+                foreach (var cn in result.CoastNodes)
+                    d.Circle(cn.Px, cn.Py, cn.Px + 2, cn.Py);
+                coastImg.Draw(d);
+            }
+
             await coastImg.WriteAsync(outputPath, MagickFormat.Png);
-            Console.WriteLine($"Coast map written to {outputPath} (blue=sea, grey=land; water level={wl})");
+            Console.WriteLine($"Coast map written to {outputPath} ({result.CoastNodes.Count} coast nodes marked yellow; blue=sea, grey=land; water level={wl})");
             return 0;
         }
 

@@ -29,7 +29,8 @@ static class HeightmapGenerator
         byte[] Pixels,
         float[] HeightmapF,
         IReadOnlyList<TerrainNode> TerrainNodes,
-        IReadOnlyList<PolyNode> PolyNodes);
+        IReadOnlyList<PolyNode> PolyNodes,
+        IReadOnlyList<CoastNode> CoastNodes);
 
     // Internal to this file — carries spawn position + parent context through relaxation
     private record struct SpawnedNode(float Px, float Py, float SpawnPx, float SpawnPy, int ParentIdx);
@@ -39,7 +40,7 @@ static class HeightmapGenerator
         // ── 1. Build terrain nodes ────────────────────────────────────────────
         var landCells = cells.Values.Where(c => Cell.IsDryLand(c.Type)).ToList();
         if (landCells.Count == 0)
-            return new GenerateResult(new byte[p.Width * p.Height], new float[p.Width * p.Height], [], []);
+            return new GenerateResult(new byte[p.Width * p.Height], new float[p.Width * p.Height], [], [], []);
 
         // Compute raw avg-height-diff per cell (no clamping), find p95, use that
         // as the normalization ceiling. RoughnessNorm > 1 pushes p95 below 1.0,
@@ -90,13 +91,38 @@ static class HeightmapGenerator
         for (int i = 0; i < terrainNodes.Count; i++)
             terrainGrid.Add(terrainNodes[i].Px, terrainNodes[i].Py, i);
 
-        // ── 3. Early-out: terrain-only Delaunay rasterization ────────────────
+        // ── 3. Coast constraint nodes — polygon vertices shared between land and sea ──
+        // Each such vertex is pinned to CK3WaterLevel so the Delaunay waterline
+        // crosses at the actual cell boundary, not somewhere inland.
+        var landVerts = new HashSet<(float, float)>();
+        var seaVerts  = new HashSet<(float, float)>();
+        foreach (var cell in cells.Values)
+        {
+            var coords = cell.GeoDataCoordinates;
+            if (coords == null) continue;
+            int n = coords.Length - 1; // last vertex == first, skip it
+            var bucket = Cell.IsDryLand(cell.Type) ? landVerts : seaVerts;
+            for (int vi = 0; vi < n; vi++)
+                bucket.Add((coords[vi][0], coords[vi][1]));
+        }
+        var coastNodes = landVerts.Intersect(seaVerts)
+            .Select(v => new CoastNode(
+                Px: GeoToPixelX(v.Item1, p),
+                Py: GeoToPixelY(v.Item2, p)))
+            .ToList();
+        Console.WriteLine($"Coast nodes: {coastNodes.Count} boundary vertices at h={CK3WaterLevel}");
+
+        // ── 4. Early-out: terrain-only Delaunay rasterization ────────────────
         if (p.BaseOnly)
         {
-            var coordIndex = BuildCoordIndex(terrainNodes.Select(t => (t.Px, t.Py, t.Height)));
-            var heightMap  = Rasterize(coordIndex, terrainNodes.Select(t => new Coordinate(t.Px, t.Py)), p);
+            var basePoints = terrainNodes.Select(t  => (t.Px, t.Py, t.Height))
+                                .Concat(coastNodes.Select(cn => (cn.Px, cn.Py, (float)CK3WaterLevel)));
+            var baseCoords = terrainNodes.Select(t  => new Coordinate(t.Px, t.Py))
+                                .Concat(coastNodes.Select(cn => new Coordinate(cn.Px, cn.Py)));
+            var coordIndex = BuildCoordIndex(basePoints);
+            var heightMap  = Rasterize(coordIndex, baseCoords, p);
             ApplyGaussianBlur(heightMap, p);
-            return new GenerateResult(ToBytes(heightMap), heightMap, terrainNodes, []);
+            return new GenerateResult(ToBytes(heightMap), heightMap, terrainNodes, [], coastNodes);
         }
 
         // ── 4. Poly-node spawning — positions + spawn context only ────────────
@@ -182,15 +208,17 @@ static class HeightmapGenerator
 
         // ── 7. Delaunay triangulation + rasterization ─────────────────────────
         var allPoints = terrainNodes.Select(t  => (t.Px,  t.Py,  t.Height))
-                           .Concat(polyNodes.Select(pn => (pn.Px, pn.Py, pn.Height)));
+                           .Concat(polyNodes.Select(pn => (pn.Px, pn.Py, pn.Height)))
+                           .Concat(coastNodes.Select(cn => (cn.Px, cn.Py, (float)CK3WaterLevel)));
         var combinedCoordIndex = BuildCoordIndex(allPoints);
 
         var allCoords = terrainNodes.Select(t  => new Coordinate(t.Px,  t.Py))
-                           .Concat(polyNodes.Select(pn => new Coordinate(pn.Px, pn.Py)));
+                           .Concat(polyNodes.Select(pn => new Coordinate(pn.Px, pn.Py)))
+                           .Concat(coastNodes.Select(cn => new Coordinate(cn.Px, cn.Py)));
         var heightMap2 = Rasterize(combinedCoordIndex, allCoords, p);
         ApplyGaussianBlur(heightMap2, p);
 
-        return new GenerateResult(ToBytes(heightMap2), heightMap2, terrainNodes, polyNodes);
+        return new GenerateResult(ToBytes(heightMap2), heightMap2, terrainNodes, polyNodes, coastNodes);
     }
 
     // ── Relaxation ────────────────────────────────────────────────────────────
