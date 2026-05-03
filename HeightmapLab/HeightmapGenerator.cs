@@ -23,7 +23,8 @@ static class HeightmapGenerator
         float RelaxStep = 0.05f,
         int BlurRadius = 3,
         float RoughnessPower = 2.0f,
-        bool BaseOnly = false);
+        bool BaseOnly = false,
+        float CoastExclusionRadius = 30f);
 
     // Per-node coast connectivity result, indexed parallel to the CoastNodes list.
     public record CoastConnectivity(
@@ -197,10 +198,21 @@ static class HeightmapGenerator
         if (p.RelaxIterations > 0)
             spawnedNodes = Relax(spawnedNodes, terrainPositions, p.RelaxIterations, minSep, terrainMinSep, p.RelaxStep, p.Width, p.Height);
 
-        // ── 6. Cell polygons in pixel space for poly-node classification ─────────
+        // ── 6. Cell polygons + coast proximity grid ───────────────────────────
         // Voronoi cells are small (6–10 vertices), so per-contributor polygon
         // containment tests are cheaper than building a union.
+        // Coast grid: used to enforce the exclusion radius (see step 7).
         var gf = new GeometryFactory();
+
+        SpatialGrid<int>? coastProxGrid = null;
+        if (p.CoastExclusionRadius > 0 && coastNodes.Count > 0)
+        {
+            int ccols = Math.Max(1, (int)Math.Sqrt(coastNodes.Count));
+            int crows = Math.Max(1, ccols * p.Height / p.Width);
+            coastProxGrid = new SpatialGrid<int>(p.Width, p.Height, ccols, crows);
+            for (int ci = 0; ci < coastNodes.Count; ci++)
+                coastProxGrid.Add(coastNodes[ci].Px, coastNodes[ci].Py, ci);
+        }
         var cellPolygons = new Dictionary<int, NetTopologySuite.Geometries.Polygon>(cells.Count);
         foreach (var (id, cell) in cells)
         {
@@ -254,6 +266,15 @@ static class HeightmapGenerator
             insideLand ??= baseHeight > CK3WaterLevel;
 
             if (!insideLand.Value) continue; // sea poly nodes contribute nothing — drop them
+
+            // Coast exclusion zone: drop poly nodes within CoastExclusionRadius of any coast node.
+            // Prevents poly nodes from sitting between two coast nodes and blocking a coast-coast
+            // Delaunay edge that isn't in the CDT constraint set.
+            if (coastProxGrid != null)
+            {
+                var cn1 = coastProxGrid.NearestN(s.Px, s.Py, 1);
+                if (cn1.Count > 0 && cn1[0].dist < p.CoastExclusionRadius) continue;
+            }
 
             nodeHeight = Math.Max(nodeHeight, CK3WaterLevel + 1f); // land: floor above sea level
 
@@ -453,6 +474,40 @@ static class HeightmapGenerator
         }
         if (added > 0)
             Console.WriteLine($"Absorbed {added} Steiner points at h={height}");
+    }
+
+    // Returns all coast-coast edges from a triangulation as CDT-ready LineStrings.
+    // Used by the two-pass approach: pass-1 (poly-free) produces this set; pass-2
+    // receives it as constraints so poly nodes can't displace coast-coast edges.
+    static List<NetTopologySuite.Geometries.LineString> CollectCoastCoastConstraints(
+        GeometryCollection triangles,
+        List<CoastNode> coastNodes,
+        GeometryFactory gf)
+    {
+        var coastKeys = new HashSet<(int, int)>(coastNodes.Count);
+        foreach (var cn in coastNodes)
+            coastKeys.Add((RoundCoord(cn.Px), RoundCoord(cn.Py)));
+
+        var seen = new HashSet<((int,int),(int,int))>();
+        var result = new List<NetTopologySuite.Geometries.LineString>();
+
+        foreach (var geom in triangles.Geometries)
+        {
+            var ring = geom.Boundary.Coordinates;
+            for (int e = 0; e < 3; e++)
+            {
+                var ra = ring[e];
+                var rb = ring[(e + 1) % 3];
+                var ka = (RoundCoord((float)ra.X), RoundCoord((float)ra.Y));
+                var kb = (RoundCoord((float)rb.X), RoundCoord((float)rb.Y));
+                if (!coastKeys.Contains(ka) || !coastKeys.Contains(kb)) continue;
+                if (ka == kb) continue; // degenerate edge — Steiner points at same rounded coord
+                var edge = ka.CompareTo(kb) <= 0 ? (ka, kb) : (kb, ka);
+                if (!seen.Add(edge)) continue;
+                result.Add(gf.CreateLineString([new Coordinate(ra.X, ra.Y), new Coordinate(rb.X, rb.Y)]));
+            }
+        }
+        return result;
     }
 
     // Accept a pre-built triangulation so the caller can inspect it (e.g. assertions) before rasterizing.
