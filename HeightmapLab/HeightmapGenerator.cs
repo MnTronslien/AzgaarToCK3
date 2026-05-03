@@ -123,12 +123,18 @@ static class HeightmapGenerator
             .Select(v => new CoastNode(GeoToPixelX(v.Item1, p), GeoToPixelY(v.Item2, p)))
             .ToList();
 
-        // Collect unique adjacent coast-node pairs → CDT constraint edges
+        // Collect unique adjacent coast-node pairs → CDT constraint edges.
+        // Only iterate LAND cells: every legitimate shoreline edge is shared between
+        // exactly one land cell and one sea cell, so land-only iteration captures all
+        // of them. Sea-only pairs (consecutive coast vertices in a sea cell that are on
+        // OPPOSITE shores of a narrow strait) are cross-water edges that must NOT be
+        // constrained — they cause Steiner points to be inserted mid-strait.
         var gfConstr     = new GeometryFactory();
         var seenEdges    = new HashSet<((float, float), (float, float))>();
         var constraintSegs = new List<NetTopologySuite.Geometries.LineString>();
         foreach (var cell in cells.Values)
         {
+            if (!Cell.IsDryLand(cell.Type)) continue; // sea cells excluded — see comment above
             var coords = cell.GeoDataCoordinates;
             if (coords == null) continue;
             int n = coords.Length - 1;
