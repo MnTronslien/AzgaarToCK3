@@ -270,7 +270,7 @@ static class HeightmapGenerator
             var coordIndex    = BuildCoordIndex(basePoints);
             var triangulation = Triangulate(baseCoords, constraintSegs);
             AbsorbSteinerPoints(triangulation, coordIndex, coastNodes, CK3WaterLevel);
-            var cascadingBase = AssertNoSteinerSteinerEdges(triangulation, coastNodes, originalCoastCount);
+            var cascadingBase = AssertNoSteinerSteinerEdges(triangulation, coastNodes, originalCoastCount, constraintSegs, terrainNodes);
             var connectivity  = CheckCoastConnectivity(triangulation, coastNodes);
             var heightMap     = RasterizeTriangles(triangulation, coordIndex, p);
             ApplyGaussianBlur(heightMap, p);
@@ -423,7 +423,7 @@ static class HeightmapGenerator
                            .Concat(coastNodes.Select(cn => new Coordinate(cn.Px, cn.Py)));
         var triangulation2 = Triangulate(allCoords, constraintSegs);
         AbsorbSteinerPoints(triangulation2, combinedCoordIndex, coastNodes, CK3WaterLevel);
-        var cascading = AssertNoSteinerSteinerEdges(triangulation2, coastNodes, originalCoastCount);
+        var cascading = AssertNoSteinerSteinerEdges(triangulation2, coastNodes, originalCoastCount, constraintSegs, terrainNodes);
         var connectivity2  = CheckCoastConnectivity(triangulation2, coastNodes);
         var heightMap2     = RasterizeTriangles(triangulation2, combinedCoordIndex, p);
         ApplyGaussianBlur(heightMap2, p);
@@ -601,7 +601,9 @@ static class HeightmapGenerator
     static List<CoastNode> AssertNoSteinerSteinerEdges(
         GeometryCollection triangles,
         List<CoastNode> coastNodes,
-        int originalCount)
+        int originalCount,
+        IReadOnlyList<NetTopologySuite.Geometries.LineString>? constraintSegs = null,
+        IReadOnlyList<TerrainNode>? terrainNodes = null)
     {
         if (coastNodes.Count <= originalCount)
         {
@@ -613,8 +615,8 @@ static class HeightmapGenerator
         for (int i = originalCount; i < coastNodes.Count; i++)
             steinerByKey.TryAdd((RoundCoord(coastNodes[i].Px), RoundCoord(coastNodes[i].Py)), coastNodes[i]);
 
-        var seen        = new HashSet<((int,int),(int,int))>();
-        var cascadeKeys = new HashSet<(int,int)>();
+        var seen     = new HashSet<((int,int),(int,int))>();
+        var pairList = new List<((int,int) ka, (int,int) kb)>();
 
         foreach (var geom in triangles.Geometries)
         {
@@ -626,19 +628,135 @@ static class HeightmapGenerator
                 if (!steinerByKey.ContainsKey(ka) || !steinerByKey.ContainsKey(kb)) continue;
                 var edge = ka.CompareTo(kb) <= 0 ? (ka, kb) : (kb, ka);
                 if (!seen.Add(edge)) continue;
-                cascadeKeys.Add(ka); cascadeKeys.Add(kb);
+                pairList.Add((ka, kb));
             }
         }
 
         int nSteiner = coastNodes.Count - originalCount;
-        if (seen.Count > 0)
-            Console.WriteLine($"WARN Steiner-Steiner: {seen.Count} edge(s), " +
-                              $"{cascadeKeys.Count}/{nSteiner} Steiner nodes in cascade " +
-                              $"({nSteiner - cascadeKeys.Count} clean single-insertion)");
-        else
-            Console.WriteLine($"Steiner-Steiner OK — all {nSteiner} Steiner points are single-insertion (no cascade)");
+        if (seen.Count == 0)
+        {
+            Console.WriteLine($"Bay-shortcut OK — all {nSteiner} Steiner points clean");
+            return [];
+        }
 
-        return cascadeKeys.Select(k => steinerByKey[k]).ToList();
+        // Classify every pair. Bay-shortcuts are the only real artifact:
+        //   SAME-SEG     — both Steiners on the same constraint (CDT multi-insertion). Benign;
+        //                  reduce MaxCoastEdgePixels to eliminate.
+        //   CAPE-CLIP    — adj-seg pair whose midpoint is over land. Benign.
+        //   BAY-SHORTCUT — adj-seg pair whose midpoint is over sea. Real artifact: the
+        //                  Delaunay edge cuts across open water, rasterising it at
+        //                  CK3WaterLevel instead of 0. Assertion only flags these.
+
+        // Build terrain spatial index for midpoint classification
+        SpatialGrid<int>? tGrid = null;
+        if (terrainNodes != null && terrainNodes.Count > 0)
+        {
+            int tc = Math.Max(1, (int)Math.Sqrt(terrainNodes.Count));
+            float tw = terrainNodes.Max(t => t.Px), th = terrainNodes.Max(t => t.Py);
+            tGrid = new SpatialGrid<int>((int)(tw + 1), (int)(th + 1), tc, Math.Max(1, tc / 2));
+            for (int ti = 0; ti < terrainNodes.Count; ti++)
+                tGrid.Add(terrainNodes[ti].Px, terrainNodes[ti].Py, ti);
+        }
+
+        var bayKeys = new HashSet<(int,int)>(); // only BAY-SHORTCUT nodes returned/visualised
+
+        if (constraintSegs != null && constraintSegs.Count > 0)
+        {
+            int FindConstraint(float px, float py)
+            {
+                float bestErr = 2f;
+                int   bestIdx = -1;
+                for (int ci = 0; ci < constraintSegs.Count; ci++)
+                {
+                    var cs = constraintSegs[ci].Coordinates;
+                    float ax = (float)cs[0].X, ay = (float)cs[0].Y;
+                    float bx = (float)cs[1].X, by = (float)cs[1].Y;
+                    float dx = bx - ax, dy = by - ay;
+                    float len2 = dx * dx + dy * dy;
+                    if (len2 < 0.01f) continue;
+                    float t = ((px - ax) * dx + (py - ay) * dy) / len2;
+                    if (t < -0.01f || t > 1.01f) continue;
+                    float ex = ax + t * dx - px, ey = ay + t * dy - py;
+                    float err = MathF.Sqrt(ex * ex + ey * ey);
+                    if (err < bestErr) { bestErr = err; bestIdx = ci; }
+                }
+                return bestIdx;
+            }
+
+            float SegLen(int ci)
+            {
+                var cs = constraintSegs[ci].Coordinates;
+                float dx = (float)(cs[1].X - cs[0].X), dy = (float)(cs[1].Y - cs[0].Y);
+                return MathF.Sqrt(dx * dx + dy * dy);
+            }
+
+            bool MidpointIsOcean(float px, float py)
+            {
+                if (tGrid == null || terrainNodes == null) return false;
+                var nearest = tGrid.NearestN(px, py, 1);
+                return nearest.Count > 0 && !terrainNodes[nearest[0].item].IsLand;
+            }
+
+            int nSameSeg = 0, nBay = 0, nCape = 0, nUnknown = 0;
+            var bayDists = new List<float>();
+
+            foreach (var (ka, kb) in pairList)
+            {
+                var sa = steinerByKey[ka];
+                var sb = steinerByKey[kb];
+                float dist = MathF.Sqrt((sa.Px - sb.Px) * (sa.Px - sb.Px) + (sa.Py - sb.Py) * (sa.Py - sb.Py));
+                float midX = (sa.Px + sb.Px) / 2f, midY = (sa.Py + sb.Py) / 2f;
+                int ca = FindConstraint(sa.Px, sa.Py);
+                int cb = FindConstraint(sb.Px, sb.Py);
+
+                if (ca < 0 || cb < 0)
+                {
+                    nUnknown++;
+                    // Can't classify — include in output to be safe
+                    bayKeys.Add(ka); bayKeys.Add(kb);
+                    Console.WriteLine($"  [UNKNOWN      ] edge-dist={dist:F1}px  mid=({midX:F0},{midY:F0})  S({sa.Px:F1},{sa.Py:F1}) ↔ S({sb.Px:F1},{sb.Py:F1})");
+                }
+                else if (ca == cb)
+                {
+                    nSameSeg++;
+                    Console.WriteLine($"  [same-seg     ] edge-dist={dist:F1}px  seg-len={SegLen(ca):F1}px  (benign — reduce MaxCoastEdgePixels)");
+                }
+                else if (MidpointIsOcean(midX, midY))
+                {
+                    nBay++;
+                    bayDists.Add(dist);
+                    bayKeys.Add(ka); bayKeys.Add(kb);
+                    Console.WriteLine($"  [BAY-SHORTCUT ] edge-dist={dist:F1}px  mid=({midX:F0},{midY:F0})  seg-a={SegLen(ca):F1}px  seg-b={SegLen(cb):F1}px");
+                }
+                else
+                {
+                    nCape++;
+                    Console.WriteLine($"  [cape-clip    ] edge-dist={dist:F1}px  mid=({midX:F0},{midY:F0})  (benign — midpoint over land)");
+                }
+            }
+
+            if (nBay > 0)
+            {
+                bayDists.Sort();
+                float avg = bayDists.Average();
+                float med = bayDists[bayDists.Count / 2];
+                Console.WriteLine($"  BAY-SHORTCUT SUMMARY: {nBay} artifact(s)  " +
+                                  $"min={bayDists[0]:F1}px  med={med:F1}px  avg={avg:F1}px  max={bayDists[^1]:F1}px");
+                Console.WriteLine($"  (also: {nSameSeg} same-seg, {nCape} cape-clip — both benign and excluded from visualisation)");
+            }
+            else
+            {
+                Console.WriteLine($"  Bay-shortcut OK — {nSameSeg} same-seg + {nCape} cape-clip (all benign)");
+            }
+        }
+        else
+        {
+            // No constraint info: can't classify, include all pairs as a fallback
+            foreach (var (ka, kb) in pairList) { bayKeys.Add(ka); bayKeys.Add(kb); }
+            Console.WriteLine($"  {seen.Count} Steiner-Steiner edge(s) — pass constraintSegs for bay/cape classification");
+        }
+
+        return bayKeys.Select(k => steinerByKey[k]).ToList();
     }
 
     // Accept a pre-built triangulation so the caller can inspect it (e.g. assertions) before rasterizing.
