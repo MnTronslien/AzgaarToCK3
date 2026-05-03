@@ -101,127 +101,42 @@ static class HeightmapGenerator
         for (int i = 0; i < terrainNodes.Count; i++)
             terrainGrid.Add(terrainNodes[i].Px, terrainNodes[i].Py, i);
 
-        // ── 3. Coast nodes via coastline walk ─────────────────────────────────
-        // Build coast adjacency in pixel-rounded integer space: each land cell's
-        // polygon ring is checked against each sea neighbour's ring; any shared
-        // consecutive vertex pair is a valid shoreline edge by construction.
-        // Using (int,int) keys eliminates float-comparison ambiguity and collapses
-        // sub-pixel-close vertices.
-        //
-        // In practice the coastline is a mix of:
-        //   • closed loops (islands, inland seas, and the main coast if it doesn't
-        //     hit the map boundary)
-        //   • open paths (coastlines that terminate at the map boundary — degree-1
-        //     vertices have only one sea neighbour in the dataset)
-        //
-        // Both are walked; long edges are pre-subdivided to reduce CDT Steiner
-        // cascade depth. All pre-subdivision nodes are "original" (yellow), only
-        // CDT insertions are Steiner (magenta).
+        // ── 3. Coast nodes via per-sea-body coastline walk ────────────────────
+        // A land cell can border more than one sea body (e.g. it sits between the
+        // ocean and an inland lake). If we build a single global adjacency the
+        // shared corner vertices would have degree-4, mixing the two coastlines
+        // during the walk. Instead we flood-fill sea cells into connected bodies
+        // and run the adjacency build + walk once per body. Shared vertices appear
+        // as degree-2 nodes in each body's graph independently.
 
-        var gfConstr   = new GeometryFactory();
-        var coastEdges = new HashSet<((int,int),(int,int))>();
-        var coastAdj   = new Dictionary<(int,int), List<(int,int)>>();
-        var pixToFloat = new Dictionary<(int,int), (float px, float py)>();
-
-        foreach (var (_, cell) in cells)
+        // 3a — sea connected-component flood fill
+        var seaBodyId  = new Dictionary<int, int>(cells.Count / 2);
+        int numSeaBodies = 0;
+        foreach (var (id, cell) in cells)
         {
-            if (!Cell.IsDryLand(cell.Type)) continue;
-            var lc = cell.GeoDataCoordinates;
-            if (lc == null) continue;
-            int ln = lc.Length - 1;
-
-            foreach (var nbrId in cell.Neighbors)
+            if (Cell.IsDryLand(cell.Type) || seaBodyId.ContainsKey(id)) continue;
+            int body = numSeaBodies++;
+            var bfsQ = new Queue<int>();
+            bfsQ.Enqueue(id); seaBodyId[id] = body;
+            while (bfsQ.Count > 0)
             {
-                if (!cells.TryGetValue(nbrId, out var nbr) || Cell.IsDryLand(nbr.Type)) continue;
-                var sc = nbr.GeoDataCoordinates;
-                if (sc == null) continue;
-                int sn = sc.Length - 1;
-
-                var sKeys = new HashSet<(int,int)>(sn);
-                for (int i = 0; i < sn; i++)
-                    sKeys.Add((RoundCoord(GeoToPixelX(sc[i][0], p)), RoundCoord(GeoToPixelY(sc[i][1], p))));
-
-                for (int vi = 0; vi < ln; vi++)
+                int cur = bfsQ.Dequeue();
+                foreach (var nId in cells[cur].Neighbors)
                 {
-                    float pxA = GeoToPixelX(lc[vi][0], p),           pyA = GeoToPixelY(lc[vi][1], p);
-                    float pxB = GeoToPixelX(lc[(vi+1)%ln][0], p),    pyB = GeoToPixelY(lc[(vi+1)%ln][1], p);
-                    var kA = (RoundCoord(pxA), RoundCoord(pyA));
-                    var kB = (RoundCoord(pxB), RoundCoord(pyB));
-                    if (kA == kB || !sKeys.Contains(kA) || !sKeys.Contains(kB)) continue;
-
-                    pixToFloat.TryAdd(kA, (pxA, pyA));
-                    pixToFloat.TryAdd(kB, (pxB, pyB));
-
-                    var edgeKey = kA.CompareTo(kB) <= 0 ? (kA, kB) : (kB, kA);
-                    if (!coastEdges.Add(edgeKey)) continue;
-
-                    if (!coastAdj.TryGetValue(kA, out var la)) coastAdj[kA] = la = [];
-                    if (!coastAdj.TryGetValue(kB, out var lb)) coastAdj[kB] = lb = [];
-                    la.Add(kB); lb.Add(kA);
+                    if (!cells.TryGetValue(nId, out var nc) || Cell.IsDryLand(nc.Type) || seaBodyId.ContainsKey(nId)) continue;
+                    seaBodyId[nId] = body; bfsQ.Enqueue(nId);
                 }
             }
         }
+        if (numSeaBodies > 1)
+            Console.WriteLine($"Sea: {numSeaBodies} bodies (1 ocean + {numSeaBodies - 1} inland lake(s))");
 
-        // Walk the adjacency graph into ordered paths/loops.
-        // Open paths (boundary coastlines) start from degree-1 vertices;
-        // closed loops are everything else after that pass.
-        var visited    = new HashSet<(int,int)>();
-        var coastPaths = new List<(List<(int,int)> nodes, bool isClosed)>();
-        int degCount1 = 0, degCount3 = 0;
-
-        (int,int)? PickNext((int,int) curr, (int,int)? prev)
-        {
-            foreach (var n in coastAdj[curr])
-                if (n != prev && !visited.Contains(n)) return n;
-            return null;
-        }
-
-        void WalkFrom((int,int) start)
-        {
-            if (visited.Contains(start)) return;
-            var path = new List<(int,int)>();
-            (int,int)? prev = null;
-            var curr = start;
-            while (curr != default && !visited.Contains(curr))
-            {
-                path.Add(curr);
-                visited.Add(curr);
-                var next = PickNext(curr, prev);
-                prev = curr;
-                curr = next ?? default;
-            }
-            // PickNext skips visited nodes, so a closed loop ends when the last node's
-            // only remaining unvisited neighbour would re-enter start. Detect this by
-            // checking whether the final path node is adjacent to start in the graph.
-            bool closed = path.Count >= 3 &&
-                          coastAdj.TryGetValue(path[^1], out var lastNbrs) &&
-                          lastNbrs.Contains(start);
-            if (path.Count >= 2 || (path.Count == 1 && closed)) coastPaths.Add((path, closed));
-        }
-
-        // Pass 1: open paths from degree-1 (boundary) vertices
-        foreach (var k in coastAdj.Keys)
-        {
-            int deg = coastAdj[k].Count;
-            if (deg == 1) { degCount1++; WalkFrom(k); }
-            else if (deg >= 3) degCount3++;
-        }
-        // Pass 2: closed loops from remaining degree-2 vertices
-        foreach (var k in coastAdj.Keys)
-            WalkFrom(k);
-        // Pass 3: any still-unvisited vertices become isolated coast nodes
-        int isolated = 0;
-
-        if (degCount1 > 0 || degCount3 > 0)
-            Console.WriteLine($"Coast graph: {degCount1} boundary endpoints (degree-1), {degCount3} junctions (degree-3+)");
-
-        // Flatten paths → coast nodes + CDT constraints, pre-subdividing long edges.
-        // For each edge A→B in a path, we add A + any subdivision nodes. B is then
-        // added as the start of the next edge (or as a terminal for open paths).
-        // Constraints connect every consecutive pair in the flattened sequence.
+        // 3b — per-body adjacency build + walk + flatten
+        var gfConstr   = new GeometryFactory();
+        var pixToFloat = new Dictionary<(int,int), (float px, float py)>();
         var coastNodes     = new List<CoastNode>();
         var constraintSegs = new List<NetTopologySuite.Geometries.LineString>();
-        int preInserted    = 0;
+        int preInserted = 0, totalWalkVerts = 0, totalLoops = 0, totalOpenPaths = 0, totalIsolated = 0;
 
         void AddSegment(CoastNode a, CoastNode b)
         {
@@ -231,60 +146,117 @@ static class HeightmapGenerator
             ]));
         }
 
-        foreach (var (path, isClosed) in coastPaths)
+        for (int body = 0; body < numSeaBodies; body++)
         {
-            int pathStart = coastNodes.Count;
-            int n         = path.Count;
-            int edgeCount = isClosed ? n : n - 1;
+            var coastAdj  = new Dictionary<(int,int), List<(int,int)>>();
+            var coastEdges = new HashSet<((int,int),(int,int))>();
 
-            for (int i = 0; i < edgeCount; i++)
+            foreach (var (_, cell) in cells)
             {
-                var (pxA, pyA) = pixToFloat[path[i]];
-                var (pxB, pyB) = pixToFloat[path[(i + 1) % n]];
+                if (!Cell.IsDryLand(cell.Type)) continue;
+                var lc = cell.GeoDataCoordinates;
+                if (lc == null) continue;
+                int ln = lc.Length - 1;
 
-                coastNodes.Add(new CoastNode(pxA, pyA));
-
-                if (p.MaxCoastEdgePixels > 0)
+                foreach (var nbrId in cell.Neighbors)
                 {
-                    float dist = MathF.Sqrt((pxA - pxB) * (pxA - pxB) + (pyA - pyB) * (pyA - pyB));
-                    if (dist > p.MaxCoastEdgePixels)
+                    if (!cells.TryGetValue(nbrId, out var nbr) || Cell.IsDryLand(nbr.Type)) continue;
+                    if (!seaBodyId.TryGetValue(nbrId, out int nbrBody) || nbrBody != body) continue;
+
+                    var sc = nbr.GeoDataCoordinates;
+                    if (sc == null) continue;
+                    int sn = sc.Length - 1;
+
+                    var sKeys = new HashSet<(int,int)>(sn);
+                    for (int i = 0; i < sn; i++)
+                        sKeys.Add((RoundCoord(GeoToPixelX(sc[i][0], p)), RoundCoord(GeoToPixelY(sc[i][1], p))));
+
+                    for (int vi = 0; vi < ln; vi++)
                     {
-                        int nIns = (int)(dist / p.MaxCoastEdgePixels);
-                        for (int k = 1; k <= nIns; k++)
-                        {
-                            float t = k / (float)(nIns + 1);
-                            coastNodes.Add(new CoastNode(pxA + t * (pxB - pxA), pyA + t * (pyB - pyA)));
-                            preInserted++;
-                        }
+                        float pxA = GeoToPixelX(lc[vi][0], p),        pyA = GeoToPixelY(lc[vi][1], p);
+                        float pxB = GeoToPixelX(lc[(vi+1)%ln][0], p), pyB = GeoToPixelY(lc[(vi+1)%ln][1], p);
+                        var kA = (RoundCoord(pxA), RoundCoord(pyA));
+                        var kB = (RoundCoord(pxB), RoundCoord(pyB));
+                        if (kA == kB || !sKeys.Contains(kA) || !sKeys.Contains(kB)) continue;
+
+                        pixToFloat.TryAdd(kA, (pxA, pyA));
+                        pixToFloat.TryAdd(kB, (pxB, pyB));
+
+                        var edgeKey = kA.CompareTo(kB) <= 0 ? (kA, kB) : (kB, kA);
+                        if (!coastEdges.Add(edgeKey)) continue;
+
+                        if (!coastAdj.TryGetValue(kA, out var la)) coastAdj[kA] = la = [];
+                        if (!coastAdj.TryGetValue(kB, out var lb)) coastAdj[kB] = lb = [];
+                        la.Add(kB); lb.Add(kA);
                     }
                 }
             }
 
-            // Terminal node for open paths (closed paths wrap back to pathStart)
-            if (!isClosed)
+            if (coastAdj.Count == 0) continue;
+
+            var (paths, visited, deg1, deg3p) = WalkCoastBody(coastAdj);
+            if (deg1 > 0 || deg3p > 0)
+                Console.WriteLine($"  Sea body {body}: {deg1} boundary endpoints (degree-1), {deg3p} junctions (degree-3+)");
+
+            // Flatten paths → coast nodes + constraints with pre-subdivision
+            foreach (var (path, isClosed) in paths)
             {
-                var (pxLast, pyLast) = pixToFloat[path[n - 1]];
-                coastNodes.Add(new CoastNode(pxLast, pyLast));
+                int pathStart = coastNodes.Count;
+                int n         = path.Count;
+                int edgeCount = isClosed ? n : n - 1;
+
+                for (int i = 0; i < edgeCount; i++)
+                {
+                    var (pxA, pyA) = pixToFloat[path[i]];
+                    var (pxB, pyB) = pixToFloat[path[(i + 1) % n]];
+
+                    coastNodes.Add(new CoastNode(pxA, pyA));
+
+                    if (p.MaxCoastEdgePixels > 0)
+                    {
+                        float dist = MathF.Sqrt((pxA - pxB) * (pxA - pxB) + (pyA - pyB) * (pyA - pyB));
+                        if (dist > p.MaxCoastEdgePixels)
+                        {
+                            int nIns = (int)(dist / p.MaxCoastEdgePixels);
+                            for (int k = 1; k <= nIns; k++)
+                            {
+                                float t = k / (float)(nIns + 1);
+                                coastNodes.Add(new CoastNode(pxA + t * (pxB - pxA), pyA + t * (pyB - pyA)));
+                                preInserted++;
+                            }
+                        }
+                    }
+                }
+
+                if (!isClosed)
+                {
+                    var (pxLast, pyLast) = pixToFloat[path[n - 1]];
+                    coastNodes.Add(new CoastNode(pxLast, pyLast));
+                }
+
+                int pathEnd = coastNodes.Count;
+                for (int i = pathStart; i < pathEnd - 1; i++)
+                    AddSegment(coastNodes[i], coastNodes[i + 1]);
+                if (isClosed)
+                    AddSegment(coastNodes[pathEnd - 1], coastNodes[pathStart]);
             }
 
-            // Constraints: consecutive pairs, then close the loop if needed
-            int pathEnd = coastNodes.Count;
-            for (int i = pathStart; i < pathEnd - 1; i++)
-                AddSegment(coastNodes[i], coastNodes[i + 1]);
-            if (isClosed)
-                AddSegment(coastNodes[pathEnd - 1], coastNodes[pathStart]);
+            // Adjacency vertices not reached by any walk become isolated coast nodes
+            foreach (var k in coastAdj.Keys)
+            {
+                if (visited.Contains(k)) continue;
+                var (fpx, fpy) = pixToFloat[k];
+                coastNodes.Add(new CoastNode(fpx, fpy));
+                totalIsolated++;
+            }
+
+            totalLoops      += paths.Count(t => t.isClosed);
+            totalOpenPaths  += paths.Count(t => !t.isClosed);
+            totalWalkVerts  += coastAdj.Count;
         }
 
-        // Unvisited vertices become isolated coast nodes (no constraints)
-        foreach (var (k, floatPos) in pixToFloat)
-        {
-            if (visited.Contains(k)) continue;
-            coastNodes.Add(new CoastNode(floatPos.px, floatPos.py));
-            isolated++;
-        }
-
-        Console.WriteLine($"Coast: {coastPaths.Count(t => t.isClosed)} loop(s) + {coastPaths.Count(t => !t.isClosed)} open path(s)" +
-                          $", {coastAdj.Count} walk verts + {preInserted} pre-inserted + {isolated} isolated" +
+        Console.WriteLine($"Coast: {totalLoops} loop(s) + {totalOpenPaths} open path(s)" +
+                          $", {totalWalkVerts} walk verts + {preInserted} pre-inserted + {totalIsolated} isolated" +
                           $" = {coastNodes.Count} nodes, {constraintSegs.Count} constraints");
         int originalCoastCount = coastNodes.Count; // CDT Steiner points land at index ≥ this
 
@@ -874,6 +846,61 @@ static class HeightmapGenerator
 
     static float GeoToPixelX(float lon, Params p) => (lon - p.LonW) / p.LonT * p.Width;
     static float GeoToPixelY(float lat, Params p) => p.Height - (lat - p.LatS) / p.LatT * p.Height;
+
+    // Walks a coast adjacency graph into ordered paths and closed loops.
+    // Pass 1 starts from degree-1 vertices (map-boundary endpoints of open paths).
+    // Pass 2 picks up closed loops from any remaining unvisited vertices.
+    // Returns the path list, the visited set (for isolated-node detection by caller),
+    // and degree-1 / degree-3+ vertex counts for diagnostic logging.
+    static (List<(List<(int,int)> nodes, bool isClosed)> paths,
+            HashSet<(int,int)> visited,
+            int deg1, int deg3p)
+    WalkCoastBody(Dictionary<(int,int), List<(int,int)>> adj)
+    {
+        var visited = new HashSet<(int,int)>();
+        var paths   = new List<(List<(int,int)>, bool)>();
+        int deg1 = 0, deg3p = 0;
+
+        (int,int)? PickNext((int,int) curr, (int,int)? prev)
+        {
+            foreach (var n in adj[curr])
+                if (n != prev && !visited.Contains(n)) return n;
+            return null;
+        }
+
+        void WalkFrom((int,int) start)
+        {
+            if (visited.Contains(start)) return;
+            var path = new List<(int,int)>();
+            (int,int)? prev = null;
+            var curr = start;
+            while (curr != default && !visited.Contains(curr))
+            {
+                path.Add(curr);
+                visited.Add(curr);
+                var next = PickNext(curr, prev);
+                prev = curr;
+                curr = next ?? default;
+            }
+            // A closed loop ends when PickNext would re-enter start (which is already
+            // visited). Detect by checking whether the last walked node is adjacent to start.
+            bool closed = path.Count >= 3 &&
+                          adj.TryGetValue(path[^1], out var lastNbrs) &&
+                          lastNbrs.Contains(start);
+            if (path.Count >= 2 || (path.Count == 1 && closed)) paths.Add((path, closed));
+        }
+
+        foreach (var k in adj.Keys)
+        {
+            int deg = adj[k].Count;
+            if (deg == 1) { deg1++; WalkFrom(k); }
+            else if (deg >= 3) deg3p++;
+        }
+        foreach (var k in adj.Keys)
+            WalkFrom(k);
+
+        return (paths, visited, deg1, deg3p);
+    }
 
     static float[] Centroid(Cell cell)
     {
