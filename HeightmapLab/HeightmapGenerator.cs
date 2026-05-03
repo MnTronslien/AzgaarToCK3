@@ -161,7 +161,25 @@ static class HeightmapGenerator
         if (p.RelaxIterations > 0)
             spawnedNodes = Relax(spawnedNodes, terrainPositions, p.RelaxIterations, minSep, terrainMinSep, p.RelaxStep, p.Width, p.Height);
 
-        // ── 6. Compute heights at final positions ─────────────────────────────
+        // ── 6. Cell polygons in pixel space for poly-node classification ─────────
+        // Voronoi cells are small (6–10 vertices), so per-contributor polygon
+        // containment tests are cheaper than building a union.
+        var gf = new GeometryFactory();
+        var cellPolygons = new Dictionary<int, NetTopologySuite.Geometries.Polygon>(cells.Count);
+        foreach (var (id, cell) in cells)
+        {
+            var coords = cell.GeoDataCoordinates;
+            if (coords == null || coords.Length < 4) continue;
+            var ring = coords
+                .Select(pt => new Coordinate(GeoToPixelX(pt[0], p), GeoToPixelY(pt[1], p)))
+                .ToArray();
+            if (!ring[0].Equals2D(ring[^1]))
+                ring = [.. ring, ring[0]];
+            try { cellPolygons[id] = gf.CreatePolygon(ring); }
+            catch { /* degenerate polygon — skip */ }
+        }
+
+        // ── 7. Compute heights at final positions ─────────────────────────────
         // IDW height + IDW roughness from nearest terrain nodes — no parent-inherited values
         var polyNodes = new List<PolyNode>(spawnedNodes.Count);
 
@@ -183,9 +201,25 @@ static class HeightmapGenerator
             float rawRand     = (float)(rng.NextDouble() * 2.0 - 1.0);
             float perturbation = rawRand * MathF.Pow(idwRoughness, p.RoughnessPower) * p.DisplacementStrength * (255f - CK3WaterLevel);
             float nodeHeight  = Math.Clamp(baseHeight + perturbation, 0f, 255f);
-            // Land poly nodes must not carve below sea level
-            if (baseHeight > CK3WaterLevel)
-                nodeHeight = Math.Max(nodeHeight, CK3WaterLevel + 1f);
+
+            // Classify the poly node by which contributor cell polygon contains it.
+            // Walk IDW contributors nearest-first; first containing polygon wins.
+            // A node that drifted into a sea cell gets capped below sea level;
+            // one that stayed on land gets floored above sea level.
+            // Fallback to IDW baseHeight comparison if no polygon matched.
+            var pt = gf.CreatePoint(new Coordinate(s.Px, s.Py));
+            bool? insideLand = null;
+            for (int k = 0; k < nearest.Count && insideLand == null; k++)
+            {
+                var tn = terrainNodes[nearest[k].item];
+                if (cellPolygons.TryGetValue(tn.Id, out var poly) && poly.Contains(pt))
+                    insideLand = tn.IsLand;
+            }
+            insideLand ??= baseHeight > CK3WaterLevel;
+
+            nodeHeight = insideLand.Value
+                ? Math.Max(nodeHeight, CK3WaterLevel + 1f)   // land: floor above sea level
+                : Math.Min(nodeHeight, CK3WaterLevel - 1f);  // sea:  cap below sea level
 
             // Top 3 contributors for debug (NearestN returns sorted by distance)
             int   c0 = nearest.Count > 0 ? nearest[0].item : -1;
