@@ -119,8 +119,10 @@ static class HeightmapGenerator
                                 .Concat(coastNodes.Select(cn => (cn.Px, cn.Py, (float)CK3WaterLevel)));
             var baseCoords = terrainNodes.Select(t  => new Coordinate(t.Px, t.Py))
                                 .Concat(coastNodes.Select(cn => new Coordinate(cn.Px, cn.Py)));
-            var coordIndex = BuildCoordIndex(basePoints);
-            var heightMap  = Rasterize(coordIndex, baseCoords, p);
+            var coordIndex   = BuildCoordIndex(basePoints);
+            var triangulation = Triangulate(baseCoords);
+            CheckCoastConnectivity(triangulation, coastNodes);
+            var heightMap    = RasterizeTriangles(triangulation, coordIndex, p);
             ApplyGaussianBlur(heightMap, p);
             return new GenerateResult(ToBytes(heightMap), heightMap, terrainNodes, [], coastNodes);
         }
@@ -240,7 +242,7 @@ static class HeightmapGenerator
                 Height: nodeHeight));
         }
 
-        // ── 7. Delaunay triangulation + rasterization ─────────────────────────
+        // ── 8. Delaunay triangulation + rasterization ─────────────────────────
         var allPoints = terrainNodes.Select(t  => (t.Px,  t.Py,  t.Height))
                            .Concat(polyNodes.Select(pn => (pn.Px, pn.Py, pn.Height)))
                            .Concat(coastNodes.Select(cn => (cn.Px, cn.Py, (float)CK3WaterLevel)));
@@ -249,7 +251,9 @@ static class HeightmapGenerator
         var allCoords = terrainNodes.Select(t  => new Coordinate(t.Px,  t.Py))
                            .Concat(polyNodes.Select(pn => new Coordinate(pn.Px, pn.Py)))
                            .Concat(coastNodes.Select(cn => new Coordinate(cn.Px, cn.Py)));
-        var heightMap2 = Rasterize(combinedCoordIndex, allCoords, p);
+        var triangulation2 = Triangulate(allCoords);
+        CheckCoastConnectivity(triangulation2, coastNodes);
+        var heightMap2 = RasterizeTriangles(triangulation2, combinedCoordIndex, p);
         ApplyGaussianBlur(heightMap2, p);
 
         return new GenerateResult(ToBytes(heightMap2), heightMap2, terrainNodes, polyNodes, coastNodes);
@@ -366,6 +370,72 @@ static class HeightmapGenerator
                 heightMap[row + x] = Math.Clamp(val, 0f, 255f);
             }
         }
+    }
+
+    // ── Triangulation helpers ─────────────────────────────────────────────────
+
+    static GeometryCollection Triangulate(IEnumerable<Coordinate> points)
+    {
+        var gf = new GeometryFactory();
+        var builder = new DelaunayTriangulationBuilder();
+        builder.SetSites(gf.CreateMultiPointFromCoords(points.ToArray()));
+        return builder.GetTriangles(gf);
+    }
+
+    // Accept a pre-built triangulation so the caller can inspect it (e.g. assertions) before rasterizing.
+    static float[] RasterizeTriangles(
+        GeometryCollection triangles,
+        Dictionary<(int, int), float> coordIndex,
+        Params p,
+        float clampMax = 255f)
+    {
+        var heightMap = new float[p.Width * p.Height];
+        foreach (var geom in triangles.Geometries)
+        {
+            var ring = geom.Boundary.Coordinates;
+            if (ring.Length < 3) continue;
+            var v0 = ring[0]; var v1 = ring[1]; var v2 = ring[2];
+            RasterizeTriangle(v0, v1, v2,
+                Lookup(coordIndex, v0), Lookup(coordIndex, v1), Lookup(coordIndex, v2),
+                heightMap, p.Width, p.Height, clampMax);
+        }
+        return heightMap;
+    }
+
+    // Assert that every coast node has ≥ 2 Delaunay edges connecting it to other coast nodes.
+    // A node with only 1 such edge is a degenerate "spike" — the waterline can't form a closed
+    // loop through it, which produces visible artefacts in the heightmap.
+    static void CheckCoastConnectivity(GeometryCollection triangles, List<CoastNode> coastNodes)
+    {
+        if (coastNodes.Count == 0) return;
+
+        var coastKeys = new HashSet<(int, int)>(
+            coastNodes.Select(cn => (RoundCoord(cn.Px), RoundCoord(cn.Py))));
+
+        var connections = coastKeys.ToDictionary(k => k, _ => 0);
+        var seen        = new HashSet<((int, int), (int, int))>();
+
+        foreach (var geom in triangles.Geometries)
+        {
+            var ring = geom.Boundary.Coordinates;
+            for (int e = 0; e < 3; e++)
+            {
+                var a = (RoundCoord((float)ring[e].X),         RoundCoord((float)ring[e].Y));
+                var b = (RoundCoord((float)ring[(e + 1) % 3].X), RoundCoord((float)ring[(e + 1) % 3].Y));
+                if (!coastKeys.Contains(a) || !coastKeys.Contains(b)) continue;
+                // Normalise edge key so (a,b) and (b,a) are the same entry
+                var edge = (a.CompareTo(b) <= 0) ? (a, b) : (b, a);
+                if (!seen.Add(edge)) continue;
+                connections[a]++;
+                connections[b]++;
+            }
+        }
+
+        var degenerate = connections.Where(kv => kv.Value < 2).ToList();
+        if (degenerate.Count > 0)
+            Console.WriteLine($"WARN: {degenerate.Count}/{coastNodes.Count} coast nodes have <2 coast–coast Delaunay edges (degenerate coastline spike)");
+        else
+            Console.WriteLine($"Coast connectivity OK — all {coastNodes.Count} nodes have ≥2 coast–coast edges");
     }
 
     // ── Public diagnostic rasters ─────────────────────────────────────────────
