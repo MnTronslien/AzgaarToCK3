@@ -24,7 +24,8 @@ static class HeightmapGenerator
         int BlurRadius = 3,
         float RoughnessPower = 2.0f,
         bool BaseOnly = false,
-        float CoastExclusionRadius = 30f);
+        float CoastExclusionRadius = 30f,
+        float MaxCoastEdgePixels = 60f);  // pre-subdivide coast edges longer than this
 
     // Per-node coast connectivity result, indexed parallel to the CoastNodes list.
     public record CoastConnectivity(
@@ -38,7 +39,8 @@ static class HeightmapGenerator
         IReadOnlyList<PolyNode> PolyNodes,
         IReadOnlyList<CoastNode> CoastNodes,
         CoastConnectivity Connectivity,
-        int OriginalCoastNodeCount); // nodes at index ≥ this were absorbed as Steiner points
+        int OriginalCoastNodeCount,         // nodes at index ≥ this were absorbed as Steiner points
+        IReadOnlyList<CoastNode> CascadingNodes); // Steiner nodes involved in Steiner-Steiner edges
 
     // Internal to this file — carries spawn position + parent context through relaxation
     private record struct SpawnedNode(float Px, float Py, float SpawnPx, float SpawnPy, int ParentIdx);
@@ -48,7 +50,7 @@ static class HeightmapGenerator
         // ── 1. Build terrain nodes ────────────────────────────────────────────
         var landCells = cells.Values.Where(c => Cell.IsDryLand(c.Type)).ToList();
         if (landCells.Count == 0)
-            return new GenerateResult(new byte[p.Width * p.Height], new float[p.Width * p.Height], [], [], [], new CoastConnectivity([], []), 0);
+            return new GenerateResult(new byte[p.Width * p.Height], new float[p.Width * p.Height], [], [], [], new CoastConnectivity([], []), 0, []);
 
         // Compute raw avg-height-diff per cell (no clamping), find p95, use that
         // as the normalization ceiling. RoughnessNorm > 1 pushes p95 below 1.0,
@@ -99,68 +101,192 @@ static class HeightmapGenerator
         for (int i = 0; i < terrainNodes.Count; i++)
             terrainGrid.Add(terrainNodes[i].Px, terrainNodes[i].Py, i);
 
-        // ── 3. Coast constraint nodes + CDT constraints ───────────────────────
-        // Coast vertices: polygon vertices shared between ≥1 land and ≥1 sea cell.
-        // Adjacent coast pairs: consecutive vertices in a cell polygon that are BOTH coast
-        // vertices → these edges must appear in the triangulation (CDT constraints).
-        // Without constraints, the Delaunay "wrong diagonal" problem severs coast-coast
-        // edges when a poly-node lands in the quadrilateral formed by two coast nodes
-        // and their non-coast Delaunay neighbours.
-        var landVerts = new HashSet<(float, float)>();
-        var seaVerts  = new HashSet<(float, float)>();
-        foreach (var cell in cells.Values)
-        {
-            var coords = cell.GeoDataCoordinates;
-            if (coords == null) continue;
-            int n = coords.Length - 1;
-            var bucket = Cell.IsDryLand(cell.Type) ? landVerts : seaVerts;
-            for (int vi = 0; vi < n; vi++)
-                bucket.Add((coords[vi][0], coords[vi][1]));
-        }
+        // ── 3. Coast nodes via coastline walk ─────────────────────────────────
+        // Build coast adjacency in pixel-rounded integer space: each land cell's
+        // polygon ring is checked against each sea neighbour's ring; any shared
+        // consecutive vertex pair is a valid shoreline edge by construction.
+        // Using (int,int) keys eliminates float-comparison ambiguity and collapses
+        // sub-pixel-close vertices.
+        //
+        // In practice the coastline is a mix of:
+        //   • closed loops (islands, inland seas, and the main coast if it doesn't
+        //     hit the map boundary)
+        //   • open paths (coastlines that terminate at the map boundary — degree-1
+        //     vertices have only one sea neighbour in the dataset)
+        //
+        // Both are walked; long edges are pre-subdivided to reduce CDT Steiner
+        // cascade depth. All pre-subdivision nodes are "original" (yellow), only
+        // CDT insertions are Steiner (magenta).
 
-        var coastGeoSet = landVerts.Intersect(seaVerts).ToHashSet();
-        var coastNodes  = coastGeoSet
-            .Select(v => new CoastNode(GeoToPixelX(v.Item1, p), GeoToPixelY(v.Item2, p)))
-            .ToList();
+        var gfConstr   = new GeometryFactory();
+        var coastEdges = new HashSet<((int,int),(int,int))>();
+        var coastAdj   = new Dictionary<(int,int), List<(int,int)>>();
+        var pixToFloat = new Dictionary<(int,int), (float px, float py)>();
 
-        // Collect unique adjacent coast-node pairs → CDT constraint edges.
-        // A valid shoreline edge is shared between EXACTLY ONE land cell and ONE sea
-        // cell, so it appears as a consecutive coast pair in BOTH a land ring AND a sea
-        // ring. Two failure modes if we don't enforce this:
-        //   • Cross-strait:  sea cell with coast vertices on opposite shores → sea-only pair
-        //                    → Steiner point inserted mid-water
-        //   • Cross-land:    land cell at peninsula tip with coast vertices on opposite
-        //                    flanks → land-only pair → Steiner point inserted mid-land
-        // Fix: only emit constraints for pairs present in BOTH land and sea rings.
-        var gfConstr  = new GeometryFactory();
-        var landPairs = new HashSet<((float, float), (float, float))>();
-        var seaPairs  = new HashSet<((float, float), (float, float))>();
-        foreach (var cell in cells.Values)
+        foreach (var (_, cell) in cells)
         {
-            var coords = cell.GeoDataCoordinates;
-            if (coords == null) continue;
-            int n   = coords.Length - 1;
-            var bag = Cell.IsDryLand(cell.Type) ? landPairs : seaPairs;
-            for (int vi = 0; vi < n; vi++)
+            if (!Cell.IsDryLand(cell.Type)) continue;
+            var lc = cell.GeoDataCoordinates;
+            if (lc == null) continue;
+            int ln = lc.Length - 1;
+
+            foreach (var nbrId in cell.Neighbors)
             {
-                var a = (coords[vi][0],           coords[vi][1]);
-                var b = (coords[(vi + 1) % n][0], coords[(vi + 1) % n][1]);
-                if (!coastGeoSet.Contains(a) || !coastGeoSet.Contains(b)) continue;
-                bag.Add(a.CompareTo(b) <= 0 ? (a, b) : (b, a));
+                if (!cells.TryGetValue(nbrId, out var nbr) || Cell.IsDryLand(nbr.Type)) continue;
+                var sc = nbr.GeoDataCoordinates;
+                if (sc == null) continue;
+                int sn = sc.Length - 1;
+
+                var sKeys = new HashSet<(int,int)>(sn);
+                for (int i = 0; i < sn; i++)
+                    sKeys.Add((RoundCoord(GeoToPixelX(sc[i][0], p)), RoundCoord(GeoToPixelY(sc[i][1], p))));
+
+                for (int vi = 0; vi < ln; vi++)
+                {
+                    float pxA = GeoToPixelX(lc[vi][0], p),           pyA = GeoToPixelY(lc[vi][1], p);
+                    float pxB = GeoToPixelX(lc[(vi+1)%ln][0], p),    pyB = GeoToPixelY(lc[(vi+1)%ln][1], p);
+                    var kA = (RoundCoord(pxA), RoundCoord(pyA));
+                    var kB = (RoundCoord(pxB), RoundCoord(pyB));
+                    if (kA == kB || !sKeys.Contains(kA) || !sKeys.Contains(kB)) continue;
+
+                    pixToFloat.TryAdd(kA, (pxA, pyA));
+                    pixToFloat.TryAdd(kB, (pxB, pyB));
+
+                    var edgeKey = kA.CompareTo(kB) <= 0 ? (kA, kB) : (kB, kA);
+                    if (!coastEdges.Add(edgeKey)) continue;
+
+                    if (!coastAdj.TryGetValue(kA, out var la)) coastAdj[kA] = la = [];
+                    if (!coastAdj.TryGetValue(kB, out var lb)) coastAdj[kB] = lb = [];
+                    la.Add(kB); lb.Add(kA);
+                }
             }
         }
-        var constraintSegs = new List<NetTopologySuite.Geometries.LineString>();
-        foreach (var edge in landPairs)
+
+        // Walk the adjacency graph into ordered paths/loops.
+        // Open paths (boundary coastlines) start from degree-1 vertices;
+        // closed loops are everything else after that pass.
+        var visited    = new HashSet<(int,int)>();
+        var coastPaths = new List<(List<(int,int)> nodes, bool isClosed)>();
+        int degCount1 = 0, degCount3 = 0;
+
+        (int,int)? PickNext((int,int) curr, (int,int)? prev)
         {
-            if (!seaPairs.Contains(edge)) continue; // cross-land pair — skip
-            var (a, b) = edge;
+            foreach (var n in coastAdj[curr])
+                if (n != prev && !visited.Contains(n)) return n;
+            return null;
+        }
+
+        void WalkFrom((int,int) start)
+        {
+            if (visited.Contains(start)) return;
+            var path = new List<(int,int)>();
+            (int,int)? prev = null;
+            var curr = start;
+            while (curr != default && !visited.Contains(curr))
+            {
+                path.Add(curr);
+                visited.Add(curr);
+                var next = PickNext(curr, prev);
+                prev = curr;
+                curr = next ?? default;
+            }
+            // PickNext skips visited nodes, so a closed loop ends when the last node's
+            // only remaining unvisited neighbour would re-enter start. Detect this by
+            // checking whether the final path node is adjacent to start in the graph.
+            bool closed = path.Count >= 3 &&
+                          coastAdj.TryGetValue(path[^1], out var lastNbrs) &&
+                          lastNbrs.Contains(start);
+            if (path.Count >= 2 || (path.Count == 1 && closed)) coastPaths.Add((path, closed));
+        }
+
+        // Pass 1: open paths from degree-1 (boundary) vertices
+        foreach (var k in coastAdj.Keys)
+        {
+            int deg = coastAdj[k].Count;
+            if (deg == 1) { degCount1++; WalkFrom(k); }
+            else if (deg >= 3) degCount3++;
+        }
+        // Pass 2: closed loops from remaining degree-2 vertices
+        foreach (var k in coastAdj.Keys)
+            WalkFrom(k);
+        // Pass 3: any still-unvisited vertices become isolated coast nodes
+        int isolated = 0;
+
+        if (degCount1 > 0 || degCount3 > 0)
+            Console.WriteLine($"Coast graph: {degCount1} boundary endpoints (degree-1), {degCount3} junctions (degree-3+)");
+
+        // Flatten paths → coast nodes + CDT constraints, pre-subdividing long edges.
+        // For each edge A→B in a path, we add A + any subdivision nodes. B is then
+        // added as the start of the next edge (or as a terminal for open paths).
+        // Constraints connect every consecutive pair in the flattened sequence.
+        var coastNodes     = new List<CoastNode>();
+        var constraintSegs = new List<NetTopologySuite.Geometries.LineString>();
+        int preInserted    = 0;
+
+        void AddSegment(CoastNode a, CoastNode b)
+        {
+            if (RoundCoord(a.Px) == RoundCoord(b.Px) && RoundCoord(a.Py) == RoundCoord(b.Py)) return;
             constraintSegs.Add(gfConstr.CreateLineString([
-                new Coordinate(GeoToPixelX(a.Item1, p), GeoToPixelY(a.Item2, p)),
-                new Coordinate(GeoToPixelX(b.Item1, p), GeoToPixelY(b.Item2, p)),
+                new Coordinate(a.Px, a.Py), new Coordinate(b.Px, b.Py)
             ]));
         }
-        Console.WriteLine($"Coast nodes: {coastNodes.Count} vertices, {constraintSegs.Count} CDT constraint edges");
-        int originalCoastCount = coastNodes.Count; // nodes added after this are Steiner points
+
+        foreach (var (path, isClosed) in coastPaths)
+        {
+            int pathStart = coastNodes.Count;
+            int n         = path.Count;
+            int edgeCount = isClosed ? n : n - 1;
+
+            for (int i = 0; i < edgeCount; i++)
+            {
+                var (pxA, pyA) = pixToFloat[path[i]];
+                var (pxB, pyB) = pixToFloat[path[(i + 1) % n]];
+
+                coastNodes.Add(new CoastNode(pxA, pyA));
+
+                if (p.MaxCoastEdgePixels > 0)
+                {
+                    float dist = MathF.Sqrt((pxA - pxB) * (pxA - pxB) + (pyA - pyB) * (pyA - pyB));
+                    if (dist > p.MaxCoastEdgePixels)
+                    {
+                        int nIns = (int)(dist / p.MaxCoastEdgePixels);
+                        for (int k = 1; k <= nIns; k++)
+                        {
+                            float t = k / (float)(nIns + 1);
+                            coastNodes.Add(new CoastNode(pxA + t * (pxB - pxA), pyA + t * (pyB - pyA)));
+                            preInserted++;
+                        }
+                    }
+                }
+            }
+
+            // Terminal node for open paths (closed paths wrap back to pathStart)
+            if (!isClosed)
+            {
+                var (pxLast, pyLast) = pixToFloat[path[n - 1]];
+                coastNodes.Add(new CoastNode(pxLast, pyLast));
+            }
+
+            // Constraints: consecutive pairs, then close the loop if needed
+            int pathEnd = coastNodes.Count;
+            for (int i = pathStart; i < pathEnd - 1; i++)
+                AddSegment(coastNodes[i], coastNodes[i + 1]);
+            if (isClosed)
+                AddSegment(coastNodes[pathEnd - 1], coastNodes[pathStart]);
+        }
+
+        // Unvisited vertices become isolated coast nodes (no constraints)
+        foreach (var (k, floatPos) in pixToFloat)
+        {
+            if (visited.Contains(k)) continue;
+            coastNodes.Add(new CoastNode(floatPos.px, floatPos.py));
+            isolated++;
+        }
+
+        Console.WriteLine($"Coast: {coastPaths.Count(t => t.isClosed)} loop(s) + {coastPaths.Count(t => !t.isClosed)} open path(s)" +
+                          $", {coastAdj.Count} walk verts + {preInserted} pre-inserted + {isolated} isolated" +
+                          $" = {coastNodes.Count} nodes, {constraintSegs.Count} constraints");
+        int originalCoastCount = coastNodes.Count; // CDT Steiner points land at index ≥ this
 
         // ── 4. Early-out: terrain-only Delaunay rasterization ────────────────
         if (p.BaseOnly)
@@ -172,11 +298,11 @@ static class HeightmapGenerator
             var coordIndex    = BuildCoordIndex(basePoints);
             var triangulation = Triangulate(baseCoords, constraintSegs);
             AbsorbSteinerPoints(triangulation, coordIndex, coastNodes, CK3WaterLevel);
-            AssertNoSteinerSteinerEdges(triangulation, coastNodes, originalCoastCount);
+            var cascadingBase = AssertNoSteinerSteinerEdges(triangulation, coastNodes, originalCoastCount);
             var connectivity  = CheckCoastConnectivity(triangulation, coastNodes);
             var heightMap     = RasterizeTriangles(triangulation, coordIndex, p);
             ApplyGaussianBlur(heightMap, p);
-            return new GenerateResult(ToBytes(heightMap), heightMap, terrainNodes, [], coastNodes, connectivity, originalCoastCount);
+            return new GenerateResult(ToBytes(heightMap), heightMap, terrainNodes, [], coastNodes, connectivity, originalCoastCount, cascadingBase);
         }
 
         // ── 4. Poly-node spawning — positions + spawn context only ────────────
@@ -325,12 +451,12 @@ static class HeightmapGenerator
                            .Concat(coastNodes.Select(cn => new Coordinate(cn.Px, cn.Py)));
         var triangulation2 = Triangulate(allCoords, constraintSegs);
         AbsorbSteinerPoints(triangulation2, combinedCoordIndex, coastNodes, CK3WaterLevel);
-        AssertNoSteinerSteinerEdges(triangulation2, coastNodes, originalCoastCount);
+        var cascading = AssertNoSteinerSteinerEdges(triangulation2, coastNodes, originalCoastCount);
         var connectivity2  = CheckCoastConnectivity(triangulation2, coastNodes);
         var heightMap2     = RasterizeTriangles(triangulation2, combinedCoordIndex, p);
         ApplyGaussianBlur(heightMap2, p);
 
-        return new GenerateResult(ToBytes(heightMap2), heightMap2, terrainNodes, polyNodes, coastNodes, connectivity2, originalCoastCount);
+        return new GenerateResult(ToBytes(heightMap2), heightMap2, terrainNodes, polyNodes, coastNodes, connectivity2, originalCoastCount, cascading);
     }
 
     // ── Relaxation ────────────────────────────────────────────────────────────
@@ -499,70 +625,48 @@ static class HeightmapGenerator
     // ConformingDelaunay inserted a chain of intermediate points, which means a
     // constraint edge was far from any existing site — a sign of a bad constraint
     // (e.g. cross-land or cross-strait pair that slipped through).
-    static void AssertNoSteinerSteinerEdges(
+    // Returns the list of Steiner nodes involved in Steiner-Steiner edges (empty = pass).
+    static List<CoastNode> AssertNoSteinerSteinerEdges(
         GeometryCollection triangles,
         List<CoastNode> coastNodes,
         int originalCount)
     {
-        if (coastNodes.Count <= originalCount) return;
-
-        var steinerKeys = new HashSet<(int, int)>(coastNodes.Count - originalCount);
-        for (int i = originalCount; i < coastNodes.Count; i++)
-            steinerKeys.Add((RoundCoord(coastNodes[i].Px), RoundCoord(coastNodes[i].Py)));
-
-        var seen = new HashSet<((int,int),(int,int))>();
-        int violations = 0;
-        foreach (var geom in triangles.Geometries)
+        if (coastNodes.Count <= originalCount)
         {
-            var ring = geom.Boundary.Coordinates;
-            for (int e = 0; e < 3; e++)
-            {
-                var ka = (RoundCoord((float)ring[e].X),             RoundCoord((float)ring[e].Y));
-                var kb = (RoundCoord((float)ring[(e + 1) % 3].X),   RoundCoord((float)ring[(e + 1) % 3].Y));
-                if (!steinerKeys.Contains(ka) || !steinerKeys.Contains(kb)) continue;
-                var edge = ka.CompareTo(kb) <= 0 ? (ka, kb) : (kb, ka);
-                if (seen.Add(edge)) violations++;
-            }
+            Console.WriteLine("Steiner-Steiner OK — no Steiner points inserted");
+            return [];
         }
 
-        if (violations > 0)
-            Console.WriteLine($"WARN Steiner-Steiner: {violations} edge(s) — long coast constraints subdivided twice (bad if edge length >> cell size)");
-        else
-            Console.WriteLine($"Steiner-Steiner OK — no Steiner point connects to another ({coastNodes.Count - originalCount} Steiner points checked)");
-    }
+        var steinerByKey = new Dictionary<(int,int), CoastNode>(coastNodes.Count - originalCount);
+        for (int i = originalCount; i < coastNodes.Count; i++)
+            steinerByKey.TryAdd((RoundCoord(coastNodes[i].Px), RoundCoord(coastNodes[i].Py)), coastNodes[i]);
 
-    // Returns all coast-coast edges from a triangulation as CDT-ready LineStrings.
-    // Used by the two-pass approach: pass-1 (poly-free) produces this set; pass-2
-    // receives it as constraints so poly nodes can't displace coast-coast edges.
-    static List<NetTopologySuite.Geometries.LineString> CollectCoastCoastConstraints(
-        GeometryCollection triangles,
-        List<CoastNode> coastNodes,
-        GeometryFactory gf)
-    {
-        var coastKeys = new HashSet<(int, int)>(coastNodes.Count);
-        foreach (var cn in coastNodes)
-            coastKeys.Add((RoundCoord(cn.Px), RoundCoord(cn.Py)));
-
-        var seen = new HashSet<((int,int),(int,int))>();
-        var result = new List<NetTopologySuite.Geometries.LineString>();
+        var seen        = new HashSet<((int,int),(int,int))>();
+        var cascadeKeys = new HashSet<(int,int)>();
 
         foreach (var geom in triangles.Geometries)
         {
             var ring = geom.Boundary.Coordinates;
             for (int e = 0; e < 3; e++)
             {
-                var ra = ring[e];
-                var rb = ring[(e + 1) % 3];
-                var ka = (RoundCoord((float)ra.X), RoundCoord((float)ra.Y));
-                var kb = (RoundCoord((float)rb.X), RoundCoord((float)rb.Y));
-                if (!coastKeys.Contains(ka) || !coastKeys.Contains(kb)) continue;
-                if (ka == kb) continue; // degenerate edge — Steiner points at same rounded coord
+                var ka = (RoundCoord((float)ring[e].X),           RoundCoord((float)ring[e].Y));
+                var kb = (RoundCoord((float)ring[(e + 1) % 3].X), RoundCoord((float)ring[(e + 1) % 3].Y));
+                if (!steinerByKey.ContainsKey(ka) || !steinerByKey.ContainsKey(kb)) continue;
                 var edge = ka.CompareTo(kb) <= 0 ? (ka, kb) : (kb, ka);
                 if (!seen.Add(edge)) continue;
-                result.Add(gf.CreateLineString([new Coordinate(ra.X, ra.Y), new Coordinate(rb.X, rb.Y)]));
+                cascadeKeys.Add(ka); cascadeKeys.Add(kb);
             }
         }
-        return result;
+
+        int nSteiner = coastNodes.Count - originalCount;
+        if (seen.Count > 0)
+            Console.WriteLine($"WARN Steiner-Steiner: {seen.Count} edge(s), " +
+                              $"{cascadeKeys.Count}/{nSteiner} Steiner nodes in cascade " +
+                              $"({nSteiner - cascadeKeys.Count} clean single-insertion)");
+        else
+            Console.WriteLine($"Steiner-Steiner OK — all {nSteiner} Steiner points are single-insertion (no cascade)");
+
+        return cascadeKeys.Select(k => steinerByKey[k]).ToList();
     }
 
     // Accept a pre-built triangulation so the caller can inspect it (e.g. assertions) before rasterizing.

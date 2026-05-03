@@ -384,19 +384,34 @@ static class Program
                     }
                 }
 
-                // Large rings around real violations so they're easy to spot
+                // Red rings: coast connectivity violations (< 2 coast-coast edges, not hull)
+                {
+                    int nBadConn = result.Connectivity.Connections
+                        .Select((c, i) => c < 2 && !result.Connectivity.IsHullNode[i]).Count(x => x);
+                    if (nBadConn > 0 && nBadConn < 200)
+                    {
+                        var rings = new Drawables();
+                        rings.FillColor(new MagickColor(0, 0, 0, 0))
+                             .StrokeColor(MagickColors.Red).StrokeWidth(10);
+                        for (int ci = 0; ci < result.CoastNodes.Count; ci++)
+                        {
+                            if (result.Connectivity.Connections[ci] >= 2) continue;
+                            if (result.Connectivity.IsHullNode[ci]) continue;
+                            var cn = result.CoastNodes[ci];
+                            rings.Circle(cn.Px, cn.Py, cn.Px + 50, cn.Py);
+                        }
+                        coastImg.Draw(rings);
+                    }
+                }
+
+                // Orange rings: Steiner-Steiner cascade violations
+                if (result.CascadingNodes.Count > 0 && result.CascadingNodes.Count < 200)
                 {
                     var rings = new Drawables();
-                    rings.FillColor(new MagickColor(0, 0, 0, 0))  // transparent fill
-                         .StrokeColor(MagickColors.Red)
-                         .StrokeWidth(10);
-                    for (int ci = 0; ci < result.CoastNodes.Count; ci++)
-                    {
-                        if (result.Connectivity.Connections[ci] >= 2) continue;
-                        if (result.Connectivity.IsHullNode[ci]) continue;
-                        var cn = result.CoastNodes[ci];
+                    rings.FillColor(new MagickColor(0, 0, 0, 0))
+                         .StrokeColor(new MagickColor("#FF8800")).StrokeWidth(10);
+                    foreach (var cn in result.CascadingNodes)
                         rings.Circle(cn.Px, cn.Py, cn.Px + 50, cn.Py);
-                    }
                     coastImg.Draw(rings);
                 }
 
@@ -431,11 +446,12 @@ static class Program
                 : outputPath;
             await coastImg.WriteAsync(nodesPath, MagickFormat.Png);
 
-            int nOk   = result.Connectivity.Connections.Count(c => c >= 2);
-            int nHull = result.Connectivity.Connections.Select((c,i) => c < 2 &&  result.Connectivity.IsHullNode[i]).Count(x => x);
-            int nBad  = result.Connectivity.Connections.Select((c,i) => c < 2 && !result.Connectivity.IsHullNode[i]).Count(x => x);
+            int nOk      = result.Connectivity.Connections.Count(c => c >= 2);
+            int nHull    = result.Connectivity.Connections.Select((c,i) => c < 2 &&  result.Connectivity.IsHullNode[i]).Count(x => x);
+            int nBad     = result.Connectivity.Connections.Select((c,i) => c < 2 && !result.Connectivity.IsHullNode[i]).Count(x => x);
             int nSteiner = result.CoastNodes.Count - result.OriginalCoastNodeCount;
-            Console.WriteLine($"Coast nodes: {nOk} yellow (OK), {nBad} red (bad), {nHull} orange (hull), {nSteiner} magenta (Steiner)");
+            Console.WriteLine($"Coast: {nOk} yellow (OK), {nBad} red (connectivity fail), {nHull} orange-hull, " +
+                              $"{nSteiner} magenta (CDT Steiner), {result.CascadingNodes.Count} cascade fail");
 
             // Delaunay mesh overlay — white triangle edges, separate file
             if (mesh)
