@@ -97,26 +97,53 @@ static class HeightmapGenerator
         for (int i = 0; i < terrainNodes.Count; i++)
             terrainGrid.Add(terrainNodes[i].Px, terrainNodes[i].Py, i);
 
-        // ── 3. Coast constraint nodes — polygon vertices shared between land and sea ──
-        // Each such vertex is pinned to CK3WaterLevel so the Delaunay waterline
-        // crosses at the actual cell boundary, not somewhere inland.
+        // ── 3. Coast constraint nodes + CDT constraints ───────────────────────
+        // Coast vertices: polygon vertices shared between ≥1 land and ≥1 sea cell.
+        // Adjacent coast pairs: consecutive vertices in a cell polygon that are BOTH coast
+        // vertices → these edges must appear in the triangulation (CDT constraints).
+        // Without constraints, the Delaunay "wrong diagonal" problem severs coast-coast
+        // edges when a poly-node lands in the quadrilateral formed by two coast nodes
+        // and their non-coast Delaunay neighbours.
         var landVerts = new HashSet<(float, float)>();
         var seaVerts  = new HashSet<(float, float)>();
         foreach (var cell in cells.Values)
         {
             var coords = cell.GeoDataCoordinates;
             if (coords == null) continue;
-            int n = coords.Length - 1; // last vertex == first, skip it
+            int n = coords.Length - 1;
             var bucket = Cell.IsDryLand(cell.Type) ? landVerts : seaVerts;
             for (int vi = 0; vi < n; vi++)
                 bucket.Add((coords[vi][0], coords[vi][1]));
         }
-        var coastNodes = landVerts.Intersect(seaVerts)
-            .Select(v => new CoastNode(
-                Px: GeoToPixelX(v.Item1, p),
-                Py: GeoToPixelY(v.Item2, p)))
+
+        var coastGeoSet = landVerts.Intersect(seaVerts).ToHashSet();
+        var coastNodes  = coastGeoSet
+            .Select(v => new CoastNode(GeoToPixelX(v.Item1, p), GeoToPixelY(v.Item2, p)))
             .ToList();
-        Console.WriteLine($"Coast nodes: {coastNodes.Count} boundary vertices at h={CK3WaterLevel}");
+
+        // Collect unique adjacent coast-node pairs → CDT constraint edges
+        var gfConstr     = new GeometryFactory();
+        var seenEdges    = new HashSet<((float, float), (float, float))>();
+        var constraintSegs = new List<NetTopologySuite.Geometries.LineString>();
+        foreach (var cell in cells.Values)
+        {
+            var coords = cell.GeoDataCoordinates;
+            if (coords == null) continue;
+            int n = coords.Length - 1;
+            for (int vi = 0; vi < n; vi++)
+            {
+                var a = (coords[vi][0],           coords[vi][1]);
+                var b = (coords[(vi + 1) % n][0], coords[(vi + 1) % n][1]);
+                if (!coastGeoSet.Contains(a) || !coastGeoSet.Contains(b)) continue;
+                var edgeKey = a.CompareTo(b) <= 0 ? (a, b) : (b, a);
+                if (!seenEdges.Add(edgeKey)) continue;
+                constraintSegs.Add(gfConstr.CreateLineString([
+                    new Coordinate(GeoToPixelX(a.Item1, p), GeoToPixelY(a.Item2, p)),
+                    new Coordinate(GeoToPixelX(b.Item1, p), GeoToPixelY(b.Item2, p)),
+                ]));
+            }
+        }
+        Console.WriteLine($"Coast nodes: {coastNodes.Count} vertices, {constraintSegs.Count} CDT constraint edges");
 
         // ── 4. Early-out: terrain-only Delaunay rasterization ────────────────
         if (p.BaseOnly)
@@ -125,10 +152,11 @@ static class HeightmapGenerator
                                 .Concat(coastNodes.Select(cn => (cn.Px, cn.Py, (float)CK3WaterLevel)));
             var baseCoords = terrainNodes.Select(t  => new Coordinate(t.Px, t.Py))
                                 .Concat(coastNodes.Select(cn => new Coordinate(cn.Px, cn.Py)));
-            var coordIndex   = BuildCoordIndex(basePoints);
-            var triangulation   = Triangulate(baseCoords);
-            var connectivity    = CheckCoastConnectivity(triangulation, coastNodes);
-            var heightMap       = RasterizeTriangles(triangulation, coordIndex, p);
+            var coordIndex    = BuildCoordIndex(basePoints);
+            var triangulation = Triangulate(baseCoords, constraintSegs);
+            AbsorbSteinerPoints(triangulation, coordIndex, coastNodes, CK3WaterLevel);
+            var connectivity  = CheckCoastConnectivity(triangulation, coastNodes);
+            var heightMap     = RasterizeTriangles(triangulation, coordIndex, p);
             ApplyGaussianBlur(heightMap, p);
             return new GenerateResult(ToBytes(heightMap), heightMap, terrainNodes, [], coastNodes, connectivity);
         }
@@ -257,7 +285,8 @@ static class HeightmapGenerator
         var allCoords = terrainNodes.Select(t  => new Coordinate(t.Px,  t.Py))
                            .Concat(polyNodes.Select(pn => new Coordinate(pn.Px, pn.Py)))
                            .Concat(coastNodes.Select(cn => new Coordinate(cn.Px, cn.Py)));
-        var triangulation2 = Triangulate(allCoords);
+        var triangulation2 = Triangulate(allCoords, constraintSegs);
+        AbsorbSteinerPoints(triangulation2, combinedCoordIndex, coastNodes, CK3WaterLevel);
         var connectivity2  = CheckCoastConnectivity(triangulation2, coastNodes);
         var heightMap2     = RasterizeTriangles(triangulation2, combinedCoordIndex, p);
         ApplyGaussianBlur(heightMap2, p);
@@ -380,12 +409,50 @@ static class HeightmapGenerator
 
     // ── Triangulation helpers ─────────────────────────────────────────────────
 
-    static GeometryCollection Triangulate(IEnumerable<Coordinate> points)
+    static GeometryCollection Triangulate(
+        IEnumerable<Coordinate> points,
+        IReadOnlyList<NetTopologySuite.Geometries.LineString>? constraints = null)
     {
         var gf = new GeometryFactory();
-        var builder = new DelaunayTriangulationBuilder();
-        builder.SetSites(gf.CreateMultiPointFromCoords(points.ToArray()));
-        return builder.GetTriangles(gf);
+        var pts = points.ToArray();
+        if (constraints != null && constraints.Count > 0)
+        {
+            var builder = new ConformingDelaunayTriangulationBuilder();
+            builder.SetSites(gf.CreateMultiPointFromCoords(pts));
+            builder.Constraints = gf.CreateMultiLineString(constraints.ToArray());
+            return builder.GetTriangles(gf);
+        }
+        else
+        {
+            var builder = new DelaunayTriangulationBuilder();
+            builder.SetSites(gf.CreateMultiPointFromCoords(pts));
+            return builder.GetTriangles(gf);
+        }
+    }
+
+    // ConformingDelaunay may insert Steiner points on constraint edges to resolve
+    // violations. These points are not in coordIndex, which would cause Lookup()
+    // to return 0 and rasterize them as ocean. Since they lie on coast edges they
+    // inherit h=CK3WaterLevel. We also add them to coastNodes so the connectivity
+    // check counts them correctly.
+    static void AbsorbSteinerPoints(
+        GeometryCollection triangles,
+        Dictionary<(int, int), float> coordIndex,
+        List<CoastNode> coastNodes,
+        float height)
+    {
+        int added = 0;
+        foreach (var geom in triangles.Geometries)
+        foreach (var v in geom.Boundary.Coordinates)
+        {
+            var key = (RoundCoord((float)v.X), RoundCoord((float)v.Y));
+            if (coordIndex.ContainsKey(key)) continue;
+            coordIndex[key] = height;
+            coastNodes.Add(new CoastNode((float)v.X, (float)v.Y));
+            added++;
+        }
+        if (added > 0)
+            Console.WriteLine($"Absorbed {added} Steiner points at h={height}");
     }
 
     // Accept a pre-built triangulation so the caller can inspect it (e.g. assertions) before rasterizing.
