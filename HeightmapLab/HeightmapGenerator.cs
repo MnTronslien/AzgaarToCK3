@@ -172,6 +172,7 @@ static class HeightmapGenerator
             var coordIndex    = BuildCoordIndex(basePoints);
             var triangulation = Triangulate(baseCoords, constraintSegs);
             AbsorbSteinerPoints(triangulation, coordIndex, coastNodes, CK3WaterLevel);
+            AssertNoSteinerSteinerEdges(triangulation, coastNodes, originalCoastCount);
             var connectivity  = CheckCoastConnectivity(triangulation, coastNodes);
             var heightMap     = RasterizeTriangles(triangulation, coordIndex, p);
             ApplyGaussianBlur(heightMap, p);
@@ -324,6 +325,7 @@ static class HeightmapGenerator
                            .Concat(coastNodes.Select(cn => new Coordinate(cn.Px, cn.Py)));
         var triangulation2 = Triangulate(allCoords, constraintSegs);
         AbsorbSteinerPoints(triangulation2, combinedCoordIndex, coastNodes, CK3WaterLevel);
+        AssertNoSteinerSteinerEdges(triangulation2, coastNodes, originalCoastCount);
         var connectivity2  = CheckCoastConnectivity(triangulation2, coastNodes);
         var heightMap2     = RasterizeTriangles(triangulation2, combinedCoordIndex, p);
         ApplyGaussianBlur(heightMap2, p);
@@ -490,6 +492,43 @@ static class HeightmapGenerator
         }
         if (added > 0)
             Console.WriteLine($"Absorbed {added} Steiner points at h={height}");
+    }
+
+    // Asserts that no Steiner point (index >= originalCount in coastNodes) has a
+    // Delaunay edge to another Steiner point. Steiner-Steiner edges indicate that
+    // ConformingDelaunay inserted a chain of intermediate points, which means a
+    // constraint edge was far from any existing site — a sign of a bad constraint
+    // (e.g. cross-land or cross-strait pair that slipped through).
+    static void AssertNoSteinerSteinerEdges(
+        GeometryCollection triangles,
+        List<CoastNode> coastNodes,
+        int originalCount)
+    {
+        if (coastNodes.Count <= originalCount) return;
+
+        var steinerKeys = new HashSet<(int, int)>(coastNodes.Count - originalCount);
+        for (int i = originalCount; i < coastNodes.Count; i++)
+            steinerKeys.Add((RoundCoord(coastNodes[i].Px), RoundCoord(coastNodes[i].Py)));
+
+        var seen = new HashSet<((int,int),(int,int))>();
+        int violations = 0;
+        foreach (var geom in triangles.Geometries)
+        {
+            var ring = geom.Boundary.Coordinates;
+            for (int e = 0; e < 3; e++)
+            {
+                var ka = (RoundCoord((float)ring[e].X),             RoundCoord((float)ring[e].Y));
+                var kb = (RoundCoord((float)ring[(e + 1) % 3].X),   RoundCoord((float)ring[(e + 1) % 3].Y));
+                if (!steinerKeys.Contains(ka) || !steinerKeys.Contains(kb)) continue;
+                var edge = ka.CompareTo(kb) <= 0 ? (ka, kb) : (kb, ka);
+                if (seen.Add(edge)) violations++;
+            }
+        }
+
+        if (violations > 0)
+            Console.WriteLine($"ASSERT FAIL: {violations} Steiner-Steiner Delaunay edge(s) — bad constraint(s) in input");
+        else
+            Console.WriteLine($"Steiner-Steiner OK — no Steiner point connects to another ({coastNodes.Count - originalCount} Steiner points checked)");
     }
 
     // Returns all coast-coast edges from a triangulation as CDT-ready LineStrings.
