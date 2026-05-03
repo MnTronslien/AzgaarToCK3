@@ -363,18 +363,39 @@ static class Program
             using var coastImg = new MagickImage(rgb, cm);
             coastImg.Depth = 8;
 
-            // Overlay coast constraint nodes as yellow dots
-            if (result.CoastNodes.Count > 0)
+            // Overlay nodes when --debug is also set
             {
                 var d = new Drawables();
+
+                if (debug)
+                {
+                    // Terrain centroids — green
+                    d.FillColor(MagickColors.Lime).StrokeColor(MagickColors.Lime).StrokeWidth(1);
+                    foreach (var t in result.TerrainNodes)
+                        d.Circle(t.Px, t.Py, t.Px + 6, t.Py);
+
+                    // Poly-nodes — blue=negative displacement, red=positive
+                    foreach (var pn in result.PolyNodes)
+                    {
+                        float tv = (pn.RawRand + 1f) / 2f;
+                        var color = new MagickColor((byte)(255 * tv), 0, (byte)(255 * (1f - tv)), (byte)(pn.IdwRoughness * 255f));
+                        d.FillColor(color).StrokeColor(color).StrokeWidth(1);
+                        d.Circle(pn.Px, pn.Py, pn.Px + 3, pn.Py);
+                    }
+                }
+
+                // Coast constraint nodes — yellow (always shown on coast-map)
                 d.FillColor(MagickColors.Yellow).StrokeColor(MagickColors.Yellow).StrokeWidth(1);
                 foreach (var cn in result.CoastNodes)
                     d.Circle(cn.Px, cn.Py, cn.Px + 2, cn.Py);
+
                 coastImg.Draw(d);
             }
 
             await coastImg.WriteAsync(outputPath, MagickFormat.Png);
-            Console.WriteLine($"Coast map written to {outputPath} ({result.CoastNodes.Count} coast nodes marked yellow; blue=sea, grey=land; water level={wl})");
+            Console.WriteLine($"Coast map written to {outputPath} ({result.CoastNodes.Count} coast nodes yellow" +
+                (debug ? $", {result.TerrainNodes.Count} terrain green, {result.PolyNodes.Count} poly-nodes red/blue" : "") +
+                $"; water level={wl})");
             return 0;
         }
 
