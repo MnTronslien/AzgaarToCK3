@@ -384,6 +384,22 @@ static class Program
                     }
                 }
 
+                // Large rings around real violations so they're easy to spot
+                {
+                    var rings = new Drawables();
+                    rings.FillColor(new MagickColor(0, 0, 0, 0))  // transparent fill
+                         .StrokeColor(MagickColors.Red)
+                         .StrokeWidth(10);
+                    for (int ci = 0; ci < result.CoastNodes.Count; ci++)
+                    {
+                        if (result.Connectivity.Connections[ci] >= 2) continue;
+                        if (result.Connectivity.IsHullNode[ci]) continue;
+                        var cn = result.CoastNodes[ci];
+                        rings.Circle(cn.Px, cn.Py, cn.Px + 50, cn.Py);
+                    }
+                    coastImg.Draw(rings);
+                }
+
                 // Coast nodes — three colours based on connectivity:
                 //   yellow  = OK (≥2 coast-coast edges)
                 //   orange  = degenerate + hull edge = probable valid exception

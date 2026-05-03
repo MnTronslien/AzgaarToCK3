@@ -253,9 +253,9 @@ static class HeightmapGenerator
             }
             insideLand ??= baseHeight > CK3WaterLevel;
 
-            nodeHeight = insideLand.Value
-                ? Math.Max(nodeHeight, CK3WaterLevel + 1f)   // land: floor above sea level
-                : Math.Min(nodeHeight, CK3WaterLevel - 1f);  // sea:  cap below sea level
+            if (!insideLand.Value) continue; // sea poly nodes contribute nothing — drop them
+
+            nodeHeight = Math.Max(nodeHeight, CK3WaterLevel + 1f); // land: floor above sea level
 
             // Top 3 contributors for debug (NearestN returns sorted by distance)
             int   c0 = nearest.Count > 0 ? nearest[0].item : -1;
