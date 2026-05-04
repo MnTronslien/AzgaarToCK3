@@ -84,11 +84,15 @@ namespace Converter.Lemur
                 MajorRiverInserter.InsertMajorRivers(map, Settings.Instance.MajorRiverThreshold);
 
                 // Debug: visualize cells after river insertion (plain + neighbors + control points)
-                var majorRivers = map.Rivers!.Where(r => r.IsMajor(Settings.Instance.MajorRiverThreshold)).ToList();
-                await Task.WhenAll(
-                    ImageUtility.DrawCells(map.Cells!.Values.ToList(), map, "1b_cells_post_rivers.png"),
-                    ImageUtility.DrawCellsWithNeighborLines(map.Cells!.Values.ToList(), map, "1b_cells_neighbors_post_rivers.png"),
-                    ImageUtility.DrawMajorRiverControlPoints(majorRivers, map));
+                // Gated to Verbose: these 3 images cost 4–5 min on large maps
+                if (Settings.Instance.LogLevel <= LogLevel.Verbose)
+                {
+                    var majorRivers = map.Rivers!.Where(r => r.IsMajor(Settings.Instance.MajorRiverThreshold)).ToList();
+                    await Task.WhenAll(
+                        ImageUtility.DrawCells(map.Cells!.Values.ToList(), map, "1b_cells_post_rivers.png"),
+                        ImageUtility.DrawCellsWithNeighborLines(map.Cells!.Values.ToList(), map, "1b_cells_neighbors_post_rivers.png"),
+                        ImageUtility.DrawMajorRiverControlPoints(majorRivers, map));
+                }
             }
 
             GenerateDuchies(map);
@@ -136,7 +140,8 @@ namespace Converter.Lemur
             Logger.Info($"Built {map.HolySites.Count} holy sites.");
 
             // ✅ Visualization checkpoint 3: Counties
-            await ShowCounties(map);
+            if (Settings.Instance.LogLevel <= LogLevel.Debug)
+                await ShowCounties(map);
 
             GenerateEmpires(map);
             GenerateKingdoms(map);
@@ -157,9 +162,12 @@ namespace Converter.Lemur
             AssignCapitals(map);
 
             // ✅ Visualization checkpoint 4: Final hierarchy
-            await ShowDuchies(map);
-            await ShowKingdoms(map);
-            await ShowEmpires(map);
+            if (Settings.Instance.LogLevel <= LogLevel.Debug)
+            {
+                await ShowDuchies(map);
+                await ShowKingdoms(map);
+                await ShowEmpires(map);
+            }
 
             DeFactoHierarchyBuilder.Build(map);
             CharacterFactory.CreateAndAssignAll(map);
