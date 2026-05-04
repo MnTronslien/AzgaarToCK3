@@ -14,6 +14,7 @@ static class Program
         // ── Parse CLI args ───────────────────────────────────────────────────
         string? jsonPath = null, geojsonPath = null, outputPath = null, terrainOut = null;
         string? comparePathA = null, comparePathB = null;
+        string? cellsDumpPath = null;
         int seed = 42;
         float strength = 0.25f, roughnessNorm = 1.0f;
         int nodesPerCell = 4;
@@ -58,6 +59,7 @@ static class Program
                 case "--roughness-map":       roughnessMap     = true; break;
                 case "--coast-map":           coastMap         = true; break;
                 case "--detail-intensity":    detailIntensity  = true; break;
+                case "--cells":           cellsDumpPath = args[++i]; break;
                 case "--compare":
                     comparePathA = args[++i];
                     comparePathB = args[++i];
@@ -83,7 +85,8 @@ static class Program
         // --detail-intensity needs only --terrain-out (or --output for its dir); no Azgaar data needed
         bool dataRequired   = !detailIntensity;
         bool outputRequired = !detailIntensity;
-        if ((dataRequired && (jsonPath == null || geojsonPath == null)) || (outputRequired && outputPath == null && terrainOut == null))
+        bool dataProvided   = cellsDumpPath != null || (jsonPath != null && geojsonPath != null);
+        if ((dataRequired && !dataProvided) || (outputRequired && outputPath == null && terrainOut == null))
         {
             Console.Error.WriteLine("Missing required arguments.");
             PrintUsage();
@@ -105,17 +108,34 @@ static class Program
         SettingsManager.Configure();
 
         // ── Load cells ───────────────────────────────────────────────────────
-        Console.WriteLine("Loading Azgaar data.");
-        var geoMap  = await AzgaarLoader.LoadGeoJsonAsync(geojsonPath);
-        var jsonMap = await AzgaarLoader.LoadJsonAsync(jsonPath);
-        var cells   = AzgaarLoader.BuildCells(geoMap, jsonMap);
-        Console.WriteLine($"Loaded {cells.Count} cells.");
+        IReadOnlyDictionary<int, Converter.Lemur.Entities.Cell> cells;
+        float lonW, lonT, latS, latT;
+
+        if (cellsDumpPath != null)
+        {
+            Console.WriteLine($"Loading cell dump: {cellsDumpPath}");
+            var (dumpCells, coords) = CellDump.Read(cellsDumpPath);
+            cells  = dumpCells;
+            lonW = coords.LonW; lonT = coords.LonT;
+            latS = coords.LatS; latT = coords.LatT;
+            Console.WriteLine($"Loaded {cells.Count} cells from dump (including river cells).");
+        }
+        else
+        {
+            Console.WriteLine("Loading Azgaar data.");
+            var geoMap  = await AzgaarLoader.LoadGeoJsonAsync(geojsonPath);
+            var jsonMap = await AzgaarLoader.LoadJsonAsync(jsonPath);
+            cells = AzgaarLoader.BuildCells(geoMap, jsonMap);
+            var mc = jsonMap.mapCoordinates;
+            lonW = mc.lonW; lonT = mc.lonT;
+            latS = mc.latS; latT = mc.latT;
+            Console.WriteLine($"Loaded {cells.Count} cells.");
+        }
 
         // ── Coordinate transform from map metadata ───────────────────────────
-        var mc = jsonMap.mapCoordinates;
         var genParams = new HeightmapAlgorithm.Params(
-            LonW: mc.lonW, LonT: mc.lonT,
-            LatS: mc.latS, LatT: mc.latT,
+            LonW: lonW, LonT: lonT,
+            LatS: latS, LatT: latT,
             Width: Converter.Lemur.Entities.Map.MapWidth,
             Height: Converter.Lemur.Entities.Map.MapHeight,
             Seed: seed,
@@ -583,6 +603,7 @@ static class Program
     {
         Console.WriteLine("""
             Usage: HeightmapLab --json <path> --geojson <path> --output <path.png>
+                  OR             --cells <dump.json>           --output <path.png>
                                 [--seed N]            default: 42
                                 [--strength F]        displacement strength, default: 0.25
                                 [--nodes N]           poly-nodes per land cell, default: 4
@@ -592,6 +613,9 @@ static class Program
                                 [--terrain-to-poly-sep F]  min distance from terrain centroid, default: 0.25
                                 [--blur-radius N]           Gaussian blur radius in pixels, default: 3
                                 [--debug]             overlay green dots (centroids) + red dots (poly-nodes)
+
+                  --cells <dump.json>   Load cell dump produced by ConsoleUI --dump-cells instead of raw Azgaar files.
+                                        Includes major river cell modifications. Replaces --json + --geojson.
 
                   HeightmapLab --compare <path-a> <path-b>
                                 Pixel-by-pixel comparison of two grayscale PNGs. Exits 0 if identical.

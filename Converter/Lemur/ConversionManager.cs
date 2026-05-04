@@ -18,6 +18,32 @@ namespace Converter.Lemur
 
         // Class members and methods go here
 
+        public static async Task DumpCellsAfterRivers(string outputPath)
+        {
+            var map = await InitializeMapWithAzgaarData();
+            Logger.Info($"{map} has been loaded.");
+
+            LinkCellsToBurgs(map);
+
+            var skipReason = GetRiversSkipReason(noRiversFlag: false);
+            if (skipReason != null)
+            {
+                Logger.Info($"Rivers skipped: {skipReason} — dumping cells without river modification.");
+            }
+            else
+            {
+                map.Rivers = RiverLoader.LoadRivers(map.JsonMap, Settings.Instance.MajorRiverThreshold);
+                MajorRiverInserter.InsertMajorRivers(map, Settings.Instance.MajorRiverThreshold);
+                int majorCount = map.Rivers.Count(r => r.IsMajor(Settings.Instance.MajorRiverThreshold));
+                Logger.Info($"Major rivers inserted ({majorCount} rivers).");
+            }
+
+            var mc = map.JsonMap.mapCoordinates;
+            var coords = new Writers.CellDump.MapCoords(mc.lonW, mc.lonT, mc.latS, mc.latT);
+            Writers.CellDump.Write(outputPath, map.Cells!, coords);
+            Logger.Info($"Dumped {map.Cells!.Count} cells → {outputPath}");
+        }
+
         public async static Task Run(bool noRivers = false)
         {
             var map = await InitializeMapWithAzgaarData();
@@ -64,9 +90,6 @@ namespace Converter.Lemur
                     ImageUtility.DrawCellsWithNeighborLines(map.Cells!.Values.ToList(), map, "1b_cells_neighbors_post_rivers.png"),
                     ImageUtility.DrawMajorRiverControlPoints(majorRivers, map));
             }
-
-            // ✅ Cell IDs after river insertion, before barony formation
-            await ImageUtility.DrawCellsWithIds(map.Cells!.Values.ToList(), map);
 
             GenerateDuchies(map);
             GenerateBaronies(map);
