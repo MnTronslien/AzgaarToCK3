@@ -35,7 +35,8 @@ public static class TerrainMaskWriter
                 .Select(f => new TerrainMaskEntry(f!, []))
                 .ToList()
             : [];
-        var allMasks = masks.Concat(blanks).ToList();
+        // Paint all TCS mask slots black — only hills/mountain masks (written by HeightmapMasks) carry data.
+        var allMasks = masks.Select(m => new TerrainMaskEntry(m.FileName, [])).Concat(blanks).ToList();
 
         await Task.WhenAll(allMasks.Select(entry => WriteBiomeMask(entry, masksDir, readSettings, map)));
 
