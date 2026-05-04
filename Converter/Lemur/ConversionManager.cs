@@ -75,13 +75,19 @@ namespace Converter.Lemur
                 map.Rivers = RiverLoader.LoadRivers(map.JsonMap, Settings.Instance.MajorRiverThreshold);
 
                 // Phase 1: Draw minor rivers to rivers.png using pure A* approach
-                await RiverImageGenerator.DrawRiversImage(
-                    map.Rivers,
-                    Settings.Instance.MajorRiverThreshold,
-                    map);
+                using (var _riverMinor = OperationTimer.Start("Total minor rivers A*"))
+                {
+                    await RiverImageGenerator.DrawRiversImage(
+                        map.Rivers,
+                        Settings.Instance.MajorRiverThreshold,
+                        map);
+                }
 
                 // Phase 2: Insert major river cells (must run before barony formation)
-                MajorRiverInserter.InsertMajorRivers(map, Settings.Instance.MajorRiverThreshold);
+                using (var _riverMajor = OperationTimer.Start("Total major river insertion (phases 1–4)"))
+                {
+                    MajorRiverInserter.InsertMajorRivers(map, Settings.Instance.MajorRiverThreshold);
+                }
 
                 // Debug: visualize cells after river insertion (plain + neighbors + control points)
                 // Gated to Verbose: these 3 images cost 4–5 min on large maps
@@ -95,31 +101,31 @@ namespace Converter.Lemur
                 }
             }
 
-            GenerateDuchies(map);
-            GenerateBaronies(map);
+            using (var _ = OperationTimer.Start("GenerateDuchies")) GenerateDuchies(map);
+            using (var _ = OperationTimer.Start("GenerateBaronies")) GenerateBaronies(map);
 
-
-
-            AssignCellsToBaronies(map);
+            using (var _ = OperationTimer.Start("AssignCellsToBaronies")) AssignCellsToBaronies(map);
 
             GenerateWastelandProvinces(map);
             AssertEveryLandCellIsAssignedToABurg(map);
 
             ComputeDistanceToCoast(map);
-            GenerateSeaZones(map);
-           
+            using (var _ = OperationTimer.Start("GenerateSeaZones")) GenerateSeaZones(map);
 
             CreateFarSeaZones(map);
 
             // ✅ Visualization checkpoint 2: Sea zones + Baronies
             AssignProvinceColors(map);
             await ShowSeaZones(map);
-            await ShowBaronies(map);
+            using (var _ = OperationTimer.Start("DrawProvincesImage")) await ShowBaronies(map);
 
             var w = Settings.Instance.Writers;
 
             if (w.DefinitionCsv)
+            {
+                using var _ = OperationTimer.Start("Writing definition.csv");
                 await DefinitionCsvWriter.Write(map.AllProvinces!, Settings.OutputDirectory);
+            }
 
             var seaZoneIndices = map.SeaZones!
                 .Concat(map.FarSeaZones!)
@@ -131,20 +137,23 @@ namespace Converter.Lemur
             var riverProvinceIndices = map.MajorRiverProvinces
                 .Select(rp => map.AllProvinces!.IndexOf(rp) + 1);
             if (w.DefaultMap)
+            {
+                using var _ = OperationTimer.Start("Writing default.map");
                 await DefaultMapWriter.Write(seaZoneIndices, wastelandIndices, farSeaZoneIndices, riverProvinceIndices, Settings.OutputDirectory);
+            }
 
             GenerateBaronyAdjacency(map);
             GenerateCounties(map);
 
-            map.HolySites = HolySiteFactory.Build(map);
+            using (var _ = OperationTimer.Start("HolySiteFactory.Build")) map.HolySites = HolySiteFactory.Build(map);
             Logger.Info($"Built {map.HolySites.Count} holy sites.");
 
             // ✅ Visualization checkpoint 3: Counties
             if (Settings.Instance.LogLevel <= LogLevel.Debug)
                 await ShowCounties(map);
 
-            GenerateEmpires(map);
-            GenerateKingdoms(map);
+            using (var _ = OperationTimer.Start("GenerateEmpires")) GenerateEmpires(map);
+            using (var _ = OperationTimer.Start("GenerateKingdoms")) GenerateKingdoms(map);
 
             MergeTinyKingdoms(map); //Adjust Kingdoms
             MergeTinyEmpires(map); //Adjust Empires
@@ -179,16 +188,25 @@ namespace Converter.Lemur
             Logger.Section("Writing CK3 mod files");
 
             if (w.Adjacencies)
+            {
+                using var _ = OperationTimer.Start("Writing adjacencies.csv");
                 await AdjacenciesCsvWriter.Write(Settings.OutputDirectory);
+            }
             if (w.LandedTitles)
                 await Task.WhenAll(
                     LandedTitlesWriter.Write(map, Settings.OutputDirectory),
                     TitleLocalizationWriter.Write(map, Settings.OutputDirectory));
-            await ModDescriptorWriter.Write(Settings.Instance.ModName, Settings.Instance.ModsDirectory, Settings.OutputDirectory);
+            using (var _ = OperationTimer.Start("Writing mod descriptor")) await ModDescriptorWriter.Write(Settings.Instance.ModName, Settings.Instance.ModsDirectory, Settings.OutputDirectory);
             if (w.MapDefines)
+            {
+                using var _ = OperationTimer.Start("Writing map defines");
                 await MapDefinesWriter.Write(Settings.OutputDirectory);
+            }
             if (w.ProvinceTerrain)
+            {
+                using var _ = OperationTimer.Start("Writing province terrain");
                 await ProvinceTerrainWriter.Write(map, Settings.OutputDirectory);
+            }
             if (w.TerrainMasks)
             {
                 var terrainMasks = TerrainMaskPreparer.Prepare(map);
@@ -201,7 +219,10 @@ namespace Converter.Lemur
             if (w.Heightmap)
                 await HeightmapWriter.Write(map, Settings.OutputDirectory);
             if (w.Religion)
+            {
+                using var _ = OperationTimer.Start("Writing religion files (copy from CK3)");
                 await ReligionWriter.Write(Settings.Instance.Ck3Directory, Settings.OutputDirectory);
+            }
             if (w.Faiths)
                 await FaithWriter.Write(map, Settings.OutputDirectory);
             if (w.Cultures)
@@ -220,9 +241,15 @@ namespace Converter.Lemur
             if (w.Locators)
                 await LocatorWriter.Write(map, Settings.OutputDirectory);
             if (w.Characters)
+            {
+                using var _ = OperationTimer.Start("Writing characters");
                 await CharacterWriter.Write(map, Settings.OutputDirectory);
+            }
             if (w.TitleHistory)
+            {
+                using var _ = OperationTimer.Start("Writing title history");
                 await TitleHistoryWriter.Write(map, Settings.OutputDirectory);
+            }
 
             Logger.Success();
 
@@ -469,6 +496,7 @@ namespace Converter.Lemur
             //We will do this by duchy
             foreach (Duchy duchy in map.Duchies!)
             {
+                var duchySw = System.Diagnostics.Stopwatch.StartNew();
                 //Logger.Debug($"Duchy: {duchy.Name}");
                 Logger.Verbose($"Processing Cells for Duchy {duchy.Name} with {duchy.GetAllCells().Count} cells and {duchy.Baronies.Count} baronies");
                 //We start by getting all the baronies in the duchy, we do this by getting all the burgs in the duchy and then getting the baronies from the burgs
@@ -560,6 +588,9 @@ namespace Converter.Lemur
                     Logger.Info($"{countrysideCells.Count} countryside cells in Duchy {duchy.Name} could not be assigned to a barony. This may be due to isolated islands or water barriers.");
                 }
 
+                duchySw.Stop();
+                if (duchySw.Elapsed.TotalMilliseconds > 500)
+                    Logger.Info($"[Timer] Cell assignment > {duchy.Name}: {duchySw.Elapsed.TotalSeconds:F3}s (slow)");
                 //print the response to the console
                 // All cells in this duchy is now assigned to a barony, so we can move on to the next duchy
                 Logger.Info($"Completed Cell assignment for Duchy {duchy.Name}");
