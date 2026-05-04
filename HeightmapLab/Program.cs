@@ -1,5 +1,6 @@
 using Converter;
 using Converter.Lemur.Deserialization;
+using Converter.Lemur.Writers;
 using ImageMagick;
 using NetTopologySuite.Geometries;
 using NetTopologySuite.Triangulate;
@@ -12,6 +13,7 @@ static class Program
     {
         // ── Parse CLI args ───────────────────────────────────────────────────
         string? jsonPath = null, geojsonPath = null, outputPath = null, terrainOut = null;
+        string? comparePathA = null, comparePathB = null;
         int seed = 42;
         float strength = 0.25f, roughnessNorm = 1.0f;
         int nodesPerCell = 4;
@@ -21,7 +23,6 @@ static class Program
         float relaxStep = 0.05f;
         int blurRadius = 3;
         float roughnessPower = 2.0f;
-        bool baseOnly = false;
         bool debug = false;
         bool mesh = false;
         bool spawnLines = false;
@@ -49,7 +50,6 @@ static class Program
                 case "--relax-step":          relaxStep        = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--blur-radius":         blurRadius       = int.Parse(args[++i]); break;
                 case "--roughness-power":     roughnessPower   = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
-                case "--base-only":           baseOnly         = true; break;
                 case "--debug":               debug            = true; break;
                 case "--mesh":                mesh             = true; break;
                 case "--spawn-lines":         spawnLines       = true; break;
@@ -58,6 +58,10 @@ static class Program
                 case "--roughness-map":       roughnessMap     = true; break;
                 case "--coast-map":           coastMap         = true; break;
                 case "--detail-intensity":    detailIntensity  = true; break;
+                case "--compare":
+                    comparePathA = args[++i];
+                    comparePathB = args[++i];
+                    break;
                 default:
                     Console.Error.WriteLine($"Unknown argument: {args[i]}");
                     PrintUsage();
@@ -65,8 +69,19 @@ static class Program
             }
         }
 
+        // ── Pixel comparison mode — no Azgaar data needed ────────────────────
+        if (comparePathA != null)
+        {
+            if (comparePathB == null)
+            {
+                Console.Error.WriteLine("--compare requires two paths: --compare <path-a> <path-b>");
+                return 1;
+            }
+            return CompareImages(comparePathA, comparePathB);
+        }
+
         // --detail-intensity needs only --terrain-out (or --output for its dir); no Azgaar data needed
-        bool dataRequired = !detailIntensity;
+        bool dataRequired   = !detailIntensity;
         bool outputRequired = !detailIntensity;
         if ((dataRequired && (jsonPath == null || geojsonPath == null)) || (outputRequired && outputPath == null && terrainOut == null))
         {
@@ -90,7 +105,7 @@ static class Program
         SettingsManager.Configure();
 
         // ── Load cells ───────────────────────────────────────────────────────
-        Console.WriteLine("Loading Azgaar data…");
+        Console.WriteLine("Loading Azgaar data.");
         var geoMap  = await AzgaarLoader.LoadGeoJsonAsync(geojsonPath);
         var jsonMap = await AzgaarLoader.LoadJsonAsync(jsonPath);
         var cells   = AzgaarLoader.BuildCells(geoMap, jsonMap);
@@ -98,7 +113,7 @@ static class Program
 
         // ── Coordinate transform from map metadata ───────────────────────────
         var mc = jsonMap.mapCoordinates;
-        var genParams = new HeightmapGenerator.Params(
+        var genParams = new HeightmapAlgorithm.Params(
             LonW: mc.lonW, LonT: mc.lonT,
             LatS: mc.latS, LatT: mc.latT,
             Width: Converter.Lemur.Entities.Map.MapWidth,
@@ -112,11 +127,10 @@ static class Program
             PolyNodeSampleCount: sampleCount,
             RoughnessNorm: roughnessNorm,
             BlurRadius: blurRadius,
-            RoughnessPower: roughnessPower,
-            BaseOnly: baseOnly);
+            RoughnessPower: roughnessPower);
 
         // ── Generate ─────────────────────────────────────────────────────────
-        Console.WriteLine($"Generating heightmap (seed={seed}, strength={strength}, nodesPerCell={nodesPerCell}, samples={sampleCount}, roughnessNorm={roughnessNorm})…");
+        Console.WriteLine($"Generating heightmap (seed={seed}, strength={strength}, nodesPerCell={nodesPerCell}, samples={sampleCount}, roughnessNorm={roughnessNorm}).");
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var result = HeightmapGenerator.Generate(cells, genParams);
         sw.Stop();
@@ -127,19 +141,17 @@ static class Program
         {
             using var meshImg = new MagickImage(MagickColors.White, genParams.Width, genParams.Height);
 
-            // Delaunay triangulation of the combined point set
             var gf = new GeometryFactory();
             var builder = new DelaunayTriangulationBuilder();
             builder.SetSites(gf.CreateMultiPointFromCoords(
-                result.TerrainNodes.Select(t  => new Coordinate(t.Px,  t.Py))
-                    .Concat(result.PolyNodes.Select(pn => new Coordinate(pn.Px, pn.Py)))
+                result.Core.TerrainNodes.Select(t  => new Coordinate(t.Px,  t.Py))
+                    .Concat(result.Core.PolyNodes.Select(pn => new Coordinate(pn.Px, pn.Py)))
                     .ToArray()));
             var triangles = builder.GetTriangles(gf);
 
             var d = new Drawables();
             d.StrokeColor(new MagickColor(180, 180, 180)).StrokeWidth(1).FillColor(MagickColors.None);
 
-            // Draw each unique triangle edge once
             var drawnEdges = new HashSet<long>();
             foreach (var geom in triangles.Geometries)
             {
@@ -155,19 +167,17 @@ static class Program
                 }
             }
 
-            // Terrain nodes — green, radius 6
             d.FillColor(MagickColors.Lime).StrokeColor(MagickColors.Lime).StrokeWidth(1);
-            foreach (var t in result.TerrainNodes)
+            foreach (var t in result.Core.TerrainNodes)
                 d.Circle(t.Px, t.Py, t.Px + 6, t.Py);
 
-            // Poly-nodes — red, radius 3
             d.FillColor(MagickColors.Red).StrokeColor(MagickColors.Red);
-            foreach (var pn in result.PolyNodes)
+            foreach (var pn in result.Core.PolyNodes)
                 d.Circle(pn.Px, pn.Py, pn.Px + 3, pn.Py);
 
             meshImg.Draw(d);
             await meshImg.WriteAsync(outputPath, MagickFormat.Png);
-            Console.WriteLine($"Mesh written to {outputPath} ({result.TerrainNodes.Count} terrain, {result.PolyNodes.Count} poly-nodes, {triangles.NumGeometries} triangles)");
+            Console.WriteLine($"Mesh written to {outputPath} ({result.Core.TerrainNodes.Count} terrain, {result.Core.PolyNodes.Count} poly-nodes, {triangles.NumGeometries} triangles)");
             return 0;
         }
 
@@ -177,21 +187,18 @@ static class Program
             using var slImg = new MagickImage(MagickColors.White, genParams.Width, genParams.Height);
             var d = new Drawables();
 
-            // Lines: poly-node current position → parent terrain node
             d.StrokeColor(new MagickColor(180, 180, 180)).StrokeWidth(1).FillColor(MagickColors.None);
-            foreach (var pn in result.PolyNodes)
+            foreach (var pn in result.Core.PolyNodes)
             {
-                var parent = result.TerrainNodes[pn.ParentId];
+                var parent = result.Core.TerrainNodes[pn.ParentId];
                 d.Line(pn.Px, pn.Py, parent.Px, parent.Py);
             }
 
-            // Terrain nodes — green, radius 5
             d.FillColor(MagickColors.Lime).StrokeColor(MagickColors.Lime).StrokeWidth(1);
-            foreach (var t in result.TerrainNodes)
+            foreach (var t in result.Core.TerrainNodes)
                 d.Circle(t.Px, t.Py, t.Px + 5, t.Py);
 
-            // Poly-nodes — same blue/red/alpha scheme as debug
-            foreach (var pn in result.PolyNodes)
+            foreach (var pn in result.Core.PolyNodes)
             {
                 float tv  = (pn.RawRand + 1f) / 2f;
                 byte  r   = (byte)(255 * tv);
@@ -204,7 +211,7 @@ static class Program
 
             slImg.Draw(d);
             await slImg.WriteAsync(outputPath, MagickFormat.Png);
-            Console.WriteLine($"Spawn-lines written to {outputPath} ({result.TerrainNodes.Count} terrain, {result.PolyNodes.Count} poly-nodes)");
+            Console.WriteLine($"Spawn-lines written to {outputPath} ({result.Core.TerrainNodes.Count} terrain, {result.Core.PolyNodes.Count} poly-nodes)");
             return 0;
         }
 
@@ -214,18 +221,15 @@ static class Program
             using var dlImg = new MagickImage(MagickColors.White, genParams.Width, genParams.Height);
             var d = new Drawables();
 
-            // Lines: spawn position → final position
             d.StrokeColor(new MagickColor(180, 180, 180)).StrokeWidth(1).FillColor(MagickColors.None);
-            foreach (var pn in result.PolyNodes)
+            foreach (var pn in result.Core.PolyNodes)
                 d.Line(pn.SpawnPx, pn.SpawnPy, pn.Px, pn.Py);
 
-            // Spawn positions — small grey dot
             d.FillColor(new MagickColor(150, 150, 150)).StrokeColor(new MagickColor(150, 150, 150));
-            foreach (var pn in result.PolyNodes)
+            foreach (var pn in result.Core.PolyNodes)
                 d.Circle(pn.SpawnPx, pn.SpawnPy, pn.SpawnPx + 2, pn.SpawnPy);
 
-            // Final positions — blue/red/alpha by rawRand and roughness
-            foreach (var pn in result.PolyNodes)
+            foreach (var pn in result.Core.PolyNodes)
             {
                 float tv  = (pn.RawRand + 1f) / 2f;
                 byte  r   = (byte)(255 * tv);
@@ -236,31 +240,25 @@ static class Program
                 d.Circle(pn.Px, pn.Py, pn.Px + 3, pn.Py);
             }
 
-            // Terrain nodes — green, on top
             d.FillColor(MagickColors.Lime).StrokeColor(MagickColors.Lime).StrokeWidth(1);
-            foreach (var t in result.TerrainNodes)
+            foreach (var t in result.Core.TerrainNodes)
                 d.Circle(t.Px, t.Py, t.Px + 5, t.Py);
 
             dlImg.Draw(d);
             await dlImg.WriteAsync(outputPath, MagickFormat.Png);
-            Console.WriteLine($"Drift-lines written to {outputPath} ({result.PolyNodes.Count} poly-nodes)");
+            Console.WriteLine($"Drift-lines written to {outputPath} ({result.Core.PolyNodes.Count} poly-nodes)");
             return 0;
         }
 
         // ── Steepness map: black=flat, white=vertical ────────────────────────
         if (steepnessMap)
         {
-            // Use float heightmap (pre-quantization) — byte pixels have only 256 discrete
-            // levels, which produces terracing artifacts in the normal computation.
-            var hf = result.HeightmapF;
-            var pixels = result.Pixels;  // still needed for ocean mask
+            var hf = result.Core.HeightmapF;
+            var pixels = result.Core.Pixels;
             int w = genParams.Width, h = genParams.Height;
             const int kd = 4;
             const float wl = HeightmapGenerator.CK3WaterLevel;
 
-            // Surface normal: N = normalize(-Gx, -Gy, 1)
-            // Divide by 2*kd so Gx/Gy are gradient per pixel, not per 2*kd pixels.
-            // steepness = 1 - N.z = 1 - 1/sqrt(Gx²+Gy²+1)
             var steep = new float[w * h];
             for (int y = kd; y < h - kd; y++)
             for (int x = kd; x < w - kd; x++)
@@ -274,7 +272,6 @@ static class Program
                 steep[idx] = 1f - 1f / MathF.Sqrt(gx * gx + gy * gy + 1f);
             }
 
-            // p95 over land pixels — maps the full range to 0–255
             var hist = new long[10000];
             int landN = 0;
             for (int idx = 0; idx < pixels.Length; idx++)
@@ -312,19 +309,17 @@ static class Program
         }
 
         // ── Roughness map: black=smooth, white=rough ─────────────────────────
-        // Rasterizes the Delaunay triangulation of terrain nodes only, interpolating
-        // TerrainNode.Roughness barycentrically — the same approach used for the heightmap.
         if (roughnessMap)
         {
             int w = genParams.Width, h = genParams.Height;
             const byte wl = 20;
 
-            var roughF = HeightmapGenerator.RasterizeRoughness(result.TerrainNodes, genParams);
+            var roughF = HeightmapGenerator.RasterizeRoughness(result.Core.TerrainNodes, genParams);
 
             var roughBytes = new byte[w * h];
             for (int idx = 0; idx < roughF.Length; idx++)
             {
-                if (result.Pixels[idx] < wl) continue;
+                if (result.Core.Pixels[idx] < wl) continue;
                 roughBytes[idx] = (byte)Math.Clamp((int)(roughF[idx] * 255f), 0, 255);
             }
 
@@ -343,15 +338,15 @@ static class Program
             const byte wl = HeightmapGenerator.CK3WaterLevel;
 
             var rgb = new byte[w * h * 3];
-            for (int idx = 0; idx < result.Pixels.Length; idx++)
+            for (int idx = 0; idx < result.Core.Pixels.Length; idx++)
             {
-                byte px = result.Pixels[idx];
+                byte px = result.Core.Pixels[idx];
                 int o = idx * 3;
                 if (px < wl)
                 {
                     rgb[o]     = 0;
-                    rgb[o + 1] = (byte)(px * 3);        // slight green tint near shore
-                    rgb[o + 2] = (byte)(120 + px * 6);  // blue, brighter closer to shore
+                    rgb[o + 1] = (byte)(px * 3);
+                    rgb[o + 2] = (byte)(120 + px * 6);
                 }
                 else
                 {
@@ -363,19 +358,16 @@ static class Program
             using var coastImg = new MagickImage(rgb, cm);
             coastImg.Depth = 8;
 
-            // Overlay nodes when --debug is also set
             {
                 var d = new Drawables();
 
                 if (debug)
                 {
-                    // Terrain centroids — green
                     d.FillColor(MagickColors.Lime).StrokeColor(MagickColors.Lime).StrokeWidth(1);
-                    foreach (var t in result.TerrainNodes)
+                    foreach (var t in result.Core.TerrainNodes)
                         d.Circle(t.Px, t.Py, t.Px + 6, t.Py);
 
-                    // Poly-nodes — blue=negative displacement, red=positive
-                    foreach (var pn in result.PolyNodes)
+                    foreach (var pn in result.Core.PolyNodes)
                     {
                         float tv = (pn.RawRand + 1f) / 2f;
                         var color = new MagickColor((byte)(255 * tv), 0, (byte)(255 * (1f - tv)), (byte)(pn.IdwRoughness * 255f));
@@ -384,7 +376,7 @@ static class Program
                     }
                 }
 
-                // Red rings: coast connectivity violations (< 2 coast-coast edges, not hull)
+                // Red rings: coast connectivity violations
                 {
                     int nBadConn = result.Connectivity.Connections
                         .Select((c, i) => c < 2 && !result.Connectivity.IsHullNode[i]).Count(x => x);
@@ -393,11 +385,11 @@ static class Program
                         var rings = new Drawables();
                         rings.FillColor(new MagickColor(0, 0, 0, 0))
                              .StrokeColor(MagickColors.Red).StrokeWidth(10);
-                        for (int ci = 0; ci < result.CoastNodes.Count; ci++)
+                        for (int ci = 0; ci < result.Core.CoastNodes.Count; ci++)
                         {
                             if (result.Connectivity.Connections[ci] >= 2) continue;
                             if (result.Connectivity.IsHullNode[ci]) continue;
-                            var cn = result.CoastNodes[ci];
+                            var cn = result.Core.CoastNodes[ci];
                             rings.Circle(cn.Px, cn.Py, cn.Px + 50, cn.Py);
                         }
                         coastImg.Draw(rings);
@@ -415,15 +407,11 @@ static class Program
                     coastImg.Draw(rings);
                 }
 
-                // Coast nodes — four colours:
-                //   yellow  = OK original node (≥2 coast-coast edges)
-                //   orange  = degenerate + hull edge = probable valid exception
-                //   red     = degenerate + interior   = real problem
-                //   magenta = Steiner point absorbed from CDT constraint enforcement
-                int origCount = result.OriginalCoastNodeCount;
-                for (int ci = 0; ci < result.CoastNodes.Count; ci++)
+                // Coast nodes — four colours
+                int origCount = result.Core.OriginalCoastNodeCount;
+                for (int ci = 0; ci < result.Core.CoastNodes.Count; ci++)
                 {
-                    var cn   = result.CoastNodes[ci];
+                    var cn   = result.Core.CoastNodes[ci];
                     int conn = result.Connectivity.Connections[ci];
                     bool hull = result.Connectivity.IsHullNode[ci];
                     bool steiner = ci >= origCount;
@@ -440,7 +428,6 @@ static class Program
                 coastImg.Draw(d);
             }
 
-            // Write nodes-only image first
             string nodesPath = mesh
                 ? System.IO.Path.ChangeExtension(outputPath, null) + "-nodes.png"
                 : outputPath;
@@ -449,16 +436,15 @@ static class Program
             int nOk      = result.Connectivity.Connections.Count(c => c >= 2);
             int nHull    = result.Connectivity.Connections.Select((c,i) => c < 2 &&  result.Connectivity.IsHullNode[i]).Count(x => x);
             int nBad     = result.Connectivity.Connections.Select((c,i) => c < 2 && !result.Connectivity.IsHullNode[i]).Count(x => x);
-            int nSteiner = result.CoastNodes.Count - result.OriginalCoastNodeCount;
+            int nSteiner = result.Core.CoastNodes.Count - result.Core.OriginalCoastNodeCount;
             Console.WriteLine($"Coast: {nOk} yellow (OK), {nBad} red (connectivity fail), {nHull} orange-hull, " +
                               $"{nSteiner} magenta (CDT Steiner), {result.CascadingNodes.Count} cascade fail");
 
-            // Delaunay mesh overlay — white triangle edges, separate file
             if (mesh)
             {
-                var allCoords = result.TerrainNodes.Select(t  => new Coordinate(t.Px,  t.Py))
-                                    .Concat(result.PolyNodes.Select(pn => new Coordinate(pn.Px, pn.Py)))
-                                    .Concat(result.CoastNodes.Select(cn => new Coordinate(cn.Px, cn.Py)))
+                var allCoords = result.Core.TerrainNodes.Select(t  => new Coordinate(t.Px,  t.Py))
+                                    .Concat(result.Core.PolyNodes.Select(pn => new Coordinate(pn.Px, pn.Py)))
+                                    .Concat(result.Core.CoastNodes.Select(cn => new Coordinate(cn.Px, cn.Py)))
                                     .ToArray();
                 var gf = new GeometryFactory();
                 var builder = new DelaunayTriangulationBuilder();
@@ -476,9 +462,8 @@ static class Program
                     dm.Line(ring[2].X, ring[2].Y, ring[0].X, ring[0].Y);
                 }
                 coastImg.Draw(dm);
-                string meshPath = outputPath; // mesh goes to the specified output path
-                await coastImg.WriteAsync(meshPath, MagickFormat.Png);
-                Console.WriteLine($"Mesh: {triangles.NumGeometries} triangles → {meshPath}");
+                await coastImg.WriteAsync(outputPath, MagickFormat.Png);
+                Console.WriteLine($"Mesh: {triangles.NumGeometries} triangles → {outputPath}");
             }
 
             Console.WriteLine($"Nodes image → {nodesPath}");
@@ -493,45 +478,42 @@ static class Program
             ColorSpace = ColorSpace.Gray,
             Format = MagickFormat.Gray,
         };
-        using var img = new MagickImage(result.Pixels, readSettings);
+        using var img = new MagickImage(result.Core.Pixels, readSettings);
         img.Depth = 8;
 
-        // ── Debug overlay: green = centroids; poly-nodes colored by contribution ─
-        // Poly-node color: blue=negative displacement, red=positive; alpha=roughness (50%→100%)
         if (debug)
         {
             img.ColorSpace = ColorSpace.sRGB;
             var d = new Drawables();
 
             d.FillColor(MagickColors.Lime).StrokeColor(MagickColors.Lime).StrokeWidth(1);
-            foreach (var t in result.TerrainNodes)
+            foreach (var t in result.Core.TerrainNodes)
                 d.Circle(t.Px, t.Py, t.Px + 6, t.Py);
 
-            foreach (var pn in result.PolyNodes)
+            foreach (var pn in result.Core.PolyNodes)
             {
-                float tv  = (pn.RawRand + 1f) / 2f;                    // 0=blue, 1=red
+                float tv  = (pn.RawRand + 1f) / 2f;
                 byte  r   = (byte)(255 * tv);
                 byte  b   = (byte)(255 * (1f - tv));
-                byte  alpha = (byte)(pn.IdwRoughness * 255f);    // 50%–100% opaque
+                byte  alpha = (byte)(pn.IdwRoughness * 255f);
                 var color = new MagickColor(r, 0, b, alpha);
                 d.FillColor(color).StrokeColor(color).StrokeWidth(1);
                 d.Circle(pn.Px, pn.Py, pn.Px + 3, pn.Py);
             }
 
             img.Draw(d);
-            Console.WriteLine($"Debug overlay: {result.TerrainNodes.Count} terrain (green), {result.PolyNodes.Count} poly-nodes (blue=negative, red=positive, alpha=idwRoughness)");
+            Console.WriteLine($"Debug overlay: {result.Core.TerrainNodes.Count} terrain (green), {result.Core.PolyNodes.Count} poly-nodes (blue=negative, red=positive, alpha=idwRoughness)");
         }
 
         await img.WriteAsync(outputPath!, MagickFormat.Png);
         Console.WriteLine($"Written to {outputPath}");
 
-        // ── Hot-reload: write geometry masks directly into mod terrain folder ─
         if (terrainOut != null)
         {
             var masksDir = Path.Combine(terrainOut, "masks");
             Directory.CreateDirectory(masksDir);
             await Converter.Lemur.Writers.HeightmapMasks.Write(
-                result.HeightmapF, result.Pixels,
+                result.Core.HeightmapF, result.Core.Pixels,
                 genParams.Width, genParams.Height,
                 masksDir);
             Console.WriteLine($"Hills/mountains/snow masks written to {masksDir}");
@@ -540,10 +522,39 @@ static class Program
         return 0;
     }
 
-    // Matrix checkerboard: rows cycle R/G/B, columns cycle R/G/B independently.
-    // Each pixel gets 255 in a channel if that channel is active on EITHER its row or column band.
-    // 9 unique combinations: R, G, B, R+G, R+B, G+B, R+G, R+B, G+B (tiling 3×3 matrix).
-    // Tile size 128px (quarter of old 512).
+    // ── Pixel comparison ─────────────────────────────────────────────────────
+    static int CompareImages(string pathA, string pathB)
+    {
+        using var imgA = new MagickImage(pathA);
+        using var imgB = new MagickImage(pathB);
+        imgA.Grayscale();
+        imgB.Grayscale();
+
+        if (imgA.Width != imgB.Width || imgA.Height != imgB.Height)
+        {
+            Console.Error.WriteLine($"Size mismatch: {pathA} is {imgA.Width}×{imgA.Height}, {pathB} is {imgB.Width}×{imgB.Height}");
+            return 1;
+        }
+
+        var pxA = imgA.GetPixels().ToByteArray("R")!;
+        var pxB = imgB.GetPixels().ToByteArray("R")!;
+
+        int diffCount = 0, maxDiff = 0;
+        for (int i = 0; i < pxA.Length; i++)
+        {
+            int d = Math.Abs(pxA[i] - pxB[i]);
+            if (d > 0) { diffCount++; maxDiff = Math.Max(maxDiff, d); }
+        }
+
+        Console.WriteLine($"Differing pixels: {diffCount} / {pxA.Length}  MaxDelta: {maxDiff}");
+        if (diffCount == 0)
+            Console.WriteLine("PASS — pixel-identical");
+        else
+            Console.WriteLine("FAIL — drift detected");
+        return diffCount == 0 ? 0 : 1;
+    }
+
+    // ── Checkerboard detail intensity ─────────────────────────────────────────
     static async Task WriteCheckerboardDetailIntensity(string terrainDir)
     {
         const int tileSize = 128;
@@ -554,12 +565,12 @@ static class Program
         for (int y = 0; y < h; y++)
         for (int x = 0; x < w; x++)
         {
-            int rowCh = (y / tileSize) % 3; // 0=R 1=G 2=B
+            int rowCh = (y / tileSize) % 3;
             int colCh = (x / tileSize) % 3;
             int o = (y * w + x) * 3;
-            pixels[o]     = (rowCh == 0 || colCh == 0) ? (byte)255 : (byte)0; // R
-            pixels[o + 1] = (rowCh == 1 || colCh == 1) ? (byte)255 : (byte)0; // G
-            pixels[o + 2] = (rowCh == 2 || colCh == 2) ? (byte)255 : (byte)0; // B
+            pixels[o]     = (rowCh == 0 || colCh == 0) ? (byte)255 : (byte)0;
+            pixels[o + 1] = (rowCh == 1 || colCh == 1) ? (byte)255 : (byte)0;
+            pixels[o + 2] = (rowCh == 2 || colCh == 2) ? (byte)255 : (byte)0;
         }
 
         var settings = new MagickReadSettings { Width = w, Height = h, ColorSpace = ColorSpace.sRGB, Format = MagickFormat.Rgb };
@@ -576,12 +587,14 @@ static class Program
                                 [--strength F]        displacement strength, default: 0.25
                                 [--nodes N]           poly-nodes per land cell, default: 4
                                 [--sample-count N]    IDW nearest nodes, default: 4
-                                [--roughness-norm F]  normalisation factor, default: 25.0
+                                [--roughness-norm F]  normalisation factor, default: 1.0
                                 [--relax N]                 repulsion relaxation iterations, default: 5
-                                [--terrain-to-poly-sep F]  min distance from terrain centroid as fraction of avg terrain spacing, default: 0.25
+                                [--terrain-to-poly-sep F]  min distance from terrain centroid, default: 0.25
                                 [--blur-radius N]           Gaussian blur radius in pixels, default: 3
-                                [--base-only]              skip poly-node displacement, show raw Delaunay layer
                                 [--debug]             overlay green dots (centroids) + red dots (poly-nodes)
+
+                  HeightmapLab --compare <path-a> <path-b>
+                                Pixel-by-pixel comparison of two grayscale PNGs. Exits 0 if identical.
             """);
     }
 }

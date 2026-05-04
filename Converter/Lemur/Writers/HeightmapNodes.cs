@@ -1,13 +1,13 @@
 namespace Converter.Lemur.Writers;
 
-interface IHeightmapNode
+public interface IHeightmapNode
 {
     float Px { get; }
     float Py { get; }
     float Height { get; }
 }
 
-record struct TerrainNode(
+public record struct TerrainNode(
     int Id,
     float Px, float Py,
     float Height,
@@ -15,7 +15,7 @@ record struct TerrainNode(
     bool IsLand,
     int Area) : IHeightmapNode;
 
-record struct PolyNode(
+public record struct PolyNode(
     float Px, float Py,
     float SpawnPx, float SpawnPy,
     int ParentId,
@@ -24,3 +24,8 @@ record struct PolyNode(
     float IdwRoughness,
     float RawRand,
     float Height) : IHeightmapNode;
+
+public record struct CoastNode(float Px, float Py) : IHeightmapNode
+{
+    public float Height => HeightmapAlgorithm.CK3WaterLevel;
+}
