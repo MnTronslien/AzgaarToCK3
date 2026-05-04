@@ -134,22 +134,25 @@ static class HeightmapGenerator
         // 3b — per-body adjacency build + walk + flatten
         var gfConstr   = new GeometryFactory();
         var pixToFloat = new Dictionary<(int,int), (float px, float py)>();
-        var coastNodes     = new List<CoastNode>();
-        var constraintSegs = new List<NetTopologySuite.Geometries.LineString>();
+        var coastNodes            = new List<CoastNode>();
+        var constraintSegs        = new List<NetTopologySuite.Geometries.LineString>();
+        var constraintSegToCellId = new List<int>(); // parallel to constraintSegs — owning land cell ID per segment
         int preInserted = 0, totalWalkVerts = 0, totalLoops = 0, totalOpenPaths = 0, totalIsolated = 0;
 
-        void AddSegment(CoastNode a, CoastNode b)
+        void AddSegment(CoastNode a, CoastNode b, int cellId = -1)
         {
             if (RoundCoord(a.Px) == RoundCoord(b.Px) && RoundCoord(a.Py) == RoundCoord(b.Py)) return;
             constraintSegs.Add(gfConstr.CreateLineString([
                 new Coordinate(a.Px, a.Py), new Coordinate(b.Px, b.Py)
             ]));
+            constraintSegToCellId.Add(cellId);
         }
 
         for (int body = 0; body < numSeaBodies; body++)
         {
-            var coastAdj  = new Dictionary<(int,int), List<(int,int)>>();
-            var coastEdges = new HashSet<((int,int),(int,int))>();
+            var coastAdj     = new Dictionary<(int,int), List<(int,int)>>();
+            var coastEdges   = new HashSet<((int,int),(int,int))>();
+            var edgeToCellId = new Dictionary<((int,int),(int,int)), int>(); // coast edge → owning land cell ID
 
             foreach (var (_, cell) in cells)
             {
@@ -184,6 +187,7 @@ static class HeightmapGenerator
 
                         var edgeKey = kA.CompareTo(kB) <= 0 ? (kA, kB) : (kB, kA);
                         if (!coastEdges.Add(edgeKey)) continue;
+                        edgeToCellId[edgeKey] = cell.Id; // land cell that owns this coastline edge
 
                         if (!coastAdj.TryGetValue(kA, out var la)) coastAdj[kA] = la = [];
                         if (!coastAdj.TryGetValue(kB, out var lb)) coastAdj[kB] = lb = [];
@@ -198,20 +202,38 @@ static class HeightmapGenerator
             if (deg1 > 0 || deg3p > 0)
                 Console.WriteLine($"  Sea body {body}: {deg1} boundary endpoints (degree-1), {deg3p} junctions (degree-3+)");
 
-            // Flatten paths → coast nodes + constraints with pre-subdivision
+            // Flatten paths → coast nodes + constraints with pre-subdivision.
+            // Single-pass: generate constraints inline as nodes are added so each
+            // constraint segment inherits the land cell ID of its coastline edge.
+            // Pre-inserted intermediate nodes on a long edge share that edge's cell ID.
             foreach (var (path, isClosed) in paths)
             {
-                int pathStart = coastNodes.Count;
                 int n         = path.Count;
                 int edgeCount = isClosed ? n : n - 1;
+                int pathStart = coastNodes.Count;
+
+                CoastNode? prevNode   = null;
+                int        prevCellId = -1;
 
                 for (int i = 0; i < edgeCount; i++)
                 {
                     var (pxA, pyA) = pixToFloat[path[i]];
                     var (pxB, pyB) = pixToFloat[path[(i + 1) % n]];
+                    var kA = (RoundCoord(pxA), RoundCoord(pyA));
+                    var kB = (RoundCoord(pxB), RoundCoord(pyB));
+                    var edgeKey = kA.CompareTo(kB) <= 0 ? (kA, kB) : (kB, kA);
+                    int cellId = edgeToCellId.TryGetValue(edgeKey, out int cid) ? cid : -1;
 
-                    coastNodes.Add(new CoastNode(pxA, pyA));
+                    var nodeA = new CoastNode(pxA, pyA);
+                    coastNodes.Add(nodeA);
 
+                    // Constraint from previous chain-end to this node uses the PREVIOUS edge's
+                    // cell ID: that sub-segment is the tail of the preceding coastline edge.
+                    if (prevNode != null)
+                        AddSegment(prevNode.Value, nodeA, prevCellId);
+
+                    // Pre-insert intermediate nodes on long edges; all share this edge's cell ID.
+                    CoastNode lastNode = nodeA;
                     if (p.MaxCoastEdgePixels > 0)
                     {
                         float dist = MathF.Sqrt((pxA - pxB) * (pxA - pxB) + (pyA - pyB) * (pyA - pyB));
@@ -221,24 +243,31 @@ static class HeightmapGenerator
                             for (int k = 1; k <= nIns; k++)
                             {
                                 float t = k / (float)(nIns + 1);
-                                coastNodes.Add(new CoastNode(pxA + t * (pxB - pxA), pyA + t * (pyB - pyA)));
+                                var ins = new CoastNode(pxA + t * (pxB - pxA), pyA + t * (pyB - pyA));
+                                coastNodes.Add(ins);
+                                AddSegment(lastNode, ins, cellId);
+                                lastNode = ins;
                                 preInserted++;
                             }
                         }
                     }
+
+                    prevNode   = lastNode;
+                    prevCellId = cellId;
                 }
 
+                // Close the loop or cap the open path.
                 if (!isClosed)
                 {
                     var (pxLast, pyLast) = pixToFloat[path[n - 1]];
-                    coastNodes.Add(new CoastNode(pxLast, pyLast));
+                    var termNode = new CoastNode(pxLast, pyLast);
+                    coastNodes.Add(termNode);
+                    if (prevNode != null) AddSegment(prevNode.Value, termNode, prevCellId);
                 }
-
-                int pathEnd = coastNodes.Count;
-                for (int i = pathStart; i < pathEnd - 1; i++)
-                    AddSegment(coastNodes[i], coastNodes[i + 1]);
-                if (isClosed)
-                    AddSegment(coastNodes[pathEnd - 1], coastNodes[pathStart]);
+                else if (prevNode != null)
+                {
+                    AddSegment(prevNode.Value, coastNodes[pathStart], prevCellId);
+                }
             }
 
             // Adjacency vertices not reached by any walk become isolated coast nodes
@@ -270,9 +299,10 @@ static class HeightmapGenerator
             var coordIndex    = BuildCoordIndex(basePoints);
             var triangulation = Triangulate(baseCoords, constraintSegs);
             AbsorbSteinerPoints(triangulation, coordIndex, coastNodes, CK3WaterLevel);
-            var cascadingBase = AssertNoSteinerSteinerEdges(triangulation, coastNodes, originalCoastCount, constraintSegs, terrainNodes);
+            var cascadingBase = AssertNoSteinerSteinerEdges(triangulation, coastNodes, originalCoastCount, constraintSegs, constraintSegToCellId, terrainNodes);
+            var patchesBase   = PatchBayShortcuts(triangulation, coastNodes, originalCoastCount, constraintSegs, constraintSegToCellId, terrainNodes, coordIndex);
             var connectivity  = CheckCoastConnectivity(triangulation, coastNodes);
-            var heightMap     = RasterizeTriangles(triangulation, coordIndex, p);
+            var heightMap     = RasterizeTriangles(triangulation, coordIndex, p, patches: patchesBase);
             ApplyGaussianBlur(heightMap, p);
             return new GenerateResult(ToBytes(heightMap), heightMap, terrainNodes, [], coastNodes, connectivity, originalCoastCount, cascadingBase);
         }
@@ -423,9 +453,10 @@ static class HeightmapGenerator
                            .Concat(coastNodes.Select(cn => new Coordinate(cn.Px, cn.Py)));
         var triangulation2 = Triangulate(allCoords, constraintSegs);
         AbsorbSteinerPoints(triangulation2, combinedCoordIndex, coastNodes, CK3WaterLevel);
-        var cascading = AssertNoSteinerSteinerEdges(triangulation2, coastNodes, originalCoastCount, constraintSegs, terrainNodes);
+        var cascading  = AssertNoSteinerSteinerEdges(triangulation2, coastNodes, originalCoastCount, constraintSegs, constraintSegToCellId, terrainNodes);
+        var patches2   = PatchBayShortcuts(triangulation2, coastNodes, originalCoastCount, constraintSegs, constraintSegToCellId, terrainNodes, combinedCoordIndex);
         var connectivity2  = CheckCoastConnectivity(triangulation2, coastNodes);
-        var heightMap2     = RasterizeTriangles(triangulation2, combinedCoordIndex, p);
+        var heightMap2     = RasterizeTriangles(triangulation2, combinedCoordIndex, p, patches: patches2);
         ApplyGaussianBlur(heightMap2, p);
 
         return new GenerateResult(ToBytes(heightMap2), heightMap2, terrainNodes, polyNodes, coastNodes, connectivity2, originalCoastCount, cascading);
@@ -603,6 +634,7 @@ static class HeightmapGenerator
         List<CoastNode> coastNodes,
         int originalCount,
         IReadOnlyList<NetTopologySuite.Geometries.LineString>? constraintSegs = null,
+        IReadOnlyList<int>? segToCellId = null,
         IReadOnlyList<TerrainNode>? terrainNodes = null)
     {
         if (coastNodes.Count <= originalCount)
@@ -697,7 +729,18 @@ static class HeightmapGenerator
                 return nearest.Count > 0 && !terrainNodes[nearest[0].item].IsLand;
             }
 
-            int nSameSeg = 0, nBay = 0, nCape = 0, nUnknown = 0;
+            // Two Steiners on constraint segments owned by the same land cell can only
+            // connect through that cell's interior — never across open water.
+            // This handles single-cell islands and 1-cell-wide peninsulas where the
+            // nearest-terrain-node midpoint test is fooled by the cell centroid being
+            // further than a sea centroid just outside the narrow feature.
+            bool SameCellId(int ca, int cb) =>
+                segToCellId != null &&
+                ca >= 0 && cb >= 0 &&
+                ca < segToCellId.Count && cb < segToCellId.Count &&
+                segToCellId[ca] >= 0 && segToCellId[ca] == segToCellId[cb];
+
+            int nSameSeg = 0, nBay = 0, nCape = 0, nUnknown = 0, nSameCell = 0;
             var bayDists = new List<float>();
 
             foreach (var (ka, kb) in pairList)
@@ -712,7 +755,6 @@ static class HeightmapGenerator
                 if (ca < 0 || cb < 0)
                 {
                     nUnknown++;
-                    // Can't classify — include in output to be safe
                     bayKeys.Add(ka); bayKeys.Add(kb);
                     Console.WriteLine($"  [UNKNOWN      ] edge-dist={dist:F1}px  mid=({midX:F0},{midY:F0})  S({sa.Px:F1},{sa.Py:F1}) ↔ S({sb.Px:F1},{sb.Py:F1})");
                 }
@@ -720,6 +762,11 @@ static class HeightmapGenerator
                 {
                     nSameSeg++;
                     Console.WriteLine($"  [same-seg     ] edge-dist={dist:F1}px  seg-len={SegLen(ca):F1}px  (benign — reduce MaxCoastEdgePixels)");
+                }
+                else if (SameCellId(ca, cb))
+                {
+                    nSameCell++;
+                    Console.WriteLine($"  [same-cell    ] edge-dist={dist:F1}px  mid=({midX:F0},{midY:F0})  (benign — both Steiners on same land cell)");
                 }
                 else if (MidpointIsOcean(midX, midY))
                 {
@@ -742,11 +789,11 @@ static class HeightmapGenerator
                 float med = bayDists[bayDists.Count / 2];
                 Console.WriteLine($"  BAY-SHORTCUT SUMMARY: {nBay} artifact(s)  " +
                                   $"min={bayDists[0]:F1}px  med={med:F1}px  avg={avg:F1}px  max={bayDists[^1]:F1}px");
-                Console.WriteLine($"  (also: {nSameSeg} same-seg, {nCape} cape-clip — both benign and excluded from visualisation)");
+                Console.WriteLine($"  (also: {nSameSeg} same-seg, {nSameCell} same-cell, {nCape} cape-clip — all benign, excluded from visualisation)");
             }
             else
             {
-                Console.WriteLine($"  Bay-shortcut OK — {nSameSeg} same-seg + {nCape} cape-clip (all benign)");
+                Console.WriteLine($"  Bay-shortcut OK — {nSameSeg} same-seg + {nSameCell} same-cell + {nCape} cape-clip (all benign)");
             }
         }
         else
@@ -759,12 +806,156 @@ static class HeightmapGenerator
         return bayKeys.Select(k => steinerByKey[k]).ToList();
     }
 
+    // For each BAY-SHORTCUT Steiner-Steiner edge, inserts midpoint M at h=0 and
+    // creates two fan triangles per original triangle that shared the bad edge.
+    // Returns a patch registry: original triangle key → replacement polygon list.
+    // Also registers M's height in coordIndex so the rasterizer can look it up.
+    static Dictionary<(int,int,int,int,int,int), List<NetTopologySuite.Geometries.Polygon>>
+    PatchBayShortcuts(
+        GeometryCollection triangles,
+        List<CoastNode> coastNodes,
+        int originalCoastCount,
+        IReadOnlyList<NetTopologySuite.Geometries.LineString> constraintSegs,
+        IReadOnlyList<int>? segToCellId,
+        IReadOnlyList<TerrainNode> terrainNodes,
+        Dictionary<(int,int), float> coordIndex)
+    {
+        var patches = new Dictionary<(int,int,int,int,int,int), List<NetTopologySuite.Geometries.Polygon>>();
+        if (coastNodes.Count <= originalCoastCount || constraintSegs.Count == 0) return patches;
+
+        var steinerByKey = new Dictionary<(int,int), CoastNode>(coastNodes.Count - originalCoastCount);
+        for (int i = originalCoastCount; i < coastNodes.Count; i++)
+            steinerByKey.TryAdd((RoundCoord(coastNodes[i].Px), RoundCoord(coastNodes[i].Py)), coastNodes[i]);
+        if (steinerByKey.Count == 0) return patches;
+
+        // One pass: build edge → triangles (only Steiner-Steiner edges need further work,
+        // but we don't know which those are yet so we build all edges)
+        var edgeToTris = new Dictionary<((int,int),(int,int)), List<(Coordinate v0, Coordinate v1, Coordinate v2)>>();
+        foreach (var geom in triangles.Geometries)
+        {
+            var ring = geom.Boundary.Coordinates;
+            if (ring.Length < 3) continue;
+            var tv0 = ring[0]; var tv1 = ring[1]; var tv2 = ring[2];
+            for (int e = 0; e < 3; e++)
+            {
+                var ka = (RoundCoord((float)ring[e].X),       RoundCoord((float)ring[e].Y));
+                var kb = (RoundCoord((float)ring[(e+1)%3].X), RoundCoord((float)ring[(e+1)%3].Y));
+                var edge = ka.CompareTo(kb) <= 0 ? (ka, kb) : (kb, ka);
+                if (!edgeToTris.TryGetValue(edge, out var lst)) edgeToTris[edge] = lst = [];
+                lst.Add((tv0, tv1, tv2));
+            }
+        }
+
+        // Terrain spatial grid for midpoint land/sea classification
+        SpatialGrid<int>? tGrid = null;
+        if (terrainNodes.Count > 0)
+        {
+            int tc = Math.Max(1, (int)Math.Sqrt(terrainNodes.Count));
+            float tw = terrainNodes.Max(t => t.Px), th = terrainNodes.Max(t => t.Py);
+            tGrid = new SpatialGrid<int>((int)(tw + 1), (int)(th + 1), tc, Math.Max(1, tc / 2));
+            for (int ti = 0; ti < terrainNodes.Count; ti++)
+                tGrid.Add(terrainNodes[ti].Px, terrainNodes[ti].Py, ti);
+        }
+
+        int FindConstraint(float px, float py)
+        {
+            float bestErr = 2f; int bestIdx = -1;
+            for (int ci = 0; ci < constraintSegs.Count; ci++)
+            {
+                var cs  = constraintSegs[ci].Coordinates;
+                float ax = (float)cs[0].X, ay = (float)cs[0].Y;
+                float bx = (float)cs[1].X, by = (float)cs[1].Y;
+                float dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy;
+                if (len2 < 0.01f) continue;
+                float t = ((px - ax) * dx + (py - ay) * dy) / len2;
+                if (t < -0.01f || t > 1.01f) continue;
+                float ex = ax + t * dx - px, ey = ay + t * dy - py;
+                float err = MathF.Sqrt(ex * ex + ey * ey);
+                if (err < bestErr) { bestErr = err; bestIdx = ci; }
+            }
+            return bestIdx;
+        }
+
+        bool MidpointIsOcean(float px, float py)
+        {
+            if (tGrid == null) return false;
+            var nearest = tGrid.NearestN(px, py, 1);
+            return nearest.Count > 0 && !terrainNodes[nearest[0].item].IsLand;
+        }
+
+        var gf         = new GeometryFactory();
+        int nBayPairs  = 0, nTriPatched = 0;
+
+        foreach (var (edge, trisForEdge) in edgeToTris)
+        {
+            var (ka, kb) = edge;
+            if (!steinerByKey.ContainsKey(ka) || !steinerByKey.ContainsKey(kb)) continue;
+
+            var sa = steinerByKey[ka];
+            var sb = steinerByKey[kb];
+            int ca = FindConstraint(sa.Px, sa.Py);
+            int cb = FindConstraint(sb.Px, sb.Py);
+            if (ca < 0 || cb < 0 || ca == cb) continue; // SAME-SEG or unclassified — skip
+
+            // Same land cell: both Steiner points are on constraint segments owned by the
+            // same land cell → intra-cell connection, never a real bay shortcut.
+            bool sameCellId = segToCellId != null &&
+                              ca < segToCellId.Count && cb < segToCellId.Count &&
+                              segToCellId[ca] >= 0 && segToCellId[ca] == segToCellId[cb];
+            if (sameCellId) continue;
+
+            float midX = (sa.Px + sb.Px) / 2f, midY = (sa.Py + sb.Py) / 2f;
+            if (!MidpointIsOcean(midX, midY)) continue; // CAPE-CLIP — skip
+
+            // BAY-SHORTCUT confirmed: insert M at midpoint, h=0 (deep ocean)
+            nBayPairs++;
+            var mCoord = new Coordinate(midX, midY);
+            coordIndex.TryAdd((RoundCoord(midX), RoundCoord(midY)), 0f);
+
+            var coordA = new Coordinate(sa.Px, sa.Py);
+            var coordB = new Coordinate(sb.Px, sb.Py);
+
+            foreach (var (tv0, tv1, tv2) in trisForEdge)
+            {
+                // Identify the third vertex (not S1 or S2)
+                Coordinate? third = null;
+                foreach (var v in new[] { tv0, tv1, tv2 })
+                {
+                    var vk = (RoundCoord((float)v.X), RoundCoord((float)v.Y));
+                    if (vk != ka && vk != kb) { third = v; break; }
+                }
+                if (third == null) continue;
+
+                var origKey = TriangleKey(tv0, tv1, tv2);
+                try
+                {
+                    var t1 = gf.CreatePolygon([coordA, mCoord, third, coordA]);
+                    var t2 = gf.CreatePolygon([mCoord, coordB, third, mCoord]);
+                    patches[origKey] = [t1, t2];
+                    nTriPatched++;
+                }
+                catch { /* degenerate — skip this triangle */ }
+            }
+        }
+
+        if (nBayPairs > 0)
+            Console.WriteLine($"Bay-shortcut patch: {nBayPairs} pair(s) fixed, " +
+                              $"{nTriPatched} triangle(s) → {nTriPatched * 2} fan triangle(s)");
+        else
+            Console.WriteLine("Bay-shortcut patch: no bay shortcuts found — nothing to patch");
+
+        return patches;
+    }
+
     // Accept a pre-built triangulation so the caller can inspect it (e.g. assertions) before rasterizing.
+    // patches: optional registry from PatchBayShortcuts — triangles whose key appears here are replaced
+    //          by their fan-triangle list instead of being rasterized directly.
     static float[] RasterizeTriangles(
         GeometryCollection triangles,
         Dictionary<(int, int), float> coordIndex,
         Params p,
-        float clampMax = 255f)
+        float clampMax = 255f,
+        Dictionary<(int,int,int,int,int,int), List<NetTopologySuite.Geometries.Polygon>>? patches = null)
     {
         var heightMap = new float[p.Width * p.Height];
         foreach (var geom in triangles.Geometries)
@@ -772,6 +963,24 @@ static class HeightmapGenerator
             var ring = geom.Boundary.Coordinates;
             if (ring.Length < 3) continue;
             var v0 = ring[0]; var v1 = ring[1]; var v2 = ring[2];
+
+            if (patches != null)
+            {
+                var key = TriangleKey(v0, v1, v2);
+                if (patches.TryGetValue(key, out var patchTris))
+                {
+                    foreach (var pt in patchTris)
+                    {
+                        var pr = pt.Boundary.Coordinates;
+                        if (pr.Length < 3) continue;
+                        RasterizeTriangle(pr[0], pr[1], pr[2],
+                            Lookup(coordIndex, pr[0]), Lookup(coordIndex, pr[1]), Lookup(coordIndex, pr[2]),
+                            heightMap, p.Width, p.Height, clampMax);
+                    }
+                    continue;
+                }
+            }
+
             RasterizeTriangle(v0, v1, v2,
                 Lookup(coordIndex, v0), Lookup(coordIndex, v1), Lookup(coordIndex, v2),
                 heightMap, p.Width, p.Height, clampMax);
@@ -961,6 +1170,19 @@ static class HeightmapGenerator
     }
 
     static int RoundCoord(float v) => (int)Math.Round(v);
+
+    // Stable sort-based key for a triangle — order-independent, safe as a Dictionary key.
+    static (int,int,int,int,int,int) TriangleKey(Coordinate v0, Coordinate v1, Coordinate v2)
+    {
+        var pts = new (int x, int y)[]
+        {
+            (RoundCoord((float)v0.X), RoundCoord((float)v0.Y)),
+            (RoundCoord((float)v1.X), RoundCoord((float)v1.Y)),
+            (RoundCoord((float)v2.X), RoundCoord((float)v2.Y))
+        };
+        Array.Sort(pts, (a, b) => a.x != b.x ? a.x.CompareTo(b.x) : a.y.CompareTo(b.y));
+        return (pts[0].x, pts[0].y, pts[1].x, pts[1].y, pts[2].x, pts[2].y);
+    }
 
     static float GeoToPixelX(float lon, Params p) => (lon - p.LonW) / p.LonT * p.Width;
     static float GeoToPixelY(float lat, Params p) => p.Height - (lat - p.LatS) / p.LatT * p.Height;
