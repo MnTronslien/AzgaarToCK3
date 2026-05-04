@@ -493,8 +493,9 @@ namespace Converter.Lemur
         {
 
             Logger.Section("Assigning cells to baronies");
-            //We will do this by duchy
-            foreach (Duchy duchy in map.Duchies!)
+            //We will do this by duchy — duchies own disjoint cell sets so they can run in parallel
+            var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
+            Parallel.ForEach(map.Duchies!, parallelOptions, duchy =>
             {
                 var duchySw = System.Diagnostics.Stopwatch.StartNew();
                 //Logger.Debug($"Duchy: {duchy.Name}");
@@ -596,7 +597,7 @@ namespace Converter.Lemur
                 Logger.Info($"Completed Cell assignment for Duchy {duchy.Name}");
                 //list baronies and the number of cells assigned to them
 
-            }
+            });
         }
 
         private static void LinkCellsToBurgs(Map map)
