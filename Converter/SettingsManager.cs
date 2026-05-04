@@ -26,7 +26,10 @@ public class Settings
     public static Settings Instance { get; set; }
 #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
     [JsonIgnore]
-    public static string OutputDirectory => Helper.GetPath(Instance.ModsDirectory, Instance.ModName);
+    public static string? OutputDirectoryOverride { get; set; } = null;
+
+    [JsonIgnore]
+    public static string OutputDirectory => OutputDirectoryOverride ?? Helper.GetPath(Instance.ModsDirectory, Instance.ModName);
 
     public LogLevel LogLevel { get; set; } = LogLevel.Info;
     public bool GenerateDebugImages { get; set; } = true;
