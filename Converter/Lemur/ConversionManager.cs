@@ -75,47 +75,57 @@ namespace Converter.Lemur
                 map.Rivers = RiverLoader.LoadRivers(map.JsonMap, Settings.Instance.MajorRiverThreshold);
 
                 // Phase 1: Draw minor rivers to rivers.png using pure A* approach
-                await RiverImageGenerator.DrawRiversImage(
-                    map.Rivers,
-                    Settings.Instance.MajorRiverThreshold,
-                    map);
+                using (var _riverMinor = OperationTimer.Start("Total minor rivers A*"))
+                {
+                    await RiverImageGenerator.DrawRiversImage(
+                        map.Rivers,
+                        Settings.Instance.MajorRiverThreshold,
+                        map);
+                }
 
                 // Phase 2: Insert major river cells (must run before barony formation)
-                MajorRiverInserter.InsertMajorRivers(map, Settings.Instance.MajorRiverThreshold);
+                using (var _riverMajor = OperationTimer.Start("Total major river insertion (phases 1–4)"))
+                {
+                    MajorRiverInserter.InsertMajorRivers(map, Settings.Instance.MajorRiverThreshold);
+                }
 
                 // Debug: visualize cells after river insertion (plain + neighbors + control points)
-                var majorRivers = map.Rivers!.Where(r => r.IsMajor(Settings.Instance.MajorRiverThreshold)).ToList();
-                await Task.WhenAll(
-                    ImageUtility.DrawCells(map.Cells!.Values.ToList(), map, "1b_cells_post_rivers.png"),
-                    ImageUtility.DrawCellsWithNeighborLines(map.Cells!.Values.ToList(), map, "1b_cells_neighbors_post_rivers.png"),
-                    ImageUtility.DrawMajorRiverControlPoints(majorRivers, map));
+                // Gated to Verbose: these 3 images cost 4–5 min on large maps
+                if (Settings.Instance.LogLevel <= LogLevel.Verbose)
+                {
+                    var majorRivers = map.Rivers!.Where(r => r.IsMajor(Settings.Instance.MajorRiverThreshold)).ToList();
+                    await Task.WhenAll(
+                        ImageUtility.DrawCells(map.Cells!.Values.ToList(), map, "1b_cells_post_rivers.png"),
+                        ImageUtility.DrawCellsWithNeighborLines(map.Cells!.Values.ToList(), map, "1b_cells_neighbors_post_rivers.png"),
+                        ImageUtility.DrawMajorRiverControlPoints(majorRivers, map));
+                }
             }
 
-            GenerateDuchies(map);
-            GenerateBaronies(map);
+            using (var _ = OperationTimer.Start("GenerateDuchies")) GenerateDuchies(map);
+            using (var _ = OperationTimer.Start("GenerateBaronies")) GenerateBaronies(map);
 
-
-
-            AssignCellsToBaronies(map);
+            using (var _ = OperationTimer.Start("AssignCellsToBaronies")) AssignCellsToBaronies(map);
 
             GenerateWastelandProvinces(map);
             AssertEveryLandCellIsAssignedToABurg(map);
 
             ComputeDistanceToCoast(map);
-            GenerateSeaZones(map);
-           
+            using (var _ = OperationTimer.Start("GenerateSeaZones")) GenerateSeaZones(map);
 
             CreateFarSeaZones(map);
 
             // ✅ Visualization checkpoint 2: Sea zones + Baronies
             AssignProvinceColors(map);
             await ShowSeaZones(map);
-            await ShowBaronies(map);
+            using (var _ = OperationTimer.Start("DrawProvincesImage")) await ShowBaronies(map);
 
             var w = Settings.Instance.Writers;
 
             if (w.DefinitionCsv)
+            {
+                using var _ = OperationTimer.Start("Writing definition.csv");
                 await DefinitionCsvWriter.Write(map.AllProvinces!, Settings.OutputDirectory);
+            }
 
             var seaZoneIndices = map.SeaZones!
                 .Concat(map.FarSeaZones!)
@@ -127,19 +137,23 @@ namespace Converter.Lemur
             var riverProvinceIndices = map.MajorRiverProvinces
                 .Select(rp => map.AllProvinces!.IndexOf(rp) + 1);
             if (w.DefaultMap)
+            {
+                using var _ = OperationTimer.Start("Writing default.map");
                 await DefaultMapWriter.Write(seaZoneIndices, wastelandIndices, farSeaZoneIndices, riverProvinceIndices, Settings.OutputDirectory);
+            }
 
             GenerateBaronyAdjacency(map);
             GenerateCounties(map);
 
-            map.HolySites = HolySiteFactory.Build(map);
+            using (var _ = OperationTimer.Start("HolySiteFactory.Build")) map.HolySites = HolySiteFactory.Build(map);
             Logger.Info($"Built {map.HolySites.Count} holy sites.");
 
             // ✅ Visualization checkpoint 3: Counties
-            await ShowCounties(map);
+            if (Settings.Instance.LogLevel <= LogLevel.Debug)
+                await ShowCounties(map);
 
-            GenerateEmpires(map);
-            GenerateKingdoms(map);
+            using (var _ = OperationTimer.Start("GenerateEmpires")) GenerateEmpires(map);
+            using (var _ = OperationTimer.Start("GenerateKingdoms")) GenerateKingdoms(map);
 
             MergeTinyKingdoms(map); //Adjust Kingdoms
             MergeTinyEmpires(map); //Adjust Empires
@@ -157,9 +171,12 @@ namespace Converter.Lemur
             AssignCapitals(map);
 
             // ✅ Visualization checkpoint 4: Final hierarchy
-            await ShowDuchies(map);
-            await ShowKingdoms(map);
-            await ShowEmpires(map);
+            if (Settings.Instance.LogLevel <= LogLevel.Debug)
+            {
+                await ShowDuchies(map);
+                await ShowKingdoms(map);
+                await ShowEmpires(map);
+            }
 
             DeFactoHierarchyBuilder.Build(map);
             CharacterFactory.CreateAndAssignAll(map);
@@ -171,16 +188,25 @@ namespace Converter.Lemur
             Logger.Section("Writing CK3 mod files");
 
             if (w.Adjacencies)
+            {
+                using var _ = OperationTimer.Start("Writing adjacencies.csv");
                 await AdjacenciesCsvWriter.Write(Settings.OutputDirectory);
+            }
             if (w.LandedTitles)
                 await Task.WhenAll(
                     LandedTitlesWriter.Write(map, Settings.OutputDirectory),
                     TitleLocalizationWriter.Write(map, Settings.OutputDirectory));
-            await ModDescriptorWriter.Write(Settings.Instance.ModName, Settings.Instance.ModsDirectory, Settings.OutputDirectory);
+            using (var _ = OperationTimer.Start("Writing mod descriptor")) await ModDescriptorWriter.Write(Settings.Instance.ModName, Settings.Instance.ModsDirectory, Settings.OutputDirectory);
             if (w.MapDefines)
+            {
+                using var _ = OperationTimer.Start("Writing map defines");
                 await MapDefinesWriter.Write(Settings.OutputDirectory);
+            }
             if (w.ProvinceTerrain)
+            {
+                using var _ = OperationTimer.Start("Writing province terrain");
                 await ProvinceTerrainWriter.Write(map, Settings.OutputDirectory);
+            }
             if (w.TerrainMasks)
             {
                 var terrainMasks = TerrainMaskPreparer.Prepare(map);
@@ -193,7 +219,10 @@ namespace Converter.Lemur
             if (w.Heightmap)
                 await HeightmapWriter.Write(map, Settings.OutputDirectory);
             if (w.Religion)
+            {
+                using var _ = OperationTimer.Start("Writing religion files (copy from CK3)");
                 await ReligionWriter.Write(Settings.Instance.Ck3Directory, Settings.OutputDirectory);
+            }
             if (w.Faiths)
                 await FaithWriter.Write(map, Settings.OutputDirectory);
             if (w.Cultures)
@@ -212,9 +241,15 @@ namespace Converter.Lemur
             if (w.Locators)
                 await LocatorWriter.Write(map, Settings.OutputDirectory);
             if (w.Characters)
+            {
+                using var _ = OperationTimer.Start("Writing characters");
                 await CharacterWriter.Write(map, Settings.OutputDirectory);
+            }
             if (w.TitleHistory)
+            {
+                using var _ = OperationTimer.Start("Writing title history");
                 await TitleHistoryWriter.Write(map, Settings.OutputDirectory);
+            }
 
             Logger.Success();
 
@@ -456,108 +491,112 @@ namespace Converter.Lemur
 
         private static void AssignCellsToBaronies(Map map)
         {
-
             Logger.Section("Assigning cells to baronies");
-            //We will do this by duchy
-            foreach (Duchy duchy in map.Duchies!)
+            var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
+            Parallel.ForEach(map.Duchies!, parallelOptions, duchy =>
             {
-                //Logger.Debug($"Duchy: {duchy.Name}");
-                Logger.Verbose($"Processing Cells for Duchy {duchy.Name} with {duchy.GetAllCells().Count} cells and {duchy.Baronies.Count} baronies");
-                //We start by getting all the baronies in the duchy, we do this by getting all the burgs in the duchy and then getting the baronies from the burgs
-                var baronies = duchy.GetAllCells().Select(c => c.Burg).Where(b => b != null).Select(b => b!.Barony).Distinct();
-                //Sort them on population size decending baroniesInProvince[0].Burg.population
-                baronies = baronies.OrderByDescending(b => b!.burg!.Population);
+                var duchySw = System.Diagnostics.Stopwatch.StartNew();
+                var allCells = duchy.GetAllCells();
+                Logger.Verbose($"Processing Cells for Duchy {duchy.Name} with {allCells.Count} cells and {duchy.Baronies.Count} baronies");
 
-                //now each barony must bave a seed cell, that is the cell that has the burg in it.
-                foreach (Barony barony in baronies)
+                var baronies = allCells
+                    .Select(c => c.Burg).Where(b => b != null)
+                    .Select(b => b!.Barony).Distinct()
+                    .OrderByDescending(b => b!.burg!.Population)
+                    .ToList();
+
+                // O(1) duchy-local cell lookup — prevents cross-duchy frontier expansion
+                var duchyCells = allCells.ToDictionary(c => c.Id);
+
+                // Seed: one cell per barony (the burg's own cell)
+                foreach (var barony in baronies)
                 {
-                    barony.Cells.Add(barony.burg.Cell!);
-                    // Assign the barony to the cell
-                    barony.burg.Cell!.Province = barony;
-
-                    if (barony.burg.Cell == null) //should not be zero, i think but just in case
-                    {
+                    if (barony.burg.Cell == null)
                         throw new Exception($"Burg {barony.burg.Name} has no cell");
-                    }
+                    barony.Cells.Add(barony.burg.Cell);
+                    barony.burg.Cell.Province = barony;
                 }
 
+                // Unassigned countryside cells (no burg)
+                var unassigned = new HashSet<int>(allCells.Where(c => c.Burg == null).Select(c => c.Id));
 
-                // Now get all cells in the province that are not already assigned to a burg (country side cells)
-                var countrysideCells = duchy.GetAllCells().Where(c => c.Burg == null).ToList();
-                // Have each barony grow outwards until all countryside cells are assigned among the burgs based on distance
-                while (countrysideCells.Count > 0)
+                // Per-barony priority queue seeded with burg cell's unassigned duchy neighbours
+                // Priority = distance² to burg (min-heap → nearest cell first)
+                var frontiers = baronies.Select(b =>
                 {
-                    bool noMoreRoom = true;
-                    foreach (Barony barony in baronies)
-                    {
-                        //Look at it's assigned cells
-                        // And generate a list of neighbouring cells from the list of countryside cells
-                        List<Cell> neighbors = countrysideCells.Where(c => barony.Cells.SelectMany(cell => cell.Neighbors).Distinct().Contains(c.Id)).ToList();
-                        if (neighbors.Count == 0)
-                        {
-                            continue;
-                        }
-                        noMoreRoom = false;
-                        //Then sort them by distance to the burg
-                        neighbors.Sort((a, b) => a.DistanceSquared(barony.burg.Cell!).CompareTo(b.DistanceSquared(barony.burg.Cell!)));
-                        //Then assign the closest cell to the barony
-                        barony.Cells.Add(neighbors[0]);
-                        // and assign the barony to the cell
-                        neighbors[0].Province = barony;
-                        //And remove it from the list of countryside cells
-                        countrysideCells.Remove(neighbors[0]);
+                    var pq = new PriorityQueue<Cell, float>();
+                    foreach (var nId in b.burg.Cell!.Neighbors)
+                        if (unassigned.Contains(nId) && duchyCells.TryGetValue(nId, out var nc))
+                            pq.Enqueue(nc, b.burg.Cell.DistanceSquared(nc));
+                    return (barony: b, frontier: pq);
+                }).ToList();
 
-                    }
-                    if (noMoreRoom)
-                    {
-                        //Check if there would be any cells left unassigned (there is room but it i across water)
-                        if (countrysideCells.Count > 0)
-                        {
-                            //This places a "seed" on any island cell and respect distance. It will assign whole islands contigously to the same barony.
-                            var shortestDistancePair = countrysideCells
-                                .Select(island => new
-                                {
-                                    Island = island,
-                                    ClosestBarony = baronies
-                                        .Select(b => new { Barony = b, Distance = b.burg.Cell!.DistanceSquared(island) })
-                                        .OrderBy(b => b.Distance)
-                                        .First()
-                                })
-                                .OrderBy(pair => pair.ClosestBarony.Distance)
-                                .First();
-
-                            // shortestDistancePair contains the island and the closest barony with the shortest distance among all pairs
-                            var island = shortestDistancePair.Island;
-                            var closestBarony = shortestDistancePair.ClosestBarony.Barony;
-
-                            // link the cell and the barony and remove the cell from the list of unassigned cells
-                            closestBarony.Cells.Add(island);
-                            island.Province = closestBarony;
-                            countrysideCells.Remove(island);
-
-                            continue;
-                        }
-                        else
-                        {
-                            break; //no more room in any barony and no more cells to assign
-                        }
-                    }
-
-
-                }
-
-                // //if not all countryside cells are assigned, print a warning
-                if (Settings.Instance.LogLevel <= LogLevel.Info && countrysideCells.Count > 0)
+                // Multi-source Voronoi expansion: each barony claims one nearest cell per round
+                while (unassigned.Count > 0)
                 {
-                    Logger.Info($"{countrysideCells.Count} countryside cells in Duchy {duchy.Name} could not be assigned to a barony. This may be due to isolated islands or water barriers.");
+                    bool anyProgress = false;
+                    foreach (var (barony, frontier) in frontiers)
+                    {
+                        // Pop nearest unassigned cell (lazy-delete stale entries)
+                        Cell? cell = null;
+                        while (frontier.Count > 0)
+                        {
+                            var candidate = frontier.Peek();
+                            if (unassigned.Contains(candidate.Id)) { cell = frontier.Dequeue(); break; }
+                            frontier.Dequeue(); // already assigned by another barony
+                        }
+                        if (cell == null) continue;
+
+                        unassigned.Remove(cell.Id);
+                        barony.Cells.Add(cell);
+                        cell.Province = barony;
+                        anyProgress = true;
+
+                        // Expand frontier with this cell's unassigned duchy neighbours
+                        foreach (var nId in cell.Neighbors)
+                            if (unassigned.Contains(nId) && duchyCells.TryGetValue(nId, out var nc))
+                                frontier.Enqueue(nc, barony.burg.Cell!.DistanceSquared(nc));
+                    }
+
+                    if (!anyProgress && unassigned.Count > 0)
+                    {
+                        // Island fallback: find the closest (barony, isolated-cell) pair and seed BFS there
+                        var shortestDistancePair = unassigned
+                            .Select(id => duchyCells[id])
+                            .Select(island => new
+                            {
+                                Island = island,
+                                ClosestBarony = baronies
+                                    .Select(b => new { Barony = b, Distance = b.burg.Cell!.DistanceSquared(island) })
+                                    .OrderBy(b => b.Distance)
+                                    .First()
+                            })
+                            .OrderBy(pair => pair.ClosestBarony.Distance)
+                            .First();
+
+                        var island = shortestDistancePair.Island;
+                        var closestBarony = shortestDistancePair.ClosestBarony.Barony;
+
+                        unassigned.Remove(island.Id);
+                        closestBarony.Cells.Add(island);
+                        island.Province = closestBarony;
+
+                        // Seed the barony's frontier so BFS can propagate from this island
+                        var closestFrontier = frontiers.First(f => f.barony == closestBarony).frontier;
+                        foreach (var nId in island.Neighbors)
+                            if (unassigned.Contains(nId) && duchyCells.TryGetValue(nId, out var nc))
+                                closestFrontier.Enqueue(nc, closestBarony.burg.Cell!.DistanceSquared(nc));
+                    }
                 }
 
-                //print the response to the console
-                // All cells in this duchy is now assigned to a barony, so we can move on to the next duchy
+                if (Settings.Instance.LogLevel <= LogLevel.Info && unassigned.Count > 0)
+                    Logger.Info($"{unassigned.Count} countryside cells in Duchy {duchy.Name} could not be assigned to a barony.");
+
+                duchySw.Stop();
+                if (duchySw.Elapsed.TotalMilliseconds > 500)
+                    Logger.Info($"[Timer] Cell assignment > {duchy.Name}: {duchySw.Elapsed.TotalSeconds:F3}s (slow)");
                 Logger.Info($"Completed Cell assignment for Duchy {duchy.Name}");
-                //list baronies and the number of cells assigned to them
-
-            }
+            });
         }
 
         private static void LinkCellsToBurgs(Map map)

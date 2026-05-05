@@ -5,6 +5,10 @@ namespace Converter.Lemur.Writers;
 
 public static class TerrainMaskWriter
 {
+    private static readonly string CacheDir = Helper.GetPath(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "AzgaarToCK3", "cache");
+
     public static async Task Write(
         IReadOnlyList<TerrainMaskEntry> masks,
         L.Map map,
@@ -17,6 +21,7 @@ public static class TerrainMaskWriter
         var terrainDir = Helper.GetPath(outputDirectory, "gfx", "map", "terrain");
         Directory.CreateDirectory(masksDir);
         Directory.CreateDirectory(terrainDir);
+        Directory.CreateDirectory(CacheDir);
 
         var readSettings = new MagickReadSettings
         {
@@ -38,42 +43,79 @@ public static class TerrainMaskWriter
         // Paint all TCS mask slots black — only hills/mountain masks (written by HeightmapMasks) carry data.
         var allMasks = masks.Select(m => new TerrainMaskEntry(m.FileName, [])).Concat(blanks).ToList();
 
-        await Task.WhenAll(allMasks.Select(entry => WriteBiomeMask(entry, masksDir, readSettings, map)));
+        // Canonical blank PNG — created once here, shared by biome masks and masks_gen.
+        // All 69 biome mask slots are black; MagickImage per-file took ~200s; File.Copy is ~0.1s.
+        var blankPath = Helper.GetPath(CacheDir, $"blank_{L.Map.MapWidth}x{L.Map.MapHeight}.png");
+        if (!File.Exists(blankPath))
+        {
+            using var img = new MagickImage("xc:black", readSettings);
+            img.Alpha(AlphaOption.Set);
+            img.Evaluate(Channels.Alpha, EvaluateOperator.Set, new Percentage(100));
+            await img.WriteAsync(blankPath);
+            Logger.Debug($"Cached blank PNG {L.Map.MapWidth}×{L.Map.MapHeight}");
+        }
 
-        await WriteColormapAsync(tcsSandboxPath, terrainDir);
-        await WriteMasksGenAsync(tcsSandboxPath, terrainDir);
-        await WriteDetailIndexAsync(terrainDir, map, readSettings);
-        await WriteDetailIntensityAsync(terrainDir, map, readSettings);
+        // Run all 5 groups concurrently — they write to different files, no shared mutable state.
+        await Task.WhenAll(
+            Task.WhenAll(allMasks.Select(entry => WriteBiomeMask(entry, masksDir, readSettings, map, blankPath))),
+            WriteColormapAsync(tcsSandboxPath, terrainDir),
+            WriteMasksGenAsync(tcsSandboxPath, terrainDir, blankPath),
+            WriteDetailIndexAsync(terrainDir, map, readSettings),
+            WriteDetailIntensityAsync(terrainDir, map, readSettings)
+        );
 
         Logger.Info($"Wrote {allMasks.Count} terrain mask PNGs ({masks.Count} biome + {blanks.Count} blank) + colormap.dds + masks_gen + detail TGAs to gfx/map/terrain/");
     }
 
     private static async Task WriteBiomeMask(
         TerrainMaskEntry entry, string masksDir,
-        MagickReadSettings readSettings, L.Map map)
+        MagickReadSettings readSettings, L.Map map, string blankPath)
     {
+        var dst = Path.Combine(masksDir, entry.FileName);
+        if (entry.WhiteCells.Count == 0)
+        {
+            // Fast path: all biome mask slots are blank — copy the canonical cached file.
+            File.Copy(blankPath, dst, overwrite: true);
+            return;
+        }
         using var image = new MagickImage("xc:black", readSettings);
         // CK3 1.18 optimizes away alpha channels that are entirely 0 — explicit alpha=255 required.
         image.Alpha(AlphaOption.Set);
         image.Evaluate(Channels.Alpha, EvaluateOperator.Set, new Percentage(100));
-        if (entry.WhiteCells.Count > 0)
-        {
-            var drawables = ImageUtility.GenerateCellPolygons(entry.WhiteCells, MagickColors.White, map);
-            image.Draw(drawables);
-        }
-        await image.WriteAsync(Path.Combine(masksDir, entry.FileName));
+        var drawables = ImageUtility.GenerateCellPolygons(entry.WhiteCells, MagickColors.White, map);
+        image.Draw(drawables);
+        await image.WriteAsync(dst);
     }
 
     private static async Task WriteColormapAsync(string tcsSandboxPath, string terrainDir)
     {
         var src = Helper.GetPath(tcsSandboxPath, "gfx", "map", "terrain", "colormap.dds");
         var dst = Helper.GetPath(terrainDir, "colormap.dds");
-        using var img = new MagickImage(src);
-        img.Resize(L.Map.MapWidth / 4, L.Map.MapHeight / 4);
-        await img.WriteAsync(dst);
+
+        // Cache key: source path + last-write time + output dimensions → stable per TCS version.
+        var srcInfo = new FileInfo(src);
+        var cacheKey = $"{src}|{srcInfo.LastWriteTimeUtc.Ticks}|{L.Map.MapWidth / 4}|{L.Map.MapHeight / 4}";
+        var cacheHash = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(cacheKey)))[..16];
+        var cachePath = Helper.GetPath(CacheDir, $"colormap_{cacheHash}.dds");
+
+        if (!File.Exists(cachePath))
+        {
+            using var img = new MagickImage(src);
+            img.Resize(L.Map.MapWidth / 4, L.Map.MapHeight / 4);
+            await img.WriteAsync(cachePath);
+            Logger.Debug($"Cached resized colormap.dds → {cachePath}");
+        }
+        else
+        {
+            Logger.Debug("colormap.dds cache hit — skipping 163MB load");
+        }
+
+        File.Copy(cachePath, dst, overwrite: true);
     }
 
-    private static async Task WriteMasksGenAsync(string tcsSandboxPath, string terrainDir)
+    private static async Task WriteMasksGenAsync(string tcsSandboxPath, string terrainDir, string blankPath)
     {
         var srcDir = Helper.GetPath(tcsSandboxPath, "gfx", "map", "terrain", "masks_gen");
         if (!Directory.Exists(srcDir)) return;
@@ -81,17 +123,12 @@ public static class TerrainMaskWriter
         var dstDir = Helper.GetPath(terrainDir, "masks_gen");
         Directory.CreateDirectory(dstDir);
 
-        var readSettings = new MagickReadSettings { Width = L.Map.MapWidth, Height = L.Map.MapHeight };
         var fileNames = Directory.EnumerateFiles(srcDir, "*.png").Select(Path.GetFileName).ToList();
 
-        var tasks = fileNames.Select(async fileName =>
-        {
-            using var img = new MagickImage("xc:black", readSettings);
-            img.Alpha(AlphaOption.Set);
-            img.Evaluate(Channels.Alpha, EvaluateOperator.Set, new Percentage(100));
-            await img.WriteAsync(Path.Combine(dstDir, fileName!));
-        });
-        await Task.WhenAll(tasks);
+        // blankPath is pre-created by Write() — parallel File.Copy for each slot.
+        await Task.WhenAll(fileNames.Select(fileName =>
+            Task.Run(() => File.Copy(blankPath, Path.Combine(dstDir, fileName!), overwrite: true))));
+
         Logger.Verbose($"Generated {fileNames.Count} blank masks_gen PNGs at {L.Map.MapWidth}×{L.Map.MapHeight}");
     }
 

@@ -179,6 +179,7 @@ internal class Program
             string? validateProvincesPath = null;
             string? definitionCsvPath = null;
             string? dumpCellsPath = null;
+            string? manifestDir = null;
             string? jsonPath = null;
             string? geojsonPath = null;
             string? riversGeojsonPath = null;
@@ -295,6 +296,10 @@ internal class Program
                 {
                     dumpCellsPath = args[++i];
                 }
+                else if (args[i] == "--manifest" && i + 1 < args.Length)
+                {
+                    manifestDir = args[++i];
+                }
                 else if (args[i] == "--help" || args[i] == "-h")
                 {
                     PrintUsage();
@@ -316,6 +321,13 @@ internal class Program
                         riversGeojsonPath = args[i];
                     }
                 }
+            }
+
+            // --manifest: hash all files in <dir> and print a sorted SHA256 manifest
+            if (manifestDir != null)
+            {
+                RunManifest(manifestDir);
+                return;
             }
 
             // --validate-provinces: validate a provinces.png without full conversion
@@ -361,6 +373,36 @@ internal class Program
         }
     }
 
+    private static void RunManifest(string dir)
+    {
+        if (!Directory.Exists(dir))
+        {
+            Console.WriteLine($"Error: directory not found: {dir}");
+            return;
+        }
+
+        Console.WriteLine($"# manifest {dir} @ {DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ}");
+
+        var allFiles = Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories);
+
+        var entries = new List<(string RelPath, string Hash)>();
+        using var sha256 = System.Security.Cryptography.SHA256.Create();
+
+        foreach (var file in allFiles)
+        {
+            var relPath = Path.GetRelativePath(dir, file).Replace('\\', '/');
+            using var stream = File.OpenRead(file);
+            var hashBytes = sha256.ComputeHash(stream);
+            var hashHex = Convert.ToHexString(hashBytes).ToLowerInvariant();
+            entries.Add((relPath, hashHex));
+        }
+
+        entries.Sort((a, b) => string.Compare(a.RelPath, b.RelPath, StringComparison.OrdinalIgnoreCase));
+
+        foreach (var (relPath, hash) in entries)
+            Console.WriteLine($"{hash}  {relPath}");
+    }
+
     private static void PrintUsage()
     {
         Console.WriteLine("Azgaar to CK3 Converter");
@@ -402,6 +444,7 @@ internal class Program
         Console.WriteLine("  --definition-csv, -dc <path>     Cross-check provinces.png against a definition.csv (use with -vp)");
         Console.WriteLine("  --dump-cells <path.json>         Load data, run major river insertion, write cell dump JSON and exit");
         Console.WriteLine("                                   Use with HeightmapLab --cells to iterate on heightmap with river data");
+        Console.WriteLine("  --manifest <dir>                 Hash all files in <dir> and print a sorted SHA256 manifest");
         Console.WriteLine();
         Console.WriteLine("Other:");
         Console.WriteLine("  --help, -h                       Show this help message");
