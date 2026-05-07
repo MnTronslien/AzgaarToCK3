@@ -34,6 +34,17 @@ namespace Converter.Lemur.Rivers
             Logger.Section("Inserting major rivers");
             Logger.Info($"{majorRivers.Count} rivers above discharge threshold {majorThreshold}.");
 
+            // Avg land cell diameter in CK3 pixels — used to set discharge-scaled river widths
+            float canvasToCk3 = (float)Map.MapWidth / map.JsonMap.info.width;
+            float avgAreaCk3 = map.Cells.Values
+                .Where(c => Cell.IsDryLand(c.Type) && !c.IsRiverCell)
+                .Select(c => (float)c.Area)
+                .DefaultIfEmpty(1f)
+                .Average() * canvasToCk3 * canvasToCk3;
+            float avgDiameterCk3 = 2f * (float)Math.Sqrt(avgAreaCk3 / Math.PI);
+            float floorWidthCk3  = avgDiameterCk3 * 0.35f;
+            Logger.Info($"Avg land cell diameter: {avgDiameterCk3:F1} CK3 px | width floor (35%): {floorWidthCk3:F1} px at threshold, {floorWidthCk3 * (float)Math.Pow(majorRivers.Max(r => r.Discharge) / (double)majorThreshold, 0.25):F1} px at max discharge.");
+
             // Sort: tributaries before the rivers they flow into.
             // This ensures each river's Phase 1 can carve into cells already built by its tributaries.
             var sortedRivers = SortRiversTributariesFirst(majorRivers);
@@ -47,10 +58,10 @@ namespace Converter.Lemur.Rivers
 
             foreach (var river in sortedRivers)
             {
-                var (landSplits, riverCarved) = CarveRibbonFromCells(map, river, allReplacements);
+                var (landSplits, riverCarved) = CarveRibbonFromCells(map, river, allReplacements, majorThreshold, avgDiameterCk3);
                 totalLandSplits  += landSplits;
                 totalRiverCarved += riverCarved;
-                riverCellIds[river] = BuildRiverCellsForRiver(map, river);
+                riverCellIds[river] = BuildRiverCellsForRiver(map, river, majorThreshold, avgDiameterCk3);
             }
 
             UpdateAllNeighborReferences(map, allReplacements);
@@ -60,7 +71,7 @@ namespace Converter.Lemur.Rivers
             int totalRiverCells = riverCellIds.Values.Sum(l => l.Count);
             Logger.Info($"Phase 2 complete: {totalRiverCells} river cells created.");
             AssertNoRiverCellOverlap(map, riverCellIds);
-            AssertRiverCellsCoverRibbon(map, riverCellIds);
+            AssertRiverCellsCoverRibbon(map, riverCellIds, majorThreshold, avgDiameterCk3);
 
             // Phase 3: wire river cell neighbors
             WireRiverNeighbors(map, riverCellIds);
@@ -230,15 +241,17 @@ namespace Converter.Lemur.Rivers
         /// Returns (landSplits, riverCellsCarved).
         /// </summary>
         private static (int landSplits, int riverCarved) CarveRibbonFromCells(
-            Map map, River river, Dictionary<int, List<int>> cellReplacements)
+            Map map, River river, Dictionary<int, List<int>> cellReplacements,
+            float majorThreshold, float avgDiameterCk3)
         {
-            if (river.ControlPoints == null || river.ControlPoints.Count < 2 || river.Width <= 0)
+            if (river.ControlPoints == null || river.ControlPoints.Count < 2)
             {
-                Logger.Warning($"River '{river.Name}' skipped: missing control points or zero width.");
+                Logger.Warning($"River '{river.Name}' skipped: missing control points.");
                 return (0, 0);
             }
 
-            var ribbon     = BuildRibbon(river.ControlPoints, river.Width);
+            var (sourceGeoHW, mouthGeoHW) = ComputeRiverWidths(river, map, majorThreshold, avgDiameterCk3);
+            var ribbon = BuildTaperedRibbon(river.ControlPoints, sourceGeoHW, mouthGeoHW);
             int nextCellId = map.Cells!.Keys.Max() + 1;
 
             // ── Land cells ────────────────────────────────────────────────────────
@@ -435,13 +448,16 @@ namespace Converter.Lemur.Rivers
 
         // ─── Phase 2 ──────────────────────────────────────────────────────────────
 
-        private static List<int> BuildRiverCellsForRiver(Map map, River river)
+        private static List<int> BuildRiverCellsForRiver(Map map, River river,
+            float majorThreshold, float avgDiameterCk3)
         {
             if (river.ControlPoints == null || river.ControlPoints.Count < 2)
                 return new List<int>();
 
-            var cps        = river.ControlPoints;
-            var fullRibbon = BuildRibbon(cps, river.Width);
+            var cps = river.ControlPoints;
+            int n   = cps.Count;
+            var (sourceGeoHW, mouthGeoHW) = ComputeRiverWidths(river, map, majorThreshold, avgDiameterCk3);
+            var fullRibbon = BuildTaperedRibbon(cps, sourceGeoHW, mouthGeoHW);
             var ids        = new List<int>();
             int nextCellId = map.Cells!.Keys.Max() + 1;
 
@@ -451,7 +467,11 @@ namespace Converter.Lemur.Rivers
                 var window = cps.Skip(start).Take(ControlPointsPerRiverCell).ToList();
                 if (window.Count < 2) continue;
 
-                var sliceRibbon = BuildRibbon(window, river.Width);
+                float tStart      = n > 1 ? (float)start / (n - 1) : 0f;
+                float tEnd        = n > 1 ? (float)(start + window.Count - 1) / (n - 1) : 1f;
+                float sliceSrcHW  = sourceGeoHW + tStart * (mouthGeoHW - sourceGeoHW);
+                float sliceMthHW  = sourceGeoHW + tEnd   * (mouthGeoHW - sourceGeoHW);
+                var sliceRibbon = BuildTaperedRibbon(window, sliceSrcHW, sliceMthHW);
                 Geometry sliceGeom = sliceRibbon.Intersection(fullRibbon);
                 if (sliceGeom == null || sliceGeom.IsEmpty) continue;
 
@@ -460,7 +480,8 @@ namespace Converter.Lemur.Rivers
                 int leadJ = start;
                 if (leadJ > 0)
                 {
-                    var cutBox = BuildJunctionCutBox(cps, leadJ, river.Width, forward: false);
+                    float hwAtLeadJ = sourceGeoHW + (n > 1 ? (float)leadJ / (n - 1) : 0f) * (mouthGeoHW - sourceGeoHW);
+                    var cutBox = BuildJunctionCutBox(cps, leadJ, hwAtLeadJ * 2f, forward: false);
                     if (cutBox != null)
                     {
                         sliceGeom = sliceGeom.Difference(cutBox);
@@ -473,7 +494,8 @@ namespace Converter.Lemur.Rivers
                 int trailJ = start + window.Count - 1;
                 if (trailJ < cps.Count - 1)
                 {
-                    var cutBox = BuildJunctionCutBox(cps, trailJ, river.Width, forward: true);
+                    float hwAtTrailJ = sourceGeoHW + (n > 1 ? (float)trailJ / (n - 1) : 0f) * (mouthGeoHW - sourceGeoHW);
+                    var cutBox = BuildJunctionCutBox(cps, trailJ, hwAtTrailJ * 2f, forward: true);
                     if (cutBox != null)
                     {
                         sliceGeom = sliceGeom.Difference(cutBox);
@@ -697,13 +719,15 @@ namespace Converter.Lemur.Rivers
         /// Checks that the union of all river cells for each river covers the full ribbon area.
         /// Reports coverage % per river; warns if any river falls below 99%.
         /// </summary>
-        private static void AssertRiverCellsCoverRibbon(Map map, Dictionary<River, List<int>> riverCellIds)
+        private static void AssertRiverCellsCoverRibbon(Map map, Dictionary<River, List<int>> riverCellIds,
+            float majorThreshold, float avgDiameterCk3)
         {
             foreach (var (river, ids) in riverCellIds)
             {
                 if (ids.Count == 0) continue;
 
-                var ribbon = BuildRibbon(river.ControlPoints!, river.Width);
+                var (sourceGeoHW, mouthGeoHW) = ComputeRiverWidths(river, map, majorThreshold, avgDiameterCk3);
+                var ribbon = BuildTaperedRibbon(river.ControlPoints!, sourceGeoHW, mouthGeoHW);
                 var ribbonArea = ribbon.Area;
                 if (ribbonArea <= 0) continue;
 
@@ -744,11 +768,82 @@ namespace Converter.Lemur.Rivers
                 .MinBy(t => t.dist).i;
         }
 
-        private static Geometry BuildRibbon(List<float[]> controlPoints, float width)
+        private static Geometry BuildTaperedRibbon(List<float[]> controlPoints, float sourceHalfWidth, float mouthHalfWidth)
         {
+            int n = controlPoints.Count;
+            var left  = new Coordinate[n];
+            var right = new Coordinate[n];
+
+            for (int i = 0; i < n; i++)
+            {
+                double t  = n > 1 ? (double)i / (n - 1) : 0.0;
+                double hw = sourceHalfWidth + t * (mouthHalfWidth - sourceHalfWidth);
+
+                double px = controlPoints[i][0], py = controlPoints[i][1];
+                double tx, ty;
+                if (i == 0) {
+                    tx = controlPoints[1][0] - controlPoints[0][0];
+                    ty = controlPoints[1][1] - controlPoints[0][1];
+                } else if (i == n - 1) {
+                    tx = controlPoints[n-1][0] - controlPoints[n-2][0];
+                    ty = controlPoints[n-1][1] - controlPoints[n-2][1];
+                } else {
+                    tx = controlPoints[i+1][0] - controlPoints[i-1][0];
+                    ty = controlPoints[i+1][1] - controlPoints[i-1][1];
+                }
+
+                double len = Math.Sqrt(tx * tx + ty * ty);
+                if (len < 1e-10) { tx = 1; ty = 0; } else { tx /= len; ty /= len; }
+                double perpX = -ty, perpY = tx;
+
+                left[i]  = new Coordinate(px + perpX * hw, py + perpY * hw);
+                right[i] = new Coordinate(px - perpX * hw, py - perpY * hw);
+            }
+
+            // Ring: left side forward, right side backward, close at source
+            var ring = new Coordinate[n * 2 + 1];
+            for (int i = 0; i < n; i++) ring[i]     = left[i];
+            for (int i = 0; i < n; i++) ring[n + i] = right[n - 1 - i];
+            ring[n * 2] = left[0];
+
+            try
+            {
+                var lr   = GeoFactory.CreateLinearRing(ring);
+                var poly = GeoFactory.CreatePolygon(lr);
+                if (poly.IsValid) return poly;
+                var fixed_ = poly.Buffer(0);
+                if (!fixed_.IsEmpty) return fixed_;
+            }
+            catch { }
+
+            // Fallback: uniform buffer at average half-width
             var coords = controlPoints.Select(p => new Coordinate((double)p[0], (double)p[1])).ToArray();
-            var line = GeoFactory.CreateLineString(coords);
-            return line.Buffer(width / 2.0);
+            return GeoFactory.CreateLineString(coords).Buffer((sourceHalfWidth + mouthHalfWidth) / 2.0);
+        }
+
+        /// <summary>
+        /// Computes geographic half-widths (in lon/lat degrees) for a river's source and mouth,
+        /// scaled by discharge relative to the major-river threshold and expressed as a fraction
+        /// of the average land cell diameter. Preserves Azgaar's own source/mouth taper ratio.
+        /// </summary>
+        private static (float sourceGeoHW, float mouthGeoHW) ComputeRiverWidths(
+            River river, Map map, float majorThreshold, float avgDiameterCk3)
+        {
+            // Scale width by (discharge/threshold)^0.25 — gives ~2× range over a 20× discharge spread
+            float dischargeScale = (float)Math.Pow(Math.Max(1.0, river.Discharge / (double)majorThreshold), 0.25);
+            float mouthCk3Px = avgDiameterCk3 * 0.35f * dischargeScale;
+
+            // Preserve Azgaar's source/mouth ratio; fall back to 30% if data is missing
+            float taperRatio = river.SourceWidth > 0 && river.Width > 0
+                ? Math.Clamp(river.SourceWidth / river.Width, 0.1f, 0.7f)
+                : 0.3f;
+            float sourceCk3Px = mouthCk3Px * taperRatio;
+
+            float degPerCk3Px = map.JsonMap.mapCoordinates.lonT / Map.MapWidth;
+            return (
+                sourceGeoHW: Math.Max(sourceCk3Px * degPerCk3Px / 2f, 1e-6f),
+                mouthGeoHW:  Math.Max(mouthCk3Px  * degPerCk3Px / 2f, 1e-6f)
+            );
         }
 
         private static Polygon? CellToPolygon(Cell cell)
