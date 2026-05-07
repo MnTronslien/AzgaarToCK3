@@ -34,16 +34,14 @@ namespace Converter.Lemur.Rivers
             Logger.Section("Inserting major rivers");
             Logger.Info($"{majorRivers.Count} rivers above discharge threshold {majorThreshold}.");
 
-            // Avg land cell diameter in CK3 pixels — used to set discharge-scaled river widths
-            float canvasToCk3 = (float)Map.MapWidth / map.JsonMap.info.width;
-            float avgAreaCk3 = map.Cells.Values
-                .Where(c => Cell.IsDryLand(c.Type) && !c.IsRiverCell)
-                .Select(c => (float)c.Area)
-                .DefaultIfEmpty(1f)
-                .Average() * canvasToCk3 * canvasToCk3;
-            float avgDiameterCk3 = 2f * (float)Math.Sqrt(avgAreaCk3 / Math.PI);
+            // Avg cell diameter in CK3 pixels — O(1) from canvas dimensions, no cell scan needed.
+            // Cell density varies by map (user-chosen cell count + canvas size), so this is map-specific
+            // but instantaneous: total_canvas_area / cell_count gives avg area per cell.
+            float canvasToCk3    = (float)Map.MapWidth / map.JsonMap.info.width;
+            float avgCanvasArea  = (float)(map.JsonMap.info.width * map.JsonMap.info.height) / map.Cells.Count;
+            float avgDiameterCk3 = 2f * (float)Math.Sqrt(avgCanvasArea * canvasToCk3 * canvasToCk3 / Math.PI);
             float floorWidthCk3  = avgDiameterCk3 * 0.35f;
-            Logger.Info($"Avg land cell diameter: {avgDiameterCk3:F1} CK3 px | width floor (35%): {floorWidthCk3:F1} px at threshold, {floorWidthCk3 * (float)Math.Pow(majorRivers.Max(r => r.Discharge) / (double)majorThreshold, 0.25):F1} px at max discharge.");
+            Logger.Info($"Avg cell diameter: {avgDiameterCk3:F1} CK3 px | width floor (35%): {floorWidthCk3:F1} px at threshold, {floorWidthCk3 * (float)Math.Pow(majorRivers.Max(r => r.Discharge) / (double)majorThreshold, 0.25):F1} px at max discharge.");
 
             // Sort: tributaries before the rivers they flow into.
             // This ensures each river's Phase 1 can carve into cells already built by its tributaries.
