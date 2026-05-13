@@ -245,6 +245,11 @@ public static class HeightmapAlgorithm
                 foreach (var nbrId in cell.Neighbors)
                 {
                     if (!cells.TryGetValue(nbrId, out var nbr) || Cell.IsDryLand(nbr.Type)) continue;
+                    // Skip river cells: their polygons' vertices don't match the adjacent
+                    // land cells' (NTS clip drift), so shared-edge matching fails for ~76%
+                    // of pairs. River boundaries are emitted directly from each river cell's
+                    // own polygon in Phase 3' below.
+                    if (nbr.IsRiverCell) continue;
                     if (!seaBodyId.TryGetValue(nbrId, out int nbrBody) || nbrBody != body) continue;
 
                     var sc = nbr.GeoDataCoordinates;
@@ -347,6 +352,22 @@ public static class HeightmapAlgorithm
                 coastNodes.Add(new CoastNode(fpx, fpy));
             }
         }
+
+        // ── 3'. River polygons: deliberately NOT emitted as coast constraints ─
+        // Rivers are now treated as land-iteration-invisible (the river-skip above)
+        // and carved purely via centerline TerrainNodes (Phase 1, when --rivers-geojson
+        // is supplied). Attempts to emit the river polygon UNION as constraints
+        // crashed the conforming Delaunay triangulator with "Too many splitting
+        // iterations" — narrow thin-ribbon polygons produce too many near-parallel
+        // short constraints. Simplification to 5 px reduced count from 6350 → 2150
+        // but still triggered "Locate failed to converge" on internal CDT subdivision.
+        //
+        // The centerline-anchors-only approach renders rivers as smooth carved
+        // channels because:
+        //   * land cells around rivers have IsLand=true at land elevation
+        //   * centerline TerrainNodes have IsLand=false at depth 15 (below water 20)
+        //   * the Delaunay triangulation interpolates a smooth gradient between them
+        //   * pixels < CK3WaterLevel render as water in-game
 
         int originalCoastCount = coastNodes.Count;
 
