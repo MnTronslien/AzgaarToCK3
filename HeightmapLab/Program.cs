@@ -37,6 +37,11 @@ static class Program
         bool detailIntensity = false;
         bool checkNeighbors = false;
         bool neighborArrows = false;
+        bool auditSharedEdges = false;
+        string? dumpPair = null;
+        bool vertexDebug = false;
+        string? vertexRegion = null;
+        string? vertexRiver = null;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -66,6 +71,11 @@ static class Program
                 case "--river-map":           riverMap         = true; break;
                 case "--check-neighbors":     checkNeighbors   = true; break;
                 case "--neighbor-arrows":     neighborArrows   = true; break;
+                case "--audit-shared-edges":  auditSharedEdges = true; break;
+                case "--dump-pair":           dumpPair         = args[++i]; break;
+                case "--vertex-debug":        vertexDebug      = true; break;
+                case "--region":              vertexRegion     = args[++i]; break;
+                case "--river-cell":          vertexRiver      = args[++i]; break;
                 case "--detail-intensity":    detailIntensity  = true; break;
                 case "--cells":           cellsDumpPath     = args[++i]; break;
                 case "--rivers-geojson":  riversGeojsonPath = args[++i]; break;
@@ -95,7 +105,7 @@ static class Program
         // --detail-intensity needs only --terrain-out (or --output for its dir); no Azgaar data needed
         // --check-neighbors needs cells but no output path
         bool dataRequired   = !detailIntensity;
-        bool outputRequired = !detailIntensity && !checkNeighbors;
+        bool outputRequired = !detailIntensity && !checkNeighbors && !auditSharedEdges && dumpPair == null;
         bool dataProvided   = cellsDumpPath != null || (jsonPath != null && geojsonPath != null);
         if ((dataRequired && !dataProvided) || (outputRequired && outputPath == null && terrainOut == null))
         {
@@ -206,6 +216,266 @@ static class Program
                 foreach (var s in sampleOneWay)
                     Console.WriteLine($"  cell {s.src}{(s.srcRiver ? " (river)" : "")} → {s.dst}{(s.dstRiver ? " (river)" : "")}");
             }
+            return 0;
+        }
+
+        // ── Shared-edge audit: replicates the algorithm's match logic for every
+        // (land, river) neighbour pair to count silent misses (H2 vertex coord drift).
+        if (auditSharedEdges)
+        {
+            // We need pixel-space transforms; build genParams here so we can reuse.
+            var auditParams = new HeightmapAlgorithm.Params(
+                LonW: lonW, LonT: lonT, LatS: latS, LatT: latT,
+                Width: Converter.Lemur.Entities.Map.MapWidth,
+                Height: Converter.Lemur.Entities.Map.MapHeight);
+
+            static (int, int) RK(double x, double y) => ((int)Math.Round(x), (int)Math.Round(y));
+            float ToPxX(float lon) => (lon - auditParams.LonW) / auditParams.LonT * auditParams.Width;
+            float ToPxY(float lat) => auditParams.Height - (lat - auditParams.LatS) / auditParams.LatT * auditParams.Height;
+
+            int totalPairs = 0, pairsWithMatch = 0, pairsZeroMatch = 0;
+            int sumExpectedEdges = 0, sumMatchedEdges = 0;
+            var sampleMisses = new List<(int land, int river, int landVerts, int riverVerts)>();
+
+            foreach (var (id, c) in cells)
+            {
+                if (!Converter.Lemur.Entities.Cell.IsDryLand(c.Type)) continue;
+                if (c.Neighbors == null || c.GeoDataCoordinates == null) continue;
+                int ln = c.GeoDataCoordinates.Length - 1;
+                if (ln < 1) continue;
+
+                foreach (var nId in c.Neighbors)
+                {
+                    if (!cells.TryGetValue(nId, out var nbr) || !nbr.IsRiverCell) continue;
+                    if (nbr.GeoDataCoordinates == null) continue;
+                    int sn = nbr.GeoDataCoordinates.Length - 1;
+                    if (sn < 1) continue;
+
+                    // Build river cell's rounded-pixel vertex set
+                    var sKeys = new HashSet<(int, int)>(sn);
+                    for (int i = 0; i < sn; i++)
+                        sKeys.Add(RK(ToPxX(nbr.GeoDataCoordinates[i][0]), ToPxY(nbr.GeoDataCoordinates[i][1])));
+
+                    // Scan land cell's edges; count how many have BOTH endpoints in sKeys
+                    int matched = 0;
+                    for (int vi = 0; vi < ln; vi++)
+                    {
+                        var kA = RK(ToPxX(c.GeoDataCoordinates[vi][0]),         ToPxY(c.GeoDataCoordinates[vi][1]));
+                        var kB = RK(ToPxX(c.GeoDataCoordinates[(vi + 1) % ln][0]), ToPxY(c.GeoDataCoordinates[(vi + 1) % ln][1]));
+                        if (kA == kB) continue;
+                        if (sKeys.Contains(kA) && sKeys.Contains(kB)) matched++;
+                    }
+
+                    totalPairs++;
+                    sumExpectedEdges += 1;   // each neighbour pair represents at least one shared boundary
+                    sumMatchedEdges  += matched > 0 ? 1 : 0;
+                    if (matched > 0) pairsWithMatch++;
+                    else
+                    {
+                        pairsZeroMatch++;
+                        if (sampleMisses.Count < 20)
+                            sampleMisses.Add((id, nId, ln, sn));
+                    }
+                }
+            }
+
+            Console.WriteLine($"Shared-edge audit (land ↔ river neighbour pairs):");
+            Console.WriteLine($"  Total (land, river) neighbour pairs: {totalPairs}");
+            Console.WriteLine($"  Pairs that DO produce ≥1 shared edge: {pairsWithMatch}");
+            Console.WriteLine($"  Pairs that produce ZERO shared edges (silent miss): {pairsZeroMatch}");
+            if (totalPairs > 0)
+                Console.WriteLine($"  Miss rate: {(double)pairsZeroMatch * 100 / totalPairs:F1}%");
+
+            if (sampleMisses.Count > 0)
+            {
+                Console.WriteLine("Sample misses (land cell → river cell, vertex counts):");
+                foreach (var s in sampleMisses)
+                    Console.WriteLine($"  land {s.land} ({s.landVerts}v) → river {s.river} ({s.riverVerts}v)");
+            }
+            return 0;
+        }
+
+        // ── Dump full polygon coords for a specific cell pair (vertex drift inspection) ──
+        if (dumpPair != null)
+        {
+            var parts = dumpPair.Split(',');
+            if (parts.Length != 2 || !int.TryParse(parts[0], out int idA) || !int.TryParse(parts[1], out int idB))
+            {
+                Console.Error.WriteLine("Usage: --dump-pair <idA>,<idB>");
+                return 1;
+            }
+            if (!cells.TryGetValue(idA, out var cA) || !cells.TryGetValue(idB, out var cB))
+            {
+                Console.Error.WriteLine($"Cell {idA} or {idB} not found.");
+                return 1;
+            }
+
+            int W = Converter.Lemur.Entities.Map.MapWidth;
+            int H = Converter.Lemur.Entities.Map.MapHeight;
+            double ToPxX(double lon) => (lon - lonW) / lonT * W;
+            double ToPxY(double lat) => H - (lat - latS) / latT * H;
+
+            void Print(Converter.Lemur.Entities.Cell c, string label)
+            {
+                Console.WriteLine($"\n{label} (id {c.Id}, type {c.Type}, IsRiverCell {c.IsRiverCell}, {c.GeoDataCoordinates?.Length ?? 0} coords):");
+                Console.WriteLine($"  Neighbors: [{string.Join(", ", c.Neighbors ?? Array.Empty<int>())}]");
+                if (c.GeoDataCoordinates == null) return;
+                Console.WriteLine($"  Vertices (geo lon,lat  →  pixel x,y  →  rounded ints):");
+                for (int i = 0; i < c.GeoDataCoordinates.Length; i++)
+                {
+                    var v = c.GeoDataCoordinates[i];
+                    if (v == null || v.Length < 2) continue;
+                    double px = ToPxX(v[0]), py = ToPxY(v[1]);
+                    Console.WriteLine($"    [{i,3}] geo ({v[0],10:F6}, {v[1],10:F6})  px ({px,10:F4}, {py,10:F4})  int ({(int)Math.Round(px),5}, {(int)Math.Round(py),5})");
+                }
+            }
+
+            Print(cA, "Cell A");
+            Print(cB, "Cell B");
+
+            // Find closest-match between A vertices and B vertices (to highlight the drift magnitude)
+            Console.WriteLine($"\nClosest-vertex-distance matrix (A → B, in pixels):");
+            if (cA.GeoDataCoordinates != null && cB.GeoDataCoordinates != null)
+            {
+                var bPx = cB.GeoDataCoordinates
+                    .Where(v => v != null && v.Length >= 2)
+                    .Select(v => (px: ToPxX(v[0]), py: ToPxY(v[1])))
+                    .ToArray();
+                for (int i = 0; i < cA.GeoDataCoordinates.Length; i++)
+                {
+                    var v = cA.GeoDataCoordinates[i];
+                    if (v == null || v.Length < 2) continue;
+                    double ax = ToPxX(v[0]), ay = ToPxY(v[1]);
+                    double bestDist = double.MaxValue; int bestJ = -1;
+                    for (int j = 0; j < bPx.Length; j++)
+                    {
+                        double dx = ax - bPx[j].px, dy = ay - bPx[j].py;
+                        double d = Math.Sqrt(dx * dx + dy * dy);
+                        if (d < bestDist) { bestDist = d; bestJ = j; }
+                    }
+                    Console.WriteLine($"  A[{i,3}] ({ax,10:F4}, {ay,10:F4})  →  nearest B[{bestJ,3}] ({bPx[bestJ].px,10:F4}, {bPx[bestJ].py,10:F4})  dist {bestDist:F4} px");
+                }
+            }
+            return 0;
+        }
+
+        // ── Vertex debug map: highlights river-cell vertices + neighbour vertices ──
+        if (vertexDebug)
+        {
+            // Parse region (CK3 pixel coords). Defaults to upper-left 2048×1500 crop.
+            int rx1 = 0, ry1 = 0, rx2 = 2048, ry2 = 1500;
+            if (vertexRegion != null)
+            {
+                var p = vertexRegion.Split(',');
+                if (p.Length == 4
+                    && int.TryParse(p[0], out rx1) && int.TryParse(p[1], out ry1)
+                    && int.TryParse(p[2], out rx2) && int.TryParse(p[3], out ry2))
+                { /* ok */ }
+                else
+                {
+                    Console.Error.WriteLine("--region expects 'x1,y1,x2,y2' in CK3 pixel coords.");
+                    return 1;
+                }
+            }
+
+            int W = Converter.Lemur.Entities.Map.MapWidth;
+            int H = Converter.Lemur.Entities.Map.MapHeight;
+            float ToPxX(float lon) => (lon - lonW) / lonT * W;
+            float ToPxY(float lat) => H - (lat - latS) / latT * H;
+
+            // Build full-map image; pale background so dots/edges pop.
+            var bg = new byte[W * H * 3];
+            for (int i = 0; i < bg.Length; i += 3) { bg[i] = 245; bg[i + 1] = 245; bg[i + 2] = 245; }
+            var vbgSettings = new MagickReadSettings { Width = W, Height = H, ColorSpace = ColorSpace.sRGB, Format = MagickFormat.Rgb };
+            using var vimg = new MagickImage(bg, vbgSettings);
+            vimg.Depth = 8;
+
+            // Subset of river cells to highlight: optionally just one by id, otherwise all that touch the region.
+            HashSet<int>? selected = null;
+            if (vertexRiver != null && int.TryParse(vertexRiver, out int oneId))
+                selected = new HashSet<int> { oneId };
+
+            // For region filtering, compute each cell's pixel bbox once.
+            bool InRegion(Converter.Lemur.Entities.Cell c)
+            {
+                if (c.GeoDataCoordinates == null) return false;
+                foreach (var v in c.GeoDataCoordinates)
+                {
+                    if (v == null || v.Length < 2) continue;
+                    float px = ToPxX(v[0]), py = ToPxY(v[1]);
+                    if (px >= rx1 && px <= rx2 && py >= ry1 && py <= ry2) return true;
+                }
+                return false;
+            }
+
+            // 1) Collect the set of river cells to render (and from them, their neighbours).
+            var riverIds = new HashSet<int>();
+            foreach (var (id, c) in cells)
+            {
+                if (!c.IsRiverCell) continue;
+                if (selected != null && !selected.Contains(id)) continue;
+                if (selected == null && !InRegion(c)) continue;
+                riverIds.Add(id);
+            }
+            var nbrIds = new HashSet<int>();
+            foreach (var rid in riverIds)
+            {
+                if (!cells.TryGetValue(rid, out var rc) || rc.Neighbors == null) continue;
+                foreach (var nId in rc.Neighbors)
+                    if (nId != rid && cells.ContainsKey(nId) && !cells[nId].IsRiverCell)
+                        nbrIds.Add(nId);
+            }
+
+            // 2) Draw neighbour polygons first (blue), so river polygons (red) draw on top.
+            void DrawCellOutlineAndVerts(int cellId, MagickColor edgeCol, MagickColor vertCol, float vertRadius)
+            {
+                if (!cells.TryGetValue(cellId, out var c) || c.GeoDataCoordinates == null) return;
+                int n = c.GeoDataCoordinates.Length;
+                if (n < 2) return;
+
+                var outline = new Drawables();
+                outline.StrokeColor(edgeCol).StrokeWidth(2).FillColor(new MagickColor(0, 0, 0, 0));
+                for (int i = 0; i < n - 1; i++)
+                {
+                    var a = c.GeoDataCoordinates[i];
+                    var b = c.GeoDataCoordinates[i + 1];
+                    if (a == null || b == null || a.Length < 2 || b.Length < 2) continue;
+                    outline.Line(ToPxX(a[0]), ToPxY(a[1]), ToPxX(b[0]), ToPxY(b[1]));
+                }
+                vimg.Draw(outline);
+
+                var verts = new Drawables();
+                verts.FillColor(vertCol).StrokeColor(vertCol).StrokeWidth(1);
+                for (int i = 0; i < n - 1; i++)  // skip the closing-ring duplicate
+                {
+                    var v = c.GeoDataCoordinates[i];
+                    if (v == null || v.Length < 2) continue;
+                    float px = ToPxX(v[0]), py = ToPxY(v[1]);
+                    verts.Circle(px, py, px + vertRadius, py);
+                }
+                vimg.Draw(verts);
+            }
+
+            foreach (var nId in nbrIds)
+                DrawCellOutlineAndVerts(nId, new MagickColor("#1f4d8a"), new MagickColor("#2a7fd8"), 0.8f);  // blue edge / lighter blue dots
+
+            foreach (var rId in riverIds)
+                DrawCellOutlineAndVerts(rId, new MagickColor("#a01818"), new MagickColor("#e02828"), 1.0f);  // dark red edge / bright red dots
+
+            // 3) Crop to region and write. Upscale tiny regions for legibility (target ~1200 px wide).
+            using var cropped = vimg.Clone();
+            cropped.Crop(new MagickGeometry(rx1, ry1, rx2 - rx1, ry2 - ry1));
+            cropped.RePage();
+            int targetW = 1200;
+            int cw = (int)cropped.Width;
+            int ch = (int)cropped.Height;
+            if (cw < targetW)
+            {
+                int scale = Math.Max(1, targetW / cw);
+                cropped.Resize(cw * scale, ch * scale);
+            }
+            await cropped.WriteAsync(outputPath!, MagickFormat.Png);
+            Console.WriteLine($"Vertex debug: {riverIds.Count} river cells (red), {nbrIds.Count} neighbour land cells (blue), region [{rx1},{ry1}]-[{rx2},{ry2}] → {outputPath}");
             return 0;
         }
 
