@@ -963,80 +963,148 @@ namespace Converter.Lemur.Rivers
             }
         }
 
-        // For every adjacent pair (A, B) of cells, insert into A's polygon any vertex of B
-        // that lies on an edge of A (within a small tolerance) but isn't already coincident
-        // with one of A's existing vertices. After this pass, every shared boundary between
-        // adjacent polygons has at least the boundary endpoints as coincident vertices, which
-        // is what the heightmap's coast walk (HeightmapAlgorithm.cs lines 254–276) needs to
-        // match land/sea edges via its rounded-pixel-key vertex match.
+        // For every adjacent cell pair (A, B), compute the actual shared boundary via
+        // NTS Boundary.Intersection(A, B), then insert each coordinate of that intersection
+        // into BOTH A's and B's polygons (at the nearest edge). After this pass, every
+        // shared boundary between adjacent polygons is described by the SAME sequence of
+        // coordinates in both polygons — so the heightmap's coast walk (HeightmapAlgorithm.cs
+        // lines 254–276) finds matching edges via its rounded-pixel-key vertex match.
         //
-        // The mirror direction (insert A's vertices into B) is naturally covered when the
-        // outer loop reaches B; no bidirectional bookkeeping needed.
+        // Why NTS Intersection rather than mutual vertex insertion: vertices alone create
+        // SINGLE matching points, but the coast walk needs matching EDGES (both endpoints
+        // of a land edge must be in the sea cell's vertex set). The intersection geometry
+        // gives us the full sequence of boundary points, which when inserted into both
+        // polygons produces consecutive matching vertices → matching edges.
         private static void SnapSharedBoundaries(Map map)
         {
-            // Tolerance in geo units, ~2 px at CK3 image scale. Empirically the typical
-            // gap between an unsplit land cell's original vertex and the nearest clipped
-            // river edge is ~1 px (see HeightmapLab --dump-pair). Using 2 px gives us
-            // headroom without being so loose we splice random nearby cells.
+            // Polygon cache: build each cell's polygon once.
+            var polyCache = new Dictionary<int, Polygon?>();
+            Polygon? GetPolygon(int id)
+            {
+                if (!polyCache.TryGetValue(id, out var poly))
+                {
+                    poly = map.Cells.TryGetValue(id, out var c) ? CellToPolygon(c) : null;
+                    polyCache[id] = poly;
+                }
+                return poly;
+            }
+
+            // Tolerance in geo units, ~0.5 px at CK3 scale. Used both for "is this point already
+            // an existing vertex?" (don't double-insert) and "does this point project onto this
+            // edge?" (must be near-collinear to be a valid insertion).
             var mc       = map.JsonMap.mapCoordinates;
-            float tolLon = (mc.lonT / Map.MapWidth)  * 2.0f;
-            float tolLat = (mc.latT / Map.MapHeight) * 2.0f;
+            float tolLon = (mc.lonT / Map.MapWidth)  * 0.5f;
+            float tolLat = (mc.latT / Map.MapHeight) * 0.5f;
             float tol    = MathF.Min(tolLon, tolLat);
             float tol2   = tol * tol;
 
+            // Loose tolerance for the "lies on edge" projection — NTS intersection coordinates
+            // are mathematically on the boundary but float storage loses precision; allow a
+            // wider band when finding the host edge.
+            float edgeTol2 = (tol * 4f) * (tol * 4f);
+
+            // Gather all points to insert into each cell. We process each unordered pair (A, B)
+            // exactly once by guarding with nId > id; both sides get the same coordinates.
+            //
+            // We use AREA intersection (polyA.Intersection(polyB)), not boundary intersection.
+            // When two polygons overlap (which adjacent cells with float-drift coords often
+            // do — they share area, not a clean boundary line), boundary.Intersection returns
+            // empty but area.Intersection returns the overlap polygon. The exterior ring of
+            // that overlap polygon traces around the shared region, and ITS vertices are the
+            // boundary points we want both sides to share.
+            var insertionsByCell = new Dictionary<int, List<float[]>>();
+            int pairsProcessed = 0, pairsWithIntersection = 0, totalCoordsCollected = 0;
+
+            foreach (var (id, cell) in map.Cells)
+            {
+                if (cell.Neighbors == null) continue;
+                var polyA = GetPolygon(id);
+                if (polyA == null) continue;
+
+                foreach (var nId in cell.Neighbors)
+                {
+                    if (nId <= id) continue;
+                    var polyB = GetPolygon(nId);
+                    if (polyB == null) continue;
+                    pairsProcessed++;
+
+                    Geometry intersection;
+                    try
+                    {
+                        intersection = polyA.Intersection(polyB);
+                    }
+                    catch (NetTopologySuite.Geometries.TopologyException)
+                    {
+                        continue;
+                    }
+                    if (intersection.IsEmpty) continue;
+                    pairsWithIntersection++;
+
+                    foreach (var coord in intersection.Coordinates)
+                    {
+                        var pt = new[] { (float)coord.X, (float)coord.Y };
+                        if (!insertionsByCell.TryGetValue(id,  out var listA)) insertionsByCell[id]  = listA = new();
+                        if (!insertionsByCell.TryGetValue(nId, out var listB)) insertionsByCell[nId] = listB = new();
+                        listA.Add(pt);
+                        listB.Add(pt);
+                        totalCoordsCollected++;
+                    }
+                }
+            }
+            Logger.Info($"SnapSharedBoundaries: pairs processed={pairsProcessed}, with non-empty intersection={pairsWithIntersection}, coords collected={totalCoordsCollected}.");
+
             int totalInserted = 0;
             int cellsChanged  = 0;
-            foreach (var cell in map.Cells.Values)
+            foreach (var (id, points) in insertionsByCell)
             {
-                if (cell.Neighbors == null || cell.GeoDataCoordinates == null) continue;
+                if (!map.Cells.TryGetValue(id, out var cell)) continue;
+                if (cell.GeoDataCoordinates == null) continue;
                 var ring = cell.GeoDataCoordinates;
                 int n = ring.Length - 1;
                 if (n < 3) continue;
 
-                Dictionary<int, List<(float t, float[] pt)>>? perEdge = null;
-
-                foreach (var nId in cell.Neighbors)
+                var perEdge = new Dictionary<int, List<(float t, float[] pt)>>();
+                foreach (var pt in points)
                 {
-                    if (!map.Cells.TryGetValue(nId, out var nbr) || nbr.GeoDataCoordinates == null) continue;
-                    int nn = nbr.GeoDataCoordinates.Length - 1;
-                    if (nn < 3) continue;
-
-                    for (int j = 0; j < nn; j++)
+                    // Skip if pt already coincides with an existing vertex.
+                    bool coincides = false;
+                    for (int k = 0; k < n; k++)
                     {
-                        var v = nbr.GeoDataCoordinates[j];
-                        if (v == null || v.Length < 2) continue;
+                        float dx = ring[k][0] - pt[0];
+                        float dy = ring[k][1] - pt[1];
+                        if (dx * dx + dy * dy <= tol2) { coincides = true; break; }
+                    }
+                    if (coincides) continue;
 
-                        // Skip if v already coincides with an existing vertex of `ring`.
-                        bool coincides = false;
-                        for (int k = 0; k < n; k++)
+                    // Find the edge of ring on which pt lies; insert there.
+                    for (int e = 0; e < n; e++)
+                    {
+                        if (PointOnSegment(pt, ring[e], ring[e + 1], edgeTol2, out float t)
+                            && t > 1e-4f && t < 1f - 1e-4f)
                         {
-                            float dx = ring[k][0] - v[0];
-                            float dy = ring[k][1] - v[1];
-                            if (dx * dx + dy * dy <= tol2) { coincides = true; break; }
-                        }
-                        if (coincides) continue;
-
-                        // Find the (at most one) edge of `ring` whose segment contains v.
-                        for (int e = 0; e < n; e++)
-                        {
-                            if (PointOnSegment(v, ring[e], ring[e + 1], tol2, out float t)
-                                && t > 1e-4f && t < 1f - 1e-4f)
-                            {
-                                perEdge ??= new();
-                                if (!perEdge.TryGetValue(e, out var list)) perEdge[e] = list = new();
-                                list.Add((t, new[] { v[0], v[1] }));
-                                break;
-                            }
+                            if (!perEdge.TryGetValue(e, out var list)) perEdge[e] = list = new();
+                            list.Add((t, pt));
+                            break;
                         }
                     }
                 }
 
-                if (perEdge == null) continue;
+                if (perEdge.Count == 0) continue;
+
+                // De-dupe insertions on the same edge with nearly identical t values.
+                foreach (var kv in perEdge)
+                {
+                    kv.Value.Sort((x, y) => x.t.CompareTo(y.t));
+                    for (int i = kv.Value.Count - 1; i > 0; i--)
+                        if (MathF.Abs(kv.Value[i].t - kv.Value[i - 1].t) < 1e-4f)
+                            kv.Value.RemoveAt(i);
+                }
+
                 cell.GeoDataCoordinates = SpliceInsertions(ring, perEdge, out int added);
                 totalInserted += added;
-                cellsChanged++;
+                if (added > 0) cellsChanged++;
             }
-            Logger.Info($"SnapSharedBoundaries: inserted {totalInserted} vertices into {cellsChanged} cells (tolerance ≈{tol:G4} geo units / 0.5 px).");
+            Logger.Info($"SnapSharedBoundaries: inserted {totalInserted} vertices into {cellsChanged} cells via NTS boundary intersection (tolerance ≈{tol:G4} geo units / 0.5 px).");
         }
 
         // Returns true and the parametric position t ∈ [0,1] if v projects onto segment (a, b)
