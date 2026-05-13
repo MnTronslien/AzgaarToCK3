@@ -16,6 +16,7 @@ static class Program
         string? comparePathA = null, comparePathB = null;
         string? cellsDumpPath = null;
         string? riversGeojsonPath = null;
+        float riverCpSpacing = 5f;
         int seed = 42;
         float strength = 0.25f, roughnessNorm = 1.0f;
         int nodesPerCell = 4;
@@ -32,6 +33,7 @@ static class Program
         bool steepnessMap = false;
         bool roughnessMap = false;
         bool coastMap = false;
+        bool riverMap = false;
         bool detailIntensity = false;
 
         for (int i = 0; i < args.Length; i++)
@@ -59,9 +61,11 @@ static class Program
                 case "--steepness-map":       steepnessMap     = true; break;
                 case "--roughness-map":       roughnessMap     = true; break;
                 case "--coast-map":           coastMap         = true; break;
+                case "--river-map":           riverMap         = true; break;
                 case "--detail-intensity":    detailIntensity  = true; break;
                 case "--cells":           cellsDumpPath     = args[++i]; break;
                 case "--rivers-geojson":  riversGeojsonPath = args[++i]; break;
+                case "--river-cp-spacing": riverCpSpacing  = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--compare":
                     comparePathA = args[++i];
                     comparePathB = args[++i];
@@ -149,7 +153,8 @@ static class Program
             PolyNodeSampleCount: sampleCount,
             RoughnessNorm: roughnessNorm,
             BlurRadius: blurRadius,
-            RoughnessPower: roughnessPower);
+            RoughnessPower: roughnessPower,
+            RiverControlPointSpacing: riverCpSpacing);
 
         // ── Load major rivers (control points) for centerline carving ───────
         List<HeightmapAlgorithm.RiverInput>? riverInputs = null;
@@ -168,8 +173,8 @@ static class Program
         sw.Stop();
         Console.WriteLine($"Generated in {sw.Elapsed.TotalSeconds:F1}s");
 
-        // ── Mesh visualisation (skipped when --coast-map is set; mesh is drawn there instead) ─
-        if (mesh && !coastMap)
+        // ── Mesh visualisation (skipped when --coast-map / --river-map is set; mesh is drawn there instead) ─
+        if (mesh && !coastMap && !riverMap)
         {
             using var meshImg = new MagickImage(MagickColors.White, genParams.Width, genParams.Height);
 
@@ -360,6 +365,138 @@ static class Program
             roughImg.Depth = 8;
             await roughImg.WriteAsync(outputPath, MagickFormat.Png);
             Console.WriteLine($"Roughness map written to {outputPath} (Delaunay barycentric, terrain nodes only)");
+            return 0;
+        }
+
+        // ── River debug map: simplified coast view + cyan control points ────
+        if (riverMap)
+        {
+            int w = genParams.Width, h = genParams.Height;
+            const byte wl = HeightmapGenerator.CK3WaterLevel;
+
+            // Same blue-water + greyscale background as --coast-map
+            var rgb = new byte[w * h * 3];
+            for (int idx = 0; idx < result.Core.Pixels.Length; idx++)
+            {
+                byte px = result.Core.Pixels[idx];
+                int o = idx * 3;
+                if (px < wl)
+                {
+                    rgb[o]     = 0;
+                    rgb[o + 1] = (byte)(px * 3);
+                    rgb[o + 2] = (byte)(120 + px * 6);
+                }
+                else
+                {
+                    rgb[o] = rgb[o + 1] = rgb[o + 2] = px;
+                }
+            }
+            var rmSettings = new MagickReadSettings { Width = w, Height = h, ColorSpace = ColorSpace.sRGB, Format = MagickFormat.Rgb };
+            using var riverImg = new MagickImage(rgb, rmSettings);
+            riverImg.Depth = 8;
+
+            // Optional Delaunay mesh overlay (white, thin)
+            if (mesh)
+            {
+                var allCoords = result.Core.TerrainNodes.Select(t  => new Coordinate(t.Px,  t.Py))
+                                    .Concat(result.Core.PolyNodes.Select(pn => new Coordinate(pn.Px, pn.Py)))
+                                    .Concat(result.Core.CoastNodes.Select(cn => new Coordinate(cn.Px, cn.Py)))
+                                    .ToArray();
+                var gf = new GeometryFactory();
+                var builder = new DelaunayTriangulationBuilder();
+                builder.SetSites(gf.CreateMultiPointFromCoords(allCoords));
+                var triangles = builder.GetTriangles(gf);
+
+                var dm = new Drawables();
+                dm.StrokeColor(MagickColors.White).StrokeWidth(1).FillColor(new MagickColor(0, 0, 0, 0));
+                foreach (var geom in triangles.Geometries)
+                {
+                    var ring = geom.Boundary.Coordinates;
+                    if (ring.Length < 3) continue;
+                    dm.Line(ring[0].X, ring[0].Y, ring[1].X, ring[1].Y);
+                    dm.Line(ring[1].X, ring[1].Y, ring[2].X, ring[2].Y);
+                    dm.Line(ring[2].X, ring[2].Y, ring[0].X, ring[0].Y);
+                }
+                riverImg.Draw(dm);
+            }
+
+            // Constraint segments coloured by what the LAND cell was walking against:
+            //   magenta = LAND cell's other-side neighbour is a river cell
+            //   green   = LAND cell's other-side neighbour is a regular sea cell
+            // Precompute the set of vertex pixel-keys that belong to river-cell
+            // polygons; a segment whose BOTH endpoints land in that set is at a
+            // land/river boundary. (ConstraintSegToCellId only stores the land
+            // side, so checking it alone reports every seg as land — not useful.)
+            {
+                static (int, int) RK(double x, double y) => ((int)Math.Round(x), (int)Math.Round(y));
+
+                // Pixel coords for cells are derived from GeoToPixel*; replicate the
+                // transform inline so we can build the vertex set without touching
+                // the algorithm's privates.
+                var riverVertexKeys = new HashSet<(int, int)>();
+                foreach (var c in cells.Values)
+                {
+                    if (!c.IsRiverCell || c.GeoDataCoordinates == null) continue;
+                    foreach (var v in c.GeoDataCoordinates)
+                    {
+                        if (v == null || v.Length < 2) continue;
+                        float px = (v[0] - genParams.LonW) / genParams.LonT * genParams.Width;
+                        float py = genParams.Height - (v[1] - genParams.LatS) / genParams.LatT * genParams.Height;
+                        riverVertexKeys.Add(RK(px, py));
+                    }
+                }
+
+                var segs = new Drawables();
+                int nRiverSeg = 0, nSeaSeg = 0;
+                segs.StrokeWidth(3).FillColor(new MagickColor(0, 0, 0, 0));
+                foreach (var seg in result.Core.ConstraintSegs)
+                {
+                    if (seg.Coordinates.Length < 2) continue;
+                    var a = seg.Coordinates[0];
+                    var b = seg.Coordinates[1];
+                    bool aRiv = riverVertexKeys.Contains(RK(a.X, a.Y));
+                    bool bRiv = riverVertexKeys.Contains(RK(b.X, b.Y));
+                    bool atRiverBoundary = aRiv && bRiv;
+
+                    MagickColor col;
+                    if (atRiverBoundary) { col = MagickColors.Magenta;   nRiverSeg++; }
+                    else                  { col = MagickColors.LimeGreen; nSeaSeg++; }
+                    segs.StrokeColor(col);
+                    segs.Line(a.X, a.Y, b.X, b.Y);
+                }
+                riverImg.Draw(segs);
+                Console.WriteLine($"Constraint segs: {nRiverSeg} at river boundary (magenta), {nSeaSeg} elsewhere (green).  River-cell vertices indexed: {riverVertexKeys.Count}.");
+            }
+
+            var d = new Drawables();
+
+            // All coast nodes — yellow, ~1 px diameter (radius 0.4 → near single pixel)
+            d.FillColor(MagickColors.Yellow).StrokeColor(MagickColors.Yellow).StrokeWidth(1);
+            foreach (var cn in result.Core.CoastNodes)
+                d.Circle(cn.Px, cn.Py, cn.Px + 0.4, cn.Py);
+
+            // River control points — cyan, ~2 px diameter (radius 0.8) for slight visibility edge
+            int cpCount = 0;
+            if (riverInputs != null)
+            {
+                d.FillColor(MagickColors.Cyan).StrokeColor(MagickColors.Cyan).StrokeWidth(1);
+                foreach (var river in riverInputs)
+                {
+                    if (river.ControlPoints == null) continue;
+                    foreach (var cp in river.ControlPoints)
+                    {
+                        if (cp == null || cp.Length < 2) continue;
+                        float px = (cp[0] - genParams.LonW) / genParams.LonT * genParams.Width;
+                        float py = genParams.Height - (cp[1] - genParams.LatS) / genParams.LatT * genParams.Height;
+                        d.Circle(px, py, px + 0.8, py);
+                        cpCount++;
+                    }
+                }
+            }
+
+            riverImg.Draw(d);
+            await riverImg.WriteAsync(outputPath!, MagickFormat.Png);
+            Console.WriteLine($"River debug map → {outputPath}  (coast nodes: {result.Core.CoastNodes.Count}, control points: {cpCount}{(mesh ? ", mesh: yes" : "")})");
             return 0;
         }
 
@@ -661,6 +798,8 @@ static class Program
                                         Major-river control points used to seed centerline TerrainNodes at
                                         CK3WaterLevel - Params.RiverCenterlineDepth. Filtered by MajorRiverThreshold
                                         from settings.json. Compatible with both --cells and --json/--geojson modes.
+                  --river-cp-spacing F  Densify control points to ≤ F pixels apart along each river polyline.
+                                        Default: 5. Lower = denser spine, more CDT cost, fewer rasterization gaps.
 
                   HeightmapLab --compare <path-a> <path-b>
                                 Pixel-by-pixel comparison of two grayscale PNGs. Exits 0 if identical.

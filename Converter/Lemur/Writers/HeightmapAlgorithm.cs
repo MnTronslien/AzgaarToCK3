@@ -25,7 +25,8 @@ public static class HeightmapAlgorithm
         float RoughnessPower = 2.0f,
         float CoastExclusionRadius = 30f,
         float MaxCoastEdgePixels = 60f,
-        float RiverCenterlineDepth = 5f)
+        float RiverCenterlineDepth = 5f,
+        float RiverControlPointSpacing = 5f)
     {
         public static Params FromMap(Map map) => new(
             LonW:   map.JsonMap.mapCoordinates.lonW,
@@ -119,30 +120,71 @@ public static class HeightmapAlgorithm
         // channel between the two bank coast chains. Pinned below water level
         // (CK3WaterLevel - RiverCenterlineDepth) to give the channel visible
         // depth in the rasterized heightmap.
+        //
+        // Densification: Azgaar's raw control points are unevenly spaced (some
+        // segments ~5px apart, others 30+ px). The CDT struggles to interpolate
+        // cleanly across long gaps, leaving non-water pixels mid-channel. We
+        // subdivide each segment so node spacing is ≤ RiverControlPointSpacing
+        // pixels, yielding a uniform spine.
         if (rivers != null && rivers.Count > 0)
         {
             float riverHeight = Math.Max(0f, CK3WaterLevel - p.RiverCenterlineDepth);
+            float maxSpacing  = Math.Max(1f, p.RiverControlPointSpacing);
             int riverNodeCount = 0;
+            int rawCpCount = 0;
             int nextSyntheticId = (cells.Count > 0 ? cells.Keys.Max() : 0) + 1;
+
+            void AddNode(float px, float py)
+            {
+                terrainNodes.Add(new TerrainNode(
+                    Id:        nextSyntheticId++,
+                    Px:        px,
+                    Py:        py,
+                    Height:    riverHeight,
+                    Roughness: 0f,
+                    IsLand:    false,
+                    Area:      0));
+                riverNodeCount++;
+            }
+
             foreach (var river in rivers)
             {
                 if (river.ControlPoints == null || river.ControlPoints.Length < 2) continue;
-                foreach (var cp in river.ControlPoints)
+
+                // Convert all control points to pixel space first; emit the
+                // first raw point as a node, then walk each segment and emit
+                // densified interior points plus the segment endpoint.
+                float prevPx = GeoToPixelX(river.ControlPoints[0][0], p);
+                float prevPy = GeoToPixelY(river.ControlPoints[0][1], p);
+                AddNode(prevPx, prevPy);
+                rawCpCount++;
+
+                for (int i = 1; i < river.ControlPoints.Length; i++)
                 {
+                    var cp = river.ControlPoints[i];
                     if (cp == null || cp.Length < 2) continue;
-                    terrainNodes.Add(new TerrainNode(
-                        Id:        nextSyntheticId++,
-                        Px:        GeoToPixelX(cp[0], p),
-                        Py:        GeoToPixelY(cp[1], p),
-                        Height:    riverHeight,
-                        Roughness: 0f,
-                        IsLand:    false,
-                        Area:      0));
-                    riverNodeCount++;
+                    float curPx = GeoToPixelX(cp[0], p);
+                    float curPy = GeoToPixelY(cp[1], p);
+                    rawCpCount++;
+
+                    float dx = curPx - prevPx, dy = curPy - prevPy;
+                    float segLen = MathF.Sqrt(dx * dx + dy * dy);
+                    if (segLen > maxSpacing)
+                    {
+                        // Number of interior insertions so spacing ≤ maxSpacing
+                        int steps = (int)MathF.Ceiling(segLen / maxSpacing);
+                        for (int s = 1; s < steps; s++)
+                        {
+                            float t = (float)s / steps;
+                            AddNode(prevPx + dx * t, prevPy + dy * t);
+                        }
+                    }
+                    AddNode(curPx, curPy);
+                    prevPx = curPx; prevPy = curPy;
                 }
             }
             if (riverNodeCount > 0)
-                Logger.Info($"River centerline TerrainNodes seeded: {riverNodeCount} from {rivers.Count} rivers at height {riverHeight:F1}.");
+                Logger.Info($"River centerline TerrainNodes: {riverNodeCount} total ({rawCpCount} raw + {riverNodeCount - rawCpCount} densified at ≤{maxSpacing:F1}px) from {rivers.Count} rivers at height {riverHeight:F1}.");
         }
 
         // ── 2. Terrain spatial grid ───────────────────────────────────────────
