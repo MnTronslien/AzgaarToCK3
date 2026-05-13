@@ -62,6 +62,7 @@ namespace Converter.Lemur.Rivers
                 riverCellIds[river] = BuildRiverCellsForRiver(map, river, majorThreshold, avgDiameterCk3);
             }
 
+            SnapSharedBoundaries(map);
             UpdateAllNeighborReferences(map, allReplacements);
             int burgNudges = NudgeBurgsOutOfRiver(map);
             Logger.Info($"Phase 1 complete: {totalLandSplits} land cells carved, {totalRiverCarved} tributary river cells trimmed, {burgNudges} burgs nudged.");
@@ -960,6 +961,120 @@ namespace Converter.Lemur.Rivers
                 }
                 cell.Neighbors = newNeighbors.Distinct().ToArray();
             }
+        }
+
+        // For every adjacent pair (A, B) of cells, insert into A's polygon any vertex of B
+        // that lies on an edge of A (within a small tolerance) but isn't already coincident
+        // with one of A's existing vertices. After this pass, every shared boundary between
+        // adjacent polygons has at least the boundary endpoints as coincident vertices, which
+        // is what the heightmap's coast walk (HeightmapAlgorithm.cs lines 254–276) needs to
+        // match land/sea edges via its rounded-pixel-key vertex match.
+        //
+        // The mirror direction (insert A's vertices into B) is naturally covered when the
+        // outer loop reaches B; no bidirectional bookkeeping needed.
+        private static void SnapSharedBoundaries(Map map)
+        {
+            // Tolerance in geo units, ~0.5 px at CK3 image scale. Use the tighter of the two
+            // axes so we don't introduce sub-pixel artefacts along the more zoomed-in axis.
+            var mc       = map.JsonMap.mapCoordinates;
+            float tolLon = (mc.lonT / Map.MapWidth)  * 0.5f;
+            float tolLat = (mc.latT / Map.MapHeight) * 0.5f;
+            float tol    = MathF.Min(tolLon, tolLat);
+            float tol2   = tol * tol;
+
+            int totalInserted = 0;
+            int cellsChanged  = 0;
+            foreach (var cell in map.Cells.Values)
+            {
+                if (cell.Neighbors == null || cell.GeoDataCoordinates == null) continue;
+                var ring = cell.GeoDataCoordinates;
+                int n = ring.Length - 1;
+                if (n < 3) continue;
+
+                Dictionary<int, List<(float t, float[] pt)>>? perEdge = null;
+
+                foreach (var nId in cell.Neighbors)
+                {
+                    if (!map.Cells.TryGetValue(nId, out var nbr) || nbr.GeoDataCoordinates == null) continue;
+                    int nn = nbr.GeoDataCoordinates.Length - 1;
+                    if (nn < 3) continue;
+
+                    for (int j = 0; j < nn; j++)
+                    {
+                        var v = nbr.GeoDataCoordinates[j];
+                        if (v == null || v.Length < 2) continue;
+
+                        // Skip if v already coincides with an existing vertex of `ring`.
+                        bool coincides = false;
+                        for (int k = 0; k < n; k++)
+                        {
+                            float dx = ring[k][0] - v[0];
+                            float dy = ring[k][1] - v[1];
+                            if (dx * dx + dy * dy <= tol2) { coincides = true; break; }
+                        }
+                        if (coincides) continue;
+
+                        // Find the (at most one) edge of `ring` whose segment contains v.
+                        for (int e = 0; e < n; e++)
+                        {
+                            if (PointOnSegment(v, ring[e], ring[e + 1], tol2, out float t)
+                                && t > 1e-4f && t < 1f - 1e-4f)
+                            {
+                                perEdge ??= new();
+                                if (!perEdge.TryGetValue(e, out var list)) perEdge[e] = list = new();
+                                list.Add((t, new[] { v[0], v[1] }));
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (perEdge == null) continue;
+                cell.GeoDataCoordinates = SpliceInsertions(ring, perEdge, out int added);
+                totalInserted += added;
+                cellsChanged++;
+            }
+            Logger.Info($"SnapSharedBoundaries: inserted {totalInserted} vertices into {cellsChanged} cells (tolerance ≈{tol:G4} geo units / 0.5 px).");
+        }
+
+        // Returns true and the parametric position t ∈ [0,1] if v projects onto segment (a, b)
+        // within tol² squared distance. Otherwise t is undefined and returns false.
+        private static bool PointOnSegment(float[] v, float[] a, float[] b, float tol2, out float t)
+        {
+            float dx   = b[0] - a[0], dy = b[1] - a[1];
+            float len2 = dx * dx + dy * dy;
+            if (len2 < 1e-12f) { t = 0f; return false; }
+            t = ((v[0] - a[0]) * dx + (v[1] - a[1]) * dy) / len2;
+            if (t < 0f || t > 1f) return false;
+            float px = a[0] + t * dx;
+            float py = a[1] + t * dy;
+            float d2 = (v[0] - px) * (v[0] - px) + (v[1] - py) * (v[1] - py);
+            return d2 <= tol2;
+        }
+
+        // Rebuild a closed ring (first == last) by splicing per-edge insertions in parametric order.
+        private static float[][] SpliceInsertions(
+            float[][] ring,
+            Dictionary<int, List<(float t, float[] pt)>> perEdge,
+            out int added)
+        {
+            int n = ring.Length - 1;
+            int extra = 0;
+            foreach (var kv in perEdge) extra += kv.Value.Count;
+
+            var output = new List<float[]>(ring.Length + extra);
+            added = 0;
+            for (int e = 0; e < n; e++)
+            {
+                output.Add(ring[e]);
+                if (perEdge.TryGetValue(e, out var ins))
+                {
+                    ins.Sort((x, y) => x.t.CompareTo(y.t));
+                    foreach (var (_, pt) in ins) { output.Add(pt); added++; }
+                }
+            }
+            output.Add(ring[n]); // restore ring closure
+            return output.ToArray();
         }
     }
 }
