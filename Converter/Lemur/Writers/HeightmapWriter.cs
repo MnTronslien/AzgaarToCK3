@@ -61,7 +61,25 @@ public static class HeightmapWriter
         using var timer = OperationTimer.Start("  Generating heightmap.png");
 
         var genParams = HeightmapAlgorithm.Params.FromMap(map);
-        var result    = HeightmapAlgorithm.Generate(map.Cells!, genParams);
+
+        // Major rivers feed the algorithm as centerline TerrainNodes so the CDT
+        // has interior anchors between the two bank coast chains, producing a
+        // carved channel instead of dashed water-level scratches.
+        IReadOnlyList<HeightmapAlgorithm.RiverInput>? riverInputs = null;
+        if (map.Rivers != null && map.Rivers.Count > 0)
+        {
+            float threshold = Settings.Instance.MajorRiverThreshold;
+            riverInputs = map.Rivers
+                .Where(r => r.IsMajor(threshold) && r.ControlPoints != null && r.ControlPoints.Count >= 2)
+                .Select(r => new HeightmapAlgorithm.RiverInput(
+                    Id:            r.Id,
+                    Width:         r.Width,
+                    SourceWidth:   r.SourceWidth,
+                    ControlPoints: r.ControlPoints!.ToArray()))
+                .ToList();
+        }
+
+        var result = HeightmapAlgorithm.Generate(map.Cells!, genParams, riverInputs);
 
         var readSettings = new MagickReadSettings
         {

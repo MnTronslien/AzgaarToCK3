@@ -15,6 +15,7 @@ static class Program
         string? jsonPath = null, geojsonPath = null, outputPath = null, terrainOut = null;
         string? comparePathA = null, comparePathB = null;
         string? cellsDumpPath = null;
+        string? riversGeojsonPath = null;
         int seed = 42;
         float strength = 0.25f, roughnessNorm = 1.0f;
         int nodesPerCell = 4;
@@ -59,7 +60,8 @@ static class Program
                 case "--roughness-map":       roughnessMap     = true; break;
                 case "--coast-map":           coastMap         = true; break;
                 case "--detail-intensity":    detailIntensity  = true; break;
-                case "--cells":           cellsDumpPath = args[++i]; break;
+                case "--cells":           cellsDumpPath     = args[++i]; break;
+                case "--rivers-geojson":  riversGeojsonPath = args[++i]; break;
                 case "--compare":
                     comparePathA = args[++i];
                     comparePathB = args[++i];
@@ -149,10 +151,18 @@ static class Program
             BlurRadius: blurRadius,
             RoughnessPower: roughnessPower);
 
+        // ── Load major rivers (control points) for centerline carving ───────
+        List<HeightmapAlgorithm.RiverInput>? riverInputs = null;
+        if (!string.IsNullOrWhiteSpace(riversGeojsonPath))
+        {
+            riverInputs = LoadRiverInputs(riversGeojsonPath, Settings.Instance.MajorRiverThreshold);
+            Console.WriteLine($"Loaded {riverInputs.Count} major rivers from {Path.GetFileName(riversGeojsonPath)}.");
+        }
+
         // ── Generate ─────────────────────────────────────────────────────────
         Console.WriteLine($"Generating heightmap (seed={seed}, strength={strength}, nodesPerCell={nodesPerCell}, samples={sampleCount}, roughnessNorm={roughnessNorm}).");
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        var result = HeightmapGenerator.Generate(cells, genParams);
+        var result = HeightmapGenerator.Generate(cells, genParams, riverInputs);
         sw.Stop();
         Console.WriteLine($"Generated in {sw.Elapsed.TotalSeconds:F1}s");
 
@@ -400,17 +410,20 @@ static class Program
                 {
                     int nBadConn = result.Connectivity.Connections
                         .Select((c, i) => c < 2 && !result.Connectivity.IsHullNode[i]).Count(x => x);
-                    if (nBadConn > 0 && nBadConn < 200)
+                    if (nBadConn > 0)
                     {
+                        // Scale ring size/width down when there are many failures so they don't cover the map.
+                        int radius   = nBadConn > 500 ? 8 : nBadConn > 200 ? 20 : 50;
+                        int strokeW  = nBadConn > 500 ? 2 : nBadConn > 200 ? 4  : 10;
                         var rings = new Drawables();
                         rings.FillColor(new MagickColor(0, 0, 0, 0))
-                             .StrokeColor(MagickColors.Red).StrokeWidth(10);
+                             .StrokeColor(MagickColors.Red).StrokeWidth(strokeW);
                         for (int ci = 0; ci < result.Core.CoastNodes.Count; ci++)
                         {
                             if (result.Connectivity.Connections[ci] >= 2) continue;
                             if (result.Connectivity.IsHullNode[ci]) continue;
                             var cn = result.Core.CoastNodes[ci];
-                            rings.Circle(cn.Px, cn.Py, cn.Px + 50, cn.Py);
+                            rings.Circle(cn.Px, cn.Py, cn.Px + radius, cn.Py);
                         }
                         coastImg.Draw(rings);
                     }
@@ -543,6 +556,32 @@ static class Program
     }
 
     // ── Pixel comparison ─────────────────────────────────────────────────────
+    // Parse rivers.geojson directly (no JSON map / no AzgaarLoader dependency) and
+    // return major rivers as RiverInput records ready for HeightmapAlgorithm.
+    static List<HeightmapAlgorithm.RiverInput> LoadRiverInputs(string riversGeojsonPath, float majorThreshold)
+    {
+        var json = File.ReadAllText(riversGeojsonPath);
+        var rgj  = System.Text.Json.JsonSerializer.Deserialize<Converter.Lemur.Deserialization.RiverGeoJson>(
+            json,
+            new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        if (rgj == null || rgj.features == null)
+            throw new InvalidDataException($"Failed to parse rivers GeoJSON: {riversGeojsonPath}");
+
+        var result = new List<HeightmapAlgorithm.RiverInput>(rgj.features.Length);
+        foreach (var f in rgj.features)
+        {
+            if (f.geometry == null || f.geometry.coordinates == null || f.geometry.coordinates.Length < 2) continue;
+            if (f.properties == null) continue;
+            if (f.properties.discharge < majorThreshold) continue;
+            result.Add(new HeightmapAlgorithm.RiverInput(
+                Id:            f.properties.id,
+                Width:         f.properties.widthFactor,
+                SourceWidth:   f.properties.sourceWidth,
+                ControlPoints: f.geometry.coordinates));
+        }
+        return result;
+    }
+
     static int CompareImages(string pathA, string pathB)
     {
         using var imgA = new MagickImage(pathA);
@@ -616,6 +655,10 @@ static class Program
 
                   --cells <dump.json>   Load cell dump produced by ConsoleUI --dump-cells instead of raw Azgaar files.
                                         Includes major river cell modifications. Replaces --json + --geojson.
+                  --rivers-geojson <path>
+                                        Major-river control points used to seed centerline TerrainNodes at
+                                        CK3WaterLevel - Params.RiverCenterlineDepth. Filtered by MajorRiverThreshold
+                                        from settings.json. Compatible with both --cells and --json/--geojson modes.
 
                   HeightmapLab --compare <path-a> <path-b>
                                 Pixel-by-pixel comparison of two grayscale PNGs. Exits 0 if identical.

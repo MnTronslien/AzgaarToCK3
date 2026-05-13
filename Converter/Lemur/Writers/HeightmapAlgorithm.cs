@@ -24,7 +24,8 @@ public static class HeightmapAlgorithm
         int BlurRadius = 3,
         float RoughnessPower = 2.0f,
         float CoastExclusionRadius = 30f,
-        float MaxCoastEdgePixels = 60f)
+        float MaxCoastEdgePixels = 60f,
+        float RiverCenterlineDepth = 5f)
     {
         public static Params FromMap(Map map) => new(
             LonW:   map.JsonMap.mapCoordinates.lonW,
@@ -34,6 +35,17 @@ public static class HeightmapAlgorithm
             Width:  Map.MapWidth,
             Height: Map.MapHeight);
     }
+
+    // Carrier for major-river centerline data. Used to seed TerrainNodes along
+    // each river so the CDT has a clean interior reference between the two
+    // bank coast chains. Kept typed (rather than raw polylines) so additional
+    // metadata (per-point depth, width tapering, debug labels) can be threaded
+    // through later without touching call sites.
+    public record RiverInput(
+        int Id,
+        float Width,
+        float SourceWidth,
+        float[][] ControlPoints);
 
     public record GenerateResult(
         byte[] Pixels,
@@ -48,7 +60,10 @@ public static class HeightmapAlgorithm
 
     private record struct SpawnedNode(float Px, float Py, float SpawnPx, float SpawnPy, int ParentIdx);
 
-    public static GenerateResult Generate(IReadOnlyDictionary<int, Cell> cells, Params p)
+    public static GenerateResult Generate(
+        IReadOnlyDictionary<int, Cell> cells,
+        Params p,
+        IReadOnlyList<RiverInput>? rivers = null)
     {
         // ── 1. Build terrain nodes ────────────────────────────────────────────
         var landCells = cells.Values.Where(c => Cell.IsDryLand(c.Type)).ToList();
@@ -77,21 +92,58 @@ public static class HeightmapAlgorithm
         int maxH = landCells.Max(c => c.GeoHeight);
         if (maxH == minH) maxH = minH + 1;
 
-        var terrainNodes = cells.Values.Select(c =>
+        // Filter out IsRiverCell cells: their height-0 TerrainNodes pull the
+        // rasterized heightmap into a "muddy" stripe along every river, and they
+        // would also seed unwanted poly-nodes. Coast walk in phase 3 still sees
+        // them (they remain in the cells dict) so the banks stay constrained.
+        var terrainNodes = cells.Values
+            .Where(c => !c.IsRiverCell)
+            .Select(c =>
+            {
+                bool isLand = Cell.IsDryLand(c.Type);
+                float h = isLand
+                    ? (c.GeoHeight - minH) / (float)(maxH - minH) * (255f - CK3WaterLevel) + CK3WaterLevel
+                    : 0f;
+                return new TerrainNode(
+                    Id:       c.Id,
+                    Px:       GeoToPixelX(Centroid(c)[0], p),
+                    Py:       GeoToPixelY(Centroid(c)[1], p),
+                    Height:   h,
+                    Roughness: roughness.GetValueOrDefault(c.Id, 0f),
+                    IsLand:   isLand,
+                    Area:     c.Area);
+            }).ToList();
+
+        // Seed centerline TerrainNodes from major-river control points. These
+        // act as interior anchors so the CDT triangulates a smooth carved
+        // channel between the two bank coast chains. Pinned below water level
+        // (CK3WaterLevel - RiverCenterlineDepth) to give the channel visible
+        // depth in the rasterized heightmap.
+        if (rivers != null && rivers.Count > 0)
         {
-            bool isLand = Cell.IsDryLand(c.Type);
-            float h = isLand
-                ? (c.GeoHeight - minH) / (float)(maxH - minH) * (255f - CK3WaterLevel) + CK3WaterLevel
-                : 0f;
-            return new TerrainNode(
-                Id:       c.Id,
-                Px:       GeoToPixelX(Centroid(c)[0], p),
-                Py:       GeoToPixelY(Centroid(c)[1], p),
-                Height:   h,
-                Roughness: roughness.GetValueOrDefault(c.Id, 0f),
-                IsLand:   isLand,
-                Area:     c.Area);
-        }).ToList();
+            float riverHeight = Math.Max(0f, CK3WaterLevel - p.RiverCenterlineDepth);
+            int riverNodeCount = 0;
+            int nextSyntheticId = (cells.Count > 0 ? cells.Keys.Max() : 0) + 1;
+            foreach (var river in rivers)
+            {
+                if (river.ControlPoints == null || river.ControlPoints.Length < 2) continue;
+                foreach (var cp in river.ControlPoints)
+                {
+                    if (cp == null || cp.Length < 2) continue;
+                    terrainNodes.Add(new TerrainNode(
+                        Id:        nextSyntheticId++,
+                        Px:        GeoToPixelX(cp[0], p),
+                        Py:        GeoToPixelY(cp[1], p),
+                        Height:    riverHeight,
+                        Roughness: 0f,
+                        IsLand:    false,
+                        Area:      0));
+                    riverNodeCount++;
+                }
+            }
+            if (riverNodeCount > 0)
+                Logger.Info($"River centerline TerrainNodes seeded: {riverNodeCount} from {rivers.Count} rivers at height {riverHeight:F1}.");
+        }
 
         // ── 2. Terrain spatial grid ───────────────────────────────────────────
         int terrainCols = Math.Max(1, (int)Math.Sqrt(terrainNodes.Count));

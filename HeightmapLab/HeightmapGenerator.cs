@@ -21,9 +21,12 @@ static class HeightmapGenerator
         CoastConnectivity Connectivity,
         IReadOnlyList<CoastNode> CascadingNodes);
 
-    public static LabResult Generate(IReadOnlyDictionary<int, Cell> cells, HeightmapAlgorithm.Params p)
+    public static LabResult Generate(
+        IReadOnlyDictionary<int, Cell> cells,
+        HeightmapAlgorithm.Params p,
+        IReadOnlyList<HeightmapAlgorithm.RiverInput>? rivers = null)
     {
-        var core        = HeightmapAlgorithm.Generate(cells, p);
+        var core        = HeightmapAlgorithm.Generate(cells, p, rivers);
         var cascading   = AssertNoSteinerSteinerEdges(core.Triangulation, core.CoastNodes, core.OriginalCoastNodeCount, core.ConstraintSegs, core.ConstraintSegToCellId, core.TerrainNodes);
         var connectivity = CheckCoastConnectivity(core.Triangulation, core.CoastNodes);
         return new LabResult(core, connectivity, cascading);
