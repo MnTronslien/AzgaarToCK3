@@ -974,11 +974,13 @@ namespace Converter.Lemur.Rivers
         // outer loop reaches B; no bidirectional bookkeeping needed.
         private static void SnapSharedBoundaries(Map map)
         {
-            // Tolerance in geo units, ~0.5 px at CK3 image scale. Use the tighter of the two
-            // axes so we don't introduce sub-pixel artefacts along the more zoomed-in axis.
+            // Tolerance in geo units, ~2 px at CK3 image scale. Empirically the typical
+            // gap between an unsplit land cell's original vertex and the nearest clipped
+            // river edge is ~1 px (see HeightmapLab --dump-pair). Using 2 px gives us
+            // headroom without being so loose we splice random nearby cells.
             var mc       = map.JsonMap.mapCoordinates;
-            float tolLon = (mc.lonT / Map.MapWidth)  * 0.5f;
-            float tolLat = (mc.latT / Map.MapHeight) * 0.5f;
+            float tolLon = (mc.lonT / Map.MapWidth)  * 2.0f;
+            float tolLat = (mc.latT / Map.MapHeight) * 2.0f;
             float tol    = MathF.Min(tolLon, tolLat);
             float tol2   = tol * tol;
 
