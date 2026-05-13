@@ -910,10 +910,20 @@ namespace Converter.Lemur.Rivers
                 return poly;
             }
 
+            // New pieces inherit the pre-split cell's full Neighbors array verbatim
+            // (see CloneLandCell). Without re-verifying, each piece falsely claims
+            // every original neighbour even though only one piece actually borders
+            // each. The reciprocal side (the original neighbour's Neighbors) IS
+            // verified geometrically below, producing one-way edges where a piece
+            // declares a neighbour that doesn't declare it back. To close the loop
+            // we also re-verify new pieces' inherited neighbours against geometry.
+            var newPieceIds = new HashSet<int>(replacements.Values.SelectMany(v => v));
+
             foreach (var cell in map.Cells.Values)
             {
-                if (!cell.Neighbors.Any(n => replacements.ContainsKey(n)))
-                    continue;
+                bool isNewPiece            = newPieceIds.Contains(cell.Id);
+                bool hasReplacedNeighbour  = cell.Neighbors.Any(n => replacements.ContainsKey(n));
+                if (!isNewPiece && !hasReplacedNeighbour) continue;
 
                 var cellPoly = GetPolygon(cell.Id);
                 if (cellPoly == null) continue;
@@ -921,18 +931,31 @@ namespace Converter.Lemur.Rivers
                 var newNeighbors = new List<int>();
                 foreach (int nId in cell.Neighbors)
                 {
-                    if (!replacements.TryGetValue(nId, out var replacingIds))
+                    if (replacements.TryGetValue(nId, out var replacingIds))
                     {
-                        newNeighbors.Add(nId);
-                        continue;
+                        // Old neighbour was split — keep only pieces that still share an edge.
+                        foreach (int replacingId in replacingIds)
+                        {
+                            var replacingPoly = GetPolygon(replacingId);
+                            if (replacingPoly == null) continue;
+                            var shared = cellPoly.Intersection(replacingPoly);
+                            if (!shared.IsEmpty && (int)shared.Dimension >= (int)Dimension.Curve)
+                                newNeighbors.Add(replacingId);
+                        }
                     }
-                    foreach (int replacingId in replacingIds)
+                    else if (isNewPiece)
                     {
-                        var replacingPoly = GetPolygon(replacingId);
-                        if (replacingPoly == null) continue;
-                        var shared = cellPoly.Intersection(replacingPoly);
+                        // Inherited neighbour from the pre-split parent — verify it still borders this piece.
+                        var nbrPoly = GetPolygon(nId);
+                        if (nbrPoly == null) continue;
+                        var shared = cellPoly.Intersection(nbrPoly);
                         if (!shared.IsEmpty && (int)shared.Dimension >= (int)Dimension.Curve)
-                            newNeighbors.Add(replacingId);
+                            newNeighbors.Add(nId);
+                    }
+                    else
+                    {
+                        // Original cell, original neighbour, neither was split — unchanged.
+                        newNeighbors.Add(nId);
                     }
                 }
                 cell.Neighbors = newNeighbors.Distinct().ToArray();
