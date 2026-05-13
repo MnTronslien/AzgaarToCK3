@@ -155,8 +155,10 @@ static class Program
         List<HeightmapAlgorithm.RiverInput>? riverInputs = null;
         if (!string.IsNullOrWhiteSpace(riversGeojsonPath))
         {
-            riverInputs = LoadRiverInputs(riversGeojsonPath, Settings.Instance.MajorRiverThreshold);
-            Console.WriteLine($"Loaded {riverInputs.Count} major rivers from {Path.GetFileName(riversGeojsonPath)}.");
+            // Settings.Instance may be null in HeightmapLab (no settings.json adjacent to the lab exe).
+            float threshold = Settings.Instance?.MajorRiverThreshold ?? 300f;
+            riverInputs = LoadRiverInputs(riversGeojsonPath, threshold);
+            Console.WriteLine($"Loaded {riverInputs.Count} major rivers from {Path.GetFileName(riversGeojsonPath)} (threshold {threshold}).");
         }
 
         // ── Generate ─────────────────────────────────────────────────────────
