@@ -35,6 +35,8 @@ static class Program
         bool coastMap = false;
         bool riverMap = false;
         bool detailIntensity = false;
+        bool checkNeighbors = false;
+        bool neighborArrows = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -62,6 +64,8 @@ static class Program
                 case "--roughness-map":       roughnessMap     = true; break;
                 case "--coast-map":           coastMap         = true; break;
                 case "--river-map":           riverMap         = true; break;
+                case "--check-neighbors":     checkNeighbors   = true; break;
+                case "--neighbor-arrows":     neighborArrows   = true; break;
                 case "--detail-intensity":    detailIntensity  = true; break;
                 case "--cells":           cellsDumpPath     = args[++i]; break;
                 case "--rivers-geojson":  riversGeojsonPath = args[++i]; break;
@@ -89,8 +93,9 @@ static class Program
         }
 
         // --detail-intensity needs only --terrain-out (or --output for its dir); no Azgaar data needed
+        // --check-neighbors needs cells but no output path
         bool dataRequired   = !detailIntensity;
-        bool outputRequired = !detailIntensity;
+        bool outputRequired = !detailIntensity && !checkNeighbors;
         bool dataProvided   = cellsDumpPath != null || (jsonPath != null && geojsonPath != null);
         if ((dataRequired && !dataProvided) || (outputRequired && outputPath == null && terrainOut == null))
         {
@@ -136,6 +141,72 @@ static class Program
             lonW = mc.lonW; lonT = mc.lonT;
             latS = mc.latS; latT = mc.latT;
             Console.WriteLine($"Loaded {cells.Count} cells.");
+        }
+
+        // ── Neighbour-reciprocity audit (diagnostic, exits after) ───────────
+        if (checkNeighbors)
+        {
+            int totalDirected = 0, oneWay = 0, missingTarget = 0;
+            var sampleOneWay = new List<(int src, int dst, bool srcRiver, bool dstRiver)>();
+            foreach (var (id, c) in cells)
+            {
+                if (c.Neighbors == null) continue;
+                foreach (var nId in c.Neighbors)
+                {
+                    totalDirected++;
+                    if (!cells.TryGetValue(nId, out var nbr))
+                    {
+                        missingTarget++;
+                        continue;
+                    }
+                    if (nbr.Neighbors == null || !nbr.Neighbors.Contains(id))
+                    {
+                        oneWay++;
+                        if (sampleOneWay.Count < 20)
+                            sampleOneWay.Add((id, nId, c.IsRiverCell, nbr.IsRiverCell));
+                    }
+                }
+            }
+
+            int riverCells = cells.Values.Count(c => c.IsRiverCell);
+            int landCells  = cells.Values.Count(c => Converter.Lemur.Entities.Cell.IsDryLand(c.Type));
+            Console.WriteLine($"Cells: {cells.Count}  (land: {landCells}, river: {riverCells})");
+            Console.WriteLine($"Directed neighbour edges: {totalDirected}");
+            Console.WriteLine($"  Missing target cell: {missingTarget}");
+            Console.WriteLine($"  One-way (A→B but not B→A): {oneWay}");
+
+            // Break down one-way by category
+            int landToLand = 0, landToRiver = 0, riverToLand = 0, riverToRiver = 0, other = 0;
+            foreach (var (id, c) in cells)
+            {
+                if (c.Neighbors == null) continue;
+                foreach (var nId in c.Neighbors)
+                {
+                    if (!cells.TryGetValue(nId, out var nbr)) continue;
+                    if (nbr.Neighbors != null && nbr.Neighbors.Contains(id)) continue;
+                    bool srcLand = Converter.Lemur.Entities.Cell.IsDryLand(c.Type);
+                    bool dstLand = Converter.Lemur.Entities.Cell.IsDryLand(nbr.Type);
+                    if (srcLand && dstLand)        landToLand++;
+                    else if (srcLand && nbr.IsRiverCell)  landToRiver++;
+                    else if (c.IsRiverCell && dstLand)    riverToLand++;
+                    else if (c.IsRiverCell && nbr.IsRiverCell) riverToRiver++;
+                    else other++;
+                }
+            }
+            Console.WriteLine($"One-way breakdown:");
+            Console.WriteLine($"  land  → land : {landToLand}");
+            Console.WriteLine($"  land  → river: {landToRiver}");
+            Console.WriteLine($"  river → land : {riverToLand}");
+            Console.WriteLine($"  river → river: {riverToRiver}");
+            Console.WriteLine($"  other        : {other}");
+
+            if (sampleOneWay.Count > 0)
+            {
+                Console.WriteLine("Sample of one-way edges:");
+                foreach (var s in sampleOneWay)
+                    Console.WriteLine($"  cell {s.src}{(s.srcRiver ? " (river)" : "")} → {s.dst}{(s.dstRiver ? " (river)" : "")}");
+            }
+            return 0;
         }
 
         // ── Coordinate transform from map metadata ───────────────────────────
@@ -365,6 +436,108 @@ static class Program
             roughImg.Depth = 8;
             await roughImg.WriteAsync(outputPath, MagickFormat.Png);
             Console.WriteLine($"Roughness map written to {outputPath} (Delaunay barycentric, terrain nodes only)");
+            return 0;
+        }
+
+        // ── Neighbour arrows: heightmap + arrows for one-way neighbour edges ──
+        if (neighborArrows)
+        {
+            int w = genParams.Width, h = genParams.Height;
+            const byte wl = HeightmapGenerator.CK3WaterLevel;
+
+            // Greyscale + blue water background, same as --coast-map / --river-map
+            var rgb = new byte[w * h * 3];
+            for (int idx = 0; idx < result.Core.Pixels.Length; idx++)
+            {
+                byte px = result.Core.Pixels[idx];
+                int o = idx * 3;
+                if (px < wl)
+                {
+                    rgb[o]     = 0;
+                    rgb[o + 1] = (byte)(px * 3);
+                    rgb[o + 2] = (byte)(120 + px * 6);
+                }
+                else
+                {
+                    rgb[o] = rgb[o + 1] = rgb[o + 2] = px;
+                }
+            }
+            var nsettings = new MagickReadSettings { Width = w, Height = h, ColorSpace = ColorSpace.sRGB, Format = MagickFormat.Rgb };
+            using var arrowsImg = new MagickImage(rgb, nsettings);
+            arrowsImg.Depth = 8;
+
+            // Cell centroid cache (pixel space) — computed lazily for cells we hit
+            var centroidCache = new Dictionary<int, (float px, float py)>();
+            (float, float) Centroid(Converter.Lemur.Entities.Cell c)
+            {
+                if (centroidCache.TryGetValue(c.Id, out var cached)) return cached;
+                float sx = 0, sy = 0; int n = 0;
+                if (c.GeoDataCoordinates != null)
+                {
+                    foreach (var v in c.GeoDataCoordinates)
+                    {
+                        if (v == null || v.Length < 2) continue;
+                        sx += v[0]; sy += v[1]; n++;
+                    }
+                }
+                float cgx = n > 0 ? sx / n : 0;
+                float cgy = n > 0 ? sy / n : 0;
+                float px = (cgx - genParams.LonW) / genParams.LonT * genParams.Width;
+                float py = genParams.Height - (cgy - genParams.LatS) / genParams.LatT * genParams.Height;
+                var tup = (px, py);
+                centroidCache[c.Id] = tup;
+                return tup;
+            }
+
+            void DrawArrow(Drawables d, float ax, float ay, float bx, float by, double headSize)
+            {
+                d.Line(ax, ay, bx, by);
+                double dx = bx - ax, dy = by - ay;
+                double len = Math.Sqrt(dx * dx + dy * dy);
+                if (len < 1) return;
+                double ux = dx / len, uy = dy / len;
+                double pxn = -uy, pyn = ux;
+                double backX = bx - ux * headSize, backY = by - uy * headSize;
+                double lx = backX + pxn * (headSize / 2), ly = backY + pyn * (headSize / 2);
+                double rx = backX - pxn * (headSize / 2), ry = backY - pyn * (headSize / 2);
+                d.Polygon(new[]
+                {
+                    new PointD(bx, by),
+                    new PointD(lx, ly),
+                    new PointD(rx, ry),
+                });
+            }
+
+            var arrows = new Drawables();
+            arrows.StrokeWidth(2);
+            int landToLand = 0, landToRiver = 0, riverToLand = 0, riverToRiver = 0, other = 0;
+            foreach (var (id, c) in cells)
+            {
+                if (c.Neighbors == null) continue;
+                foreach (var nId in c.Neighbors)
+                {
+                    if (!cells.TryGetValue(nId, out var nbr)) continue;
+                    if (nbr.Neighbors != null && nbr.Neighbors.Contains(id)) continue;
+
+                    bool srcLand = Converter.Lemur.Entities.Cell.IsDryLand(c.Type);
+                    bool dstLand = Converter.Lemur.Entities.Cell.IsDryLand(nbr.Type);
+                    MagickColor col;
+                    if (srcLand && dstLand)             { col = MagickColors.Red;     landToLand++; }
+                    else if (srcLand && nbr.IsRiverCell){ col = MagickColors.Orange;  landToRiver++; }
+                    else if (c.IsRiverCell && dstLand)  { col = MagickColors.Cyan;    riverToLand++; }
+                    else if (c.IsRiverCell && nbr.IsRiverCell){ col = MagickColors.Yellow; riverToRiver++; }
+                    else                                  { col = MagickColors.White;   other++; }
+
+                    var (ax, ay) = Centroid(c);
+                    var (bx, by) = Centroid(nbr);
+                    arrows.StrokeColor(col).FillColor(col);
+                    DrawArrow(arrows, ax, ay, bx, by, 8.0);
+                }
+            }
+            arrowsImg.Draw(arrows);
+            await arrowsImg.WriteAsync(outputPath!, MagickFormat.Png);
+            Console.WriteLine($"Neighbour arrows: red={landToLand} (land→land), orange={landToRiver}, cyan={riverToLand}, yellow={riverToRiver}, white={other}");
+            Console.WriteLine($"Written to {outputPath}");
             return 0;
         }
 
