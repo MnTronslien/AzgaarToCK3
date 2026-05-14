@@ -37,6 +37,7 @@ static class Program
         bool detailIntensity = false;
         bool paintDetailIndex = false;
         bool paintDetailIntensity = false;
+        int? alphaOverride = null;  // 0-255; null = leave painter default (255)
         bool checkNeighbors = false;
         bool neighborArrows = false;
         bool auditSharedEdges = false;
@@ -81,6 +82,7 @@ static class Program
                 case "--detail-intensity":        detailIntensity      = true; break;
                 case "--paint-detail-index":      paintDetailIndex     = true; break;
                 case "--paint-detail-intensity":  paintDetailIntensity = true; break;
+                case "--alpha":                   alphaOverride        = int.Parse(args[++i]); break;
                 case "--cells":           cellsDumpPath     = args[++i]; break;
                 case "--rivers-geojson":  riversGeojsonPath = args[++i]; break;
                 case "--river-cp-spacing": riverCpSpacing  = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
@@ -172,12 +174,22 @@ static class Program
             if (paintDetailIndex)
             {
                 using var indexImg = Converter.Lemur.Writers.TerrainMaskWriter.RenderDetailIndex(cells, coords);
+                if (alphaOverride.HasValue)
+                {
+                    indexImg.Evaluate(Channels.Alpha, EvaluateOperator.Set, new Percentage(alphaOverride.Value * 100.0 / 255.0));
+                    Console.WriteLine($"  alpha override: {alphaOverride.Value}/255 ({alphaOverride.Value * 100.0 / 255.0:F1}%)");
+                }
                 await indexImg.WriteAsync(Path.Combine(dir, "detail_index.tga"), MagickFormat.Tga);
                 Console.WriteLine($"detail_index.tga written to {dir}");
             }
             if (paintDetailIntensity)
             {
                 using var intensityImg = Converter.Lemur.Writers.TerrainMaskWriter.RenderDetailIntensity(cells, coords);
+                if (alphaOverride.HasValue)
+                {
+                    intensityImg.Evaluate(Channels.Alpha, EvaluateOperator.Set, new Percentage(alphaOverride.Value * 100.0 / 255.0));
+                    Console.WriteLine($"  alpha override: {alphaOverride.Value}/255 ({alphaOverride.Value * 100.0 / 255.0:F1}%)");
+                }
                 await intensityImg.WriteAsync(Path.Combine(dir, "detail_intensity.tga"), MagickFormat.Tga);
                 Console.WriteLine($"detail_intensity.tga written to {dir}");
             }
@@ -1280,6 +1292,8 @@ static class Program
                                              --json/--geojson (raw Azgaar cells) and --cells (post-pipeline cells).
                   --paint-detail-intensity   Render the real cell-painted detail_intensity.tga and exit.
                                              Same requirements as --paint-detail-index.
+                  --alpha N                  Override the alpha channel to value N (0-255) on every pixel.
+                                             Diagnostic — used with --paint-detail-* to test how CK3 interprets alpha.
                   --detail-intensity         (diagnostic) Write the row×column RGB checkerboard, no Azgaar data needed.
 
                   TerrainLab --compare <path-a> <path-b>
