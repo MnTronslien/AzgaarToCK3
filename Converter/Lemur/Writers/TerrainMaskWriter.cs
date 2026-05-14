@@ -184,14 +184,19 @@ public static class TerrainMaskWriter
         return img;
     }
 
+    // Alpha must be LOW (~4%) on this TGA. CK3 reads detail_intensity alpha as a per-pixel
+    // biome-blend strength: alpha=255 produces hard cell-shape edges (the hex artefact),
+    // alpha=10 yields smooth jagged transitions, alpha=0 suppresses the biome layer entirely.
+    // Channel must still exist (alpha=0 is fine on disk, but CK3 1.18 GPU-faults if there's
+    // no alpha channel at all). See detail-tga-alpha-experiments.md.
+    private const double DetailIntensityAlphaPercent = 10.0 / 255.0 * 100.0; // ≈ 3.9%
+
     public static MagickImage RenderDetailIntensity(IReadOnlyDictionary<int, L.Cell> cells, AzgaarMapCoordinates coords)
     {
         // Red channel = intensity: land cells painted red (R=255), sea remains black.
-        // Alpha=255 throughout — CK3 1.18 crashes the GPU driver if the TGA lacks an alpha channel.
         var readSettings = new MagickReadSettings { Width = L.Map.MapWidth, Height = L.Map.MapHeight };
         var img = new MagickImage("xc:black", readSettings);
         img.Alpha(AlphaOption.Set);
-        img.Evaluate(Channels.Alpha, EvaluateOperator.Set, new Percentage(100));
 
         var landCells = cells.Values
             .Where(c => L.Cell.IsDryLand(c.Type))
@@ -202,6 +207,11 @@ public static class TerrainMaskWriter
             var drawables = ImageUtility.GenerateCellPolygons(landCells, MagickColors.Red, coords);
             img.Draw(drawables);
         }
+
+        // Apply alpha AFTER drawing — `img.Draw` with an opaque colour overwrites alpha to 255 on
+        // every drawn pixel, defeating the blend. Setting alpha last ensures all pixels (sea + land)
+        // end up at the low blend value.
+        img.Evaluate(Channels.Alpha, EvaluateOperator.Set, new Percentage(DetailIntensityAlphaPercent));
 
         return img;
     }
