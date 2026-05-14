@@ -184,11 +184,16 @@ public static class TerrainMaskWriter
         return img;
     }
 
-    // Alpha must be LOW (~4%) on this TGA. CK3 reads detail_intensity alpha as a per-pixel
-    // biome-blend strength: alpha=255 produces hard cell-shape edges (the hex artefact),
-    // alpha=10 yields smooth jagged transitions, alpha=0 suppresses the biome layer entirely.
-    // Channel must still exist (alpha=0 is fine on disk, but CK3 1.18 GPU-faults if there's
-    // no alpha channel at all). See detail-tga-alpha-experiments.md.
+    // detail_index + detail_intensity are a 4-LAYER SPLAT MAP, not single-channel images.
+    // Each pixel encodes up to 4 (biome index, blend weight) pairs across R/G/B/A.
+    // We currently only populate the R layer; G/B/A are sentinel "unused" but we paint them
+    // anyway with constant values. Anything ≠ 0 in an unused intensity channel tells the
+    // renderer to blend the unused-layer texture at that weight → visible artefacts.
+    //
+    // alpha=10 here is a pragmatic compromise: 0 would be correct but uniform-zero across
+    // the whole image trips a "no data" fallback in CK3. See CK3_MAP_MODDING_FACTS.md
+    // (detail_index.tga + detail_intensity.tga section) and detail-tga-alpha-experiments.md
+    // for the full splat-map model and the experiment evidence.
     private const double DetailIntensityAlphaPercent = 10.0 / 255.0 * 100.0; // ≈ 3.9%
 
     public static MagickImage RenderDetailIntensity(IReadOnlyDictionary<int, L.Cell> cells, AzgaarMapCoordinates coords)

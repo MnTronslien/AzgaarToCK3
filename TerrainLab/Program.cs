@@ -45,6 +45,8 @@ static class Program
         bool vertexDebug = false;
         string? vertexRegion = null;
         string? vertexRiver = null;
+        string? sampleTgaPath = null;
+        int sampleTgaCount = 32;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -83,6 +85,8 @@ static class Program
                 case "--paint-detail-index":      paintDetailIndex     = true; break;
                 case "--paint-detail-intensity":  paintDetailIntensity = true; break;
                 case "--alpha":                   alphaOverride        = int.Parse(args[++i]); break;
+                case "--sample-tga":              sampleTgaPath        = args[++i]; break;
+                case "--samples":                 sampleTgaCount       = int.Parse(args[++i]); break;
                 case "--cells":           cellsDumpPath     = args[++i]; break;
                 case "--rivers-geojson":  riversGeojsonPath = args[++i]; break;
                 case "--river-cp-spacing": riverCpSpacing  = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
@@ -95,6 +99,12 @@ static class Program
                     PrintUsage();
                     return 1;
             }
+        }
+
+        // ── TGA pixel sampling mode — no Azgaar data needed ──────────────────
+        if (sampleTgaPath != null)
+        {
+            return SampleTgaPixels(sampleTgaPath, sampleTgaCount);
         }
 
         // ── Pixel comparison mode — no Azgaar data needed ────────────────────
@@ -1205,6 +1215,72 @@ static class Program
                 ControlPoints: f.geometry.coordinates));
         }
         return result;
+    }
+
+    // Random-pixel sampler for any RGBA image. Useful for inspecting how vanilla CK3 detail TGAs
+    // encode information across the four channels — answers questions like "is the G channel
+    // constant 255 everywhere, or does it carry data?"
+    static int SampleTgaPixels(string path, int count)
+    {
+        using var img = new MagickImage(path);
+        Console.WriteLine($"File: {path}");
+        Console.WriteLine($"Dimensions: {img.Width}×{img.Height}, ColorSpace={img.ColorSpace}, ChannelCount={img.ChannelCount}");
+        Console.WriteLine($"HasAlpha: {img.HasAlpha}");
+
+        var pixels = img.GetPixelsUnsafe();
+        var bpp = (int)img.ChannelCount;
+        var rng = new Random(42);  // deterministic for reproducibility
+
+        // Channel histograms — useful for spotting constants vs variation.
+        var rHist = new long[256]; var gHist = new long[256];
+        var bHist = new long[256]; var aHist = new long[256];
+
+        // Sample N random pixels for detailed inspection.
+        Console.WriteLine($"\n--- {count} random pixel samples ---");
+        Console.WriteLine("    x       y     R    G    B    A");
+        // Magick.NET-Q8 stores each channel as a byte already (Quantum = byte), so no bit-shift.
+        for (int i = 0; i < count; i++)
+        {
+            int x = rng.Next((int)img.Width);
+            int y = rng.Next((int)img.Height);
+            var px = pixels.GetPixel(x, y).ToArray()!;
+            byte r = px.Length > 0 ? px[0] : (byte)0;
+            byte g = px.Length > 1 ? px[1] : (byte)0;
+            byte b = px.Length > 2 ? px[2] : (byte)0;
+            byte a = px.Length > 3 ? px[3] : (byte)255;
+            Console.WriteLine($"{x,7} {y,7}   {r,3}  {g,3}  {b,3}  {a,3}");
+        }
+
+        // Full-image histograms — scan every pixel, useful for "is this channel constant?"
+        Console.WriteLine("\n--- Full-image channel histograms (top 5 values per channel) ---");
+        int w = (int)img.Width, h = (int)img.Height;
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                var px = pixels.GetPixel(x, y).ToArray()!;
+                if (px.Length > 0) rHist[px[0]]++;
+                if (px.Length > 1) gHist[px[1]]++;
+                if (px.Length > 2) bHist[px[2]]++;
+                if (px.Length > 3) aHist[px[3]]++;
+            }
+        }
+        PrintTop("R", rHist, w * h);
+        PrintTop("G", gHist, w * h);
+        PrintTop("B", bHist, w * h);
+        PrintTop("A", aHist, w * h);
+        return 0;
+    }
+
+    static void PrintTop(string channel, long[] hist, long total)
+    {
+        var topN = hist.Select((c, v) => (Value: v, Count: c))
+            .Where(t => t.Count > 0)
+            .OrderByDescending(t => t.Count).Take(5).ToList();
+        int distinct = hist.Count(c => c > 0);
+        Console.WriteLine($"  {channel}: {distinct} distinct values");
+        foreach (var (v, c) in topN)
+            Console.WriteLine($"     {v,3}: {c,12:N0} ({100.0 * c / total:F2}%)");
     }
 
     static int CompareImages(string pathA, string pathB)
