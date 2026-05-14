@@ -135,7 +135,6 @@ static class Program
         // ── Load cells ───────────────────────────────────────────────────────
         IReadOnlyDictionary<int, Converter.Lemur.Entities.Cell> cells;
         float lonW, lonT, latS, latT;
-        Converter.Lemur.Deserialization.AzgaarJsonMap? loadedJsonMap = null;
 
         if (cellsDumpPath != null)
         {
@@ -150,9 +149,9 @@ static class Program
         {
             Console.WriteLine("Loading Azgaar data.");
             var geoMap  = await AzgaarLoader.LoadGeoJsonAsync(geojsonPath);
-            loadedJsonMap = await AzgaarLoader.LoadJsonAsync(jsonPath);
-            cells = AzgaarLoader.BuildCells(geoMap, loadedJsonMap);
-            var mc = loadedJsonMap.mapCoordinates;
+            var jsonMap = await AzgaarLoader.LoadJsonAsync(jsonPath);
+            cells = AzgaarLoader.BuildCells(geoMap, jsonMap);
+            var mc = jsonMap.mapCoordinates;
             lonW = mc.lonW; lonT = mc.lonT;
             latS = mc.latS; latT = mc.latT;
             Console.WriteLine($"Loaded {cells.Count} cells.");
@@ -161,30 +160,24 @@ static class Program
         // ── Paint detail TGAs (real cell-painted versions for hot-reload iteration) ──
         if (paintDetailIndex || paintDetailIntensity)
         {
-            if (loadedJsonMap == null)
-            {
-                Console.Error.WriteLine("--paint-detail-* requires --json/--geojson (not --cells); the painter needs the full JsonMap for coordinate transforms.");
-                return 1;
-            }
             var dir = terrainOut ?? Path.GetDirectoryName(outputPath!)!;
             Directory.CreateDirectory(dir);
 
-            var map = new Converter.Lemur.Entities.Map
-            {
-                JsonMap = loadedJsonMap,
-                Settings = Converter.Settings.Instance!,
-                Cells = cells.ToDictionary(kv => kv.Key, kv => kv.Value),
-            };
+            // AzgaarMapCoordinates is a positional record (latT, latN, latS, lonT, lonW, lonE).
+            // Cell dumps don't store latN/lonE so we synthesize them — painters only read latT/latS/lonT/lonW.
+            var coords = new Converter.Lemur.Deserialization.AzgaarMapCoordinates(
+                latT: latT, latN: latS + latT, latS: latS,
+                lonT: lonT, lonW: lonW,         lonE: lonW + lonT);
 
             if (paintDetailIndex)
             {
-                using var indexImg = Converter.Lemur.Writers.TerrainMaskWriter.RenderDetailIndex(map);
+                using var indexImg = Converter.Lemur.Writers.TerrainMaskWriter.RenderDetailIndex(cells, coords);
                 await indexImg.WriteAsync(Path.Combine(dir, "detail_index.tga"), MagickFormat.Tga);
                 Console.WriteLine($"detail_index.tga written to {dir}");
             }
             if (paintDetailIntensity)
             {
-                using var intensityImg = Converter.Lemur.Writers.TerrainMaskWriter.RenderDetailIntensity(map);
+                using var intensityImg = Converter.Lemur.Writers.TerrainMaskWriter.RenderDetailIntensity(cells, coords);
                 await intensityImg.WriteAsync(Path.Combine(dir, "detail_intensity.tga"), MagickFormat.Tga);
                 Console.WriteLine($"detail_intensity.tga written to {dir}");
             }
@@ -1283,7 +1276,8 @@ static class Program
                                         Default: 5. Lower = denser spine, more CDT cost, fewer rasterization gaps.
 
                   --paint-detail-index       Render the real cell-painted detail_index.tga and exit.
-                                             Writes to --terrain-out (or dirname of --output). Requires --json/--geojson.
+                                             Writes to --terrain-out (or dirname of --output). Accepts both
+                                             --json/--geojson (raw Azgaar cells) and --cells (post-pipeline cells).
                   --paint-detail-intensity   Render the real cell-painted detail_intensity.tga and exit.
                                              Same requirements as --paint-detail-index.
                   --detail-intensity         (diagnostic) Write the row×column RGB checkerboard, no Azgaar data needed.

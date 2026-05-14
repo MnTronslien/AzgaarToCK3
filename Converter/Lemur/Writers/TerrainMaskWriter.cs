@@ -1,3 +1,4 @@
+using Converter.Lemur.Deserialization;
 using ImageMagick;
 using L = Converter.Lemur.Entities;
 
@@ -62,12 +63,12 @@ public static class TerrainMaskWriter
             WriteMasksGenAsync(tcsSandboxPath, terrainDir, blankPath),
             Task.Run(async () =>
             {
-                using var img = RenderDetailIndex(map);
+                using var img = RenderDetailIndex(map.Cells!, map.JsonMap.mapCoordinates);
                 await img.WriteAsync(Helper.GetPath(terrainDir, "detail_index.tga"), MagickFormat.Tga);
             }),
             Task.Run(async () =>
             {
-                using var img = RenderDetailIntensity(map);
+                using var img = RenderDetailIntensity(map.Cells!, map.JsonMap.mapCoordinates);
                 await img.WriteAsync(Helper.GetPath(terrainDir, "detail_intensity.tga"), MagickFormat.Tga);
             })
         );
@@ -158,9 +159,10 @@ public static class TerrainMaskWriter
         [12] = 14,  // Wetland            → floodplains_01
     };
 
-    // Lifted to public static so TerrainLab can call directly for fast iteration on the
-    // cell-painting algorithm without running the full converter. Caller disposes.
-    public static MagickImage RenderDetailIndex(L.Map map)
+    // Public static so TerrainLab can call directly for fast iteration on the cell-painting
+    // algorithm without running the full converter. Takes raw cells + coord transform — no Map
+    // dependency, so cell dumps (which don't carry a full JsonMap) work too. Caller disposes.
+    public static MagickImage RenderDetailIndex(IReadOnlyDictionary<int, L.Cell> cells, AzgaarMapCoordinates coords)
     {
         // R channel = CK3 biome index; G=255 B=255 per upstream BiomeConverter convention.
         // Sea background = mud_wet_01 (index 6) — CK3 1.18 renders index 255 (all-white) as wrong colour.
@@ -169,20 +171,20 @@ public static class TerrainMaskWriter
         img.Alpha(AlphaOption.Set);
         img.Evaluate(Channels.Alpha, EvaluateOperator.Set, new Percentage(100));
 
-        foreach (var group in map.Cells!.Values
+        foreach (var group in cells.Values
             .Where(c => L.Cell.IsDryLand(c.Type))
             .GroupBy(c => c.Biome)
             .Where(g => AzgaarBiomeToCk3Index.ContainsKey(g.Key)))
         {
             var colour = new MagickColor($"#{AzgaarBiomeToCk3Index[group.Key]:X2}FFFF");
-            var drawables = ImageUtility.GenerateCellPolygons(group.ToList(), colour, map);
+            var drawables = ImageUtility.GenerateCellPolygons(group.ToList(), colour, coords);
             img.Draw(drawables);
         }
 
         return img;
     }
 
-    public static MagickImage RenderDetailIntensity(L.Map map)
+    public static MagickImage RenderDetailIntensity(IReadOnlyDictionary<int, L.Cell> cells, AzgaarMapCoordinates coords)
     {
         // Red channel = intensity: land cells painted red (R=255), sea remains black.
         // Alpha=255 throughout — CK3 1.18 crashes the GPU driver if the TGA lacks an alpha channel.
@@ -191,13 +193,13 @@ public static class TerrainMaskWriter
         img.Alpha(AlphaOption.Set);
         img.Evaluate(Channels.Alpha, EvaluateOperator.Set, new Percentage(100));
 
-        var landCells = map.Cells!.Values
+        var landCells = cells.Values
             .Where(c => L.Cell.IsDryLand(c.Type))
             .ToList();
 
         if (landCells.Count > 0)
         {
-            var drawables = ImageUtility.GenerateCellPolygons(landCells, MagickColors.Red, map);
+            var drawables = ImageUtility.GenerateCellPolygons(landCells, MagickColors.Red, coords);
             img.Draw(drawables);
         }
 
