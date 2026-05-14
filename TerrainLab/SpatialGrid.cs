@@ -1,4 +1,4 @@
-namespace HeightmapLab;
+namespace TerrainLab;
 
 /// <summary>
 /// Fast 2D spatial index for nearest-N lookups.

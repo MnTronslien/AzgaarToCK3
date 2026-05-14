@@ -1,4 +1,4 @@
-# HeightmapLab
+# TerrainLab
 
 Visualization and diagnostic harness for the heightmap generation algorithm.
 
@@ -11,10 +11,10 @@ automatically on every generation and print to stdout.
 ## Architecture
 
 The algorithm lives in **`Converter/Lemur/Writers/HeightmapAlgorithm.cs`**,
-not in this project. HeightmapLab is a thin shim:
+not in this project. TerrainLab is a thin shim:
 
 ```
-HeightmapLab/
+TerrainLab/
   Program.cs             CLI + visualisation modes
   HeightmapGenerator.cs  Thin shim: calls HeightmapAlgorithm.Generate(),
                          then runs Lab-only diagnostics on the result
@@ -25,7 +25,7 @@ Converter/Lemur/Writers/
   HeightmapSpatialGrid.cs  Generic spatial index used inside the algorithm
 ```
 
-**Iteration workflow:** edit `HeightmapAlgorithm.cs` → build → run HeightmapLab.
+**Iteration workflow:** edit `HeightmapAlgorithm.cs` → build → run TerrainLab.
 No porting step needed; the Converter and the Lab always run the same code.
 
 The Lab adds diagnostics that do not run in production:
@@ -39,7 +39,7 @@ The Lab adds diagnostics that do not run in production:
 ## Usage
 
 ```
-HeightmapLab --json <path> --geojson <path> --output <path.png> [options]
+TerrainLab --json <path> --geojson <path> --output <path.png> [options]
 ```
 
 ### Generation options
@@ -76,7 +76,7 @@ HeightmapLab --json <path> --geojson <path> --output <path.png> [options]
 ### Utility modes (no generation)
 
 ```
-HeightmapLab --compare <path-a> <path-b>
+TerrainLab --compare <path-a> <path-b>
 ```
 
 Pixel-by-pixel comparison of two grayscale PNGs. Exits 0 if identical, 1 if any
@@ -212,7 +212,7 @@ public record Params(
 
 ## Porting guide for sister repos
 
-HeightmapLab and `HeightmapAlgorithm.cs` can be adapted to any project that
+TerrainLab and `HeightmapAlgorithm.cs` can be adapted to any project that
 exports Azgaar cell data. The algorithm has two external dependencies:
 
 - **NetTopologySuite** — `ConformingDelaunayTriangulationBuilder`, `GeometryFactory`,
@@ -274,13 +274,13 @@ After porting, use `--compare` to verify zero drift:
 
 ```
 # Baseline from original
-HeightmapLab --json … --geojson … --output baseline.png
+TerrainLab --json … --geojson … --output baseline.png
 
 # Post-port from your build
 YourTool --json … --output result.png
 
 # Compare (exits 0 = identical)
-HeightmapLab --compare baseline.png result.png
+TerrainLab --compare baseline.png result.png
 ```
 
 The comparison reads both images as 8-bit greyscale and reports differing pixel

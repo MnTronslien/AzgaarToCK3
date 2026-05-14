@@ -443,7 +443,7 @@ internal class Program
         Console.WriteLine("  --validate-provinces, -vp <path> Validate a provinces.png against CK3 requirements and exit");
         Console.WriteLine("  --definition-csv, -dc <path>     Cross-check provinces.png against a definition.csv (use with -vp)");
         Console.WriteLine("  --dump-cells <path.json>         Load data, run major river insertion, write cell dump JSON and exit");
-        Console.WriteLine("                                   Use with HeightmapLab --cells to iterate on heightmap with river data");
+        Console.WriteLine("                                   Use with TerrainLab --cells to iterate on heightmap with river data");
         Console.WriteLine("  --manifest <dir>                 Hash all files in <dir> and print a sorted SHA256 manifest");
         Console.WriteLine();
         Console.WriteLine("Other:");

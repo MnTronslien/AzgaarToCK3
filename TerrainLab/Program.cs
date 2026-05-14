@@ -5,7 +5,7 @@ using ImageMagick;
 using NetTopologySuite.Geometries;
 using NetTopologySuite.Triangulate;
 
-namespace HeightmapLab;
+namespace TerrainLab;
 
 static class Program
 {
@@ -501,7 +501,7 @@ static class Program
         List<HeightmapAlgorithm.RiverInput>? riverInputs = null;
         if (!string.IsNullOrWhiteSpace(riversGeojsonPath))
         {
-            // Settings.Instance may be null in HeightmapLab (no settings.json adjacent to the lab exe).
+            // Settings.Instance may be null in TerrainLab (no settings.json adjacent to the lab exe).
             float threshold = Settings.Instance?.MajorRiverThreshold ?? 300f;
             riverInputs = LoadRiverInputs(riversGeojsonPath, threshold);
             Console.WriteLine($"Loaded {riverInputs.Count} major rivers from {Path.GetFileName(riversGeojsonPath)} (threshold {threshold}).");
@@ -1223,7 +1223,7 @@ static class Program
     static void PrintUsage()
     {
         Console.WriteLine("""
-            Usage: HeightmapLab --json <path> --geojson <path> --output <path.png>
+            Usage: TerrainLab --json <path> --geojson <path> --output <path.png>
                   OR             --cells <dump.json>           --output <path.png>
                                 [--seed N]            default: 42
                                 [--strength F]        displacement strength, default: 0.25
@@ -1244,7 +1244,7 @@ static class Program
                   --river-cp-spacing F  Densify control points to ≤ F pixels apart along each river polyline.
                                         Default: 5. Lower = denser spine, more CDT cost, fewer rasterization gaps.
 
-                  HeightmapLab --compare <path-a> <path-b>
+                  TerrainLab --compare <path-a> <path-b>
                                 Pixel-by-pixel comparison of two grayscale PNGs. Exits 0 if identical.
             """);
     }

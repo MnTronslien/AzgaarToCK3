@@ -3,7 +3,7 @@ using Converter.Lemur.Writers;
 using NetTopologySuite.Geometries;
 using NetTopologySuite.Triangulate;
 
-namespace HeightmapLab;
+namespace TerrainLab;
 
 // Thin Lab shim: delegates algorithm to HeightmapAlgorithm in the Converter, then
 // runs Lab-only diagnostics on the result. Program.cs accesses algorithm output via
