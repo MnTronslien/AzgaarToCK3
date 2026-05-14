@@ -35,6 +35,8 @@ static class Program
         bool coastMap = false;
         bool riverMap = false;
         bool detailIntensity = false;
+        bool paintDetailIndex = false;
+        bool paintDetailIntensity = false;
         bool checkNeighbors = false;
         bool neighborArrows = false;
         bool auditSharedEdges = false;
@@ -76,7 +78,9 @@ static class Program
                 case "--vertex-debug":        vertexDebug      = true; break;
                 case "--region":              vertexRegion     = args[++i]; break;
                 case "--river-cell":          vertexRiver      = args[++i]; break;
-                case "--detail-intensity":    detailIntensity  = true; break;
+                case "--detail-intensity":        detailIntensity      = true; break;
+                case "--paint-detail-index":      paintDetailIndex     = true; break;
+                case "--paint-detail-intensity":  paintDetailIntensity = true; break;
                 case "--cells":           cellsDumpPath     = args[++i]; break;
                 case "--rivers-geojson":  riversGeojsonPath = args[++i]; break;
                 case "--river-cp-spacing": riverCpSpacing  = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
@@ -131,6 +135,7 @@ static class Program
         // ── Load cells ───────────────────────────────────────────────────────
         IReadOnlyDictionary<int, Converter.Lemur.Entities.Cell> cells;
         float lonW, lonT, latS, latT;
+        Converter.Lemur.Deserialization.AzgaarJsonMap? loadedJsonMap = null;
 
         if (cellsDumpPath != null)
         {
@@ -145,12 +150,45 @@ static class Program
         {
             Console.WriteLine("Loading Azgaar data.");
             var geoMap  = await AzgaarLoader.LoadGeoJsonAsync(geojsonPath);
-            var jsonMap = await AzgaarLoader.LoadJsonAsync(jsonPath);
-            cells = AzgaarLoader.BuildCells(geoMap, jsonMap);
-            var mc = jsonMap.mapCoordinates;
+            loadedJsonMap = await AzgaarLoader.LoadJsonAsync(jsonPath);
+            cells = AzgaarLoader.BuildCells(geoMap, loadedJsonMap);
+            var mc = loadedJsonMap.mapCoordinates;
             lonW = mc.lonW; lonT = mc.lonT;
             latS = mc.latS; latT = mc.latT;
             Console.WriteLine($"Loaded {cells.Count} cells.");
+        }
+
+        // ── Paint detail TGAs (real cell-painted versions for hot-reload iteration) ──
+        if (paintDetailIndex || paintDetailIntensity)
+        {
+            if (loadedJsonMap == null)
+            {
+                Console.Error.WriteLine("--paint-detail-* requires --json/--geojson (not --cells); the painter needs the full JsonMap for coordinate transforms.");
+                return 1;
+            }
+            var dir = terrainOut ?? Path.GetDirectoryName(outputPath!)!;
+            Directory.CreateDirectory(dir);
+
+            var map = new Converter.Lemur.Entities.Map
+            {
+                JsonMap = loadedJsonMap,
+                Settings = Converter.Settings.Instance!,
+                Cells = cells.ToDictionary(kv => kv.Key, kv => kv.Value),
+            };
+
+            if (paintDetailIndex)
+            {
+                using var indexImg = Converter.Lemur.Writers.TerrainMaskWriter.RenderDetailIndex(map);
+                await indexImg.WriteAsync(Path.Combine(dir, "detail_index.tga"), MagickFormat.Tga);
+                Console.WriteLine($"detail_index.tga written to {dir}");
+            }
+            if (paintDetailIntensity)
+            {
+                using var intensityImg = Converter.Lemur.Writers.TerrainMaskWriter.RenderDetailIntensity(map);
+                await intensityImg.WriteAsync(Path.Combine(dir, "detail_intensity.tga"), MagickFormat.Tga);
+                Console.WriteLine($"detail_intensity.tga written to {dir}");
+            }
+            return 0;
         }
 
         // ── Neighbour-reciprocity audit (diagnostic, exits after) ───────────
@@ -1243,6 +1281,12 @@ static class Program
                                         from settings.json. Compatible with both --cells and --json/--geojson modes.
                   --river-cp-spacing F  Densify control points to ≤ F pixels apart along each river polyline.
                                         Default: 5. Lower = denser spine, more CDT cost, fewer rasterization gaps.
+
+                  --paint-detail-index       Render the real cell-painted detail_index.tga and exit.
+                                             Writes to --terrain-out (or dirname of --output). Requires --json/--geojson.
+                  --paint-detail-intensity   Render the real cell-painted detail_intensity.tga and exit.
+                                             Same requirements as --paint-detail-index.
+                  --detail-intensity         (diagnostic) Write the row×column RGB checkerboard, no Azgaar data needed.
 
                   TerrainLab --compare <path-a> <path-b>
                                 Pixel-by-pixel comparison of two grayscale PNGs. Exits 0 if identical.

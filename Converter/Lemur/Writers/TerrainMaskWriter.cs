@@ -60,8 +60,16 @@ public static class TerrainMaskWriter
             Task.WhenAll(allMasks.Select(entry => WriteBiomeMask(entry, masksDir, readSettings, map, blankPath))),
             WriteColormapAsync(tcsSandboxPath, terrainDir),
             WriteMasksGenAsync(tcsSandboxPath, terrainDir, blankPath),
-            WriteDetailIndexAsync(terrainDir, map, readSettings),
-            WriteDetailIntensityAsync(terrainDir, map, readSettings)
+            Task.Run(async () =>
+            {
+                using var img = RenderDetailIndex(map);
+                await img.WriteAsync(Helper.GetPath(terrainDir, "detail_index.tga"), MagickFormat.Tga);
+            }),
+            Task.Run(async () =>
+            {
+                using var img = RenderDetailIntensity(map);
+                await img.WriteAsync(Helper.GetPath(terrainDir, "detail_intensity.tga"), MagickFormat.Tga);
+            })
         );
 
         Logger.Info($"Wrote {allMasks.Count} terrain mask PNGs ({masks.Count} biome + {blanks.Count} blank) + colormap.dds + masks_gen + detail TGAs to gfx/map/terrain/");
@@ -150,11 +158,14 @@ public static class TerrainMaskWriter
         [12] = 14,  // Wetland            → floodplains_01
     };
 
-    private static async Task WriteDetailIndexAsync(string terrainDir, L.Map map, MagickReadSettings readSettings)
+    // Lifted to public static so TerrainLab can call directly for fast iteration on the
+    // cell-painting algorithm without running the full converter. Caller disposes.
+    public static MagickImage RenderDetailIndex(L.Map map)
     {
         // R channel = CK3 biome index; G=255 B=255 per upstream BiomeConverter convention.
         // Sea background = mud_wet_01 (index 6) — CK3 1.18 renders index 255 (all-white) as wrong colour.
-        using var img = new MagickImage("xc:#06FFFF", readSettings);
+        var readSettings = new MagickReadSettings { Width = L.Map.MapWidth, Height = L.Map.MapHeight };
+        var img = new MagickImage("xc:#06FFFF", readSettings);
         img.Alpha(AlphaOption.Set);
         img.Evaluate(Channels.Alpha, EvaluateOperator.Set, new Percentage(100));
 
@@ -168,14 +179,15 @@ public static class TerrainMaskWriter
             img.Draw(drawables);
         }
 
-        await img.WriteAsync(Helper.GetPath(terrainDir, "detail_index.tga"), MagickFormat.Tga);
+        return img;
     }
 
-    private static async Task WriteDetailIntensityAsync(string terrainDir, L.Map map, MagickReadSettings readSettings)
+    public static MagickImage RenderDetailIntensity(L.Map map)
     {
         // Red channel = intensity: land cells painted red (R=255), sea remains black.
         // Alpha=255 throughout — CK3 1.18 crashes the GPU driver if the TGA lacks an alpha channel.
-        using var img = new MagickImage("xc:black", readSettings);
+        var readSettings = new MagickReadSettings { Width = L.Map.MapWidth, Height = L.Map.MapHeight };
+        var img = new MagickImage("xc:black", readSettings);
         img.Alpha(AlphaOption.Set);
         img.Evaluate(Channels.Alpha, EvaluateOperator.Set, new Percentage(100));
 
@@ -189,6 +201,6 @@ public static class TerrainMaskWriter
             img.Draw(drawables);
         }
 
-        await img.WriteAsync(Helper.GetPath(terrainDir, "detail_intensity.tga"), MagickFormat.Tga);
+        return img;
     }
 }
