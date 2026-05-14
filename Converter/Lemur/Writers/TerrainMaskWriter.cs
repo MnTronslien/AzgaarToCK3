@@ -1,4 +1,5 @@
 using Converter.Lemur.Deserialization;
+using Converter.Lemur.Splats;
 using ImageMagick;
 using L = Converter.Lemur.Entities;
 
@@ -141,9 +142,10 @@ public static class TerrainMaskWriter
         Logger.Verbose($"Generated {fileNames.Count} blank masks_gen PNGs at {L.Map.MapWidth}×{L.Map.MapHeight}");
     }
 
-    // Azgaar biome index → CK3 biome index (R channel of detail_index.tga).
+    // Azgaar biome index → CK3 biome index (used in detail_index.tga splat layers).
     // Indices match the CK3Biome enum in upstream BiomeConverter.
-    private static readonly Dictionary<int, int> AzgaarBiomeToCk3Index = new()
+    // Internal so SplatmapBuilder can share the same mapping.
+    internal static readonly Dictionary<int, int> AzgaarBiomeToCk3Index = new()
     {
         [1]  = 32,  // HotDesert          → desert_01
         [2]  = 33,  // ColdDesert         → desert_02
@@ -159,65 +161,62 @@ public static class TerrainMaskWriter
         [12] = 14,  // Wetland            → floodplains_01
     };
 
-    // Public static so TerrainLab can call directly for fast iteration on the cell-painting
-    // algorithm without running the full converter. Takes raw cells + coord transform — no Map
-    // dependency, so cell dumps (which don't carry a full JsonMap) work too. Caller disposes.
+    // Public static so TerrainLab can call directly for fast iteration. Takes raw cells + coord
+    // transform — no Map dependency, so cell dumps work too. Caller disposes.
+    //
+    // M1 (current): both files are built from the same Splatmap. Per-pixel rule is Delaunay-
+    // barycentric over land-cell centroids — see SplatmapBuilder.BuildM1 and the canonical
+    // splat-map write-up in CK3_MAP_MODDING_FACTS.md.
+    //
+    // detail_index R/G/B/A = biome index per layer (255 = "unused" sentinel).
+    // detail_intensity R/G/B/A = blend weight per layer (sums to ~255 per pixel from barycentric).
+    // The two files MUST agree slot-for-slot: same SplatPixel drives both.
     public static MagickImage RenderDetailIndex(IReadOnlyDictionary<int, L.Cell> cells, AzgaarMapCoordinates coords)
     {
-        // R channel = CK3 biome index; G=255 B=255 per upstream BiomeConverter convention.
-        // Sea background = mud_wet_01 (index 6) — CK3 1.18 renders index 255 (all-white) as wrong colour.
-        var readSettings = new MagickReadSettings { Width = L.Map.MapWidth, Height = L.Map.MapHeight };
-        var img = new MagickImage("xc:#06FFFF", readSettings);
-        img.Alpha(AlphaOption.Set);
-        img.Evaluate(Channels.Alpha, EvaluateOperator.Set, new Percentage(100));
-
-        foreach (var group in cells.Values
-            .Where(c => L.Cell.IsDryLand(c.Type))
-            .GroupBy(c => c.Biome)
-            .Where(g => AzgaarBiomeToCk3Index.ContainsKey(g.Key)))
-        {
-            var colour = new MagickColor($"#{AzgaarBiomeToCk3Index[group.Key]:X2}FFFF");
-            var drawables = ImageUtility.GenerateCellPolygons(group.ToList(), colour, coords);
-            img.Draw(drawables);
-        }
-
-        return img;
+        var splat = SplatmapBuilder.BuildM1(cells, coords);
+        return SerialiseSplat(splat, intensityNotIndex: false);
     }
-
-    // detail_index + detail_intensity are a 4-LAYER SPLAT MAP, not single-channel images.
-    // Each pixel encodes up to 4 (biome index, blend weight) pairs across R/G/B/A.
-    // We currently only populate the R layer; G/B/A are sentinel "unused" but we paint them
-    // anyway with constant values. Anything ≠ 0 in an unused intensity channel tells the
-    // renderer to blend the unused-layer texture at that weight → visible artefacts.
-    //
-    // alpha=10 here is a pragmatic compromise: 0 would be correct but uniform-zero across
-    // the whole image trips a "no data" fallback in CK3. See CK3_MAP_MODDING_FACTS.md
-    // (detail_index.tga + detail_intensity.tga section) and detail-tga-alpha-experiments.md
-    // for the full splat-map model and the experiment evidence.
-    private const double DetailIntensityAlphaPercent = 10.0 / 255.0 * 100.0; // ≈ 3.9%
 
     public static MagickImage RenderDetailIntensity(IReadOnlyDictionary<int, L.Cell> cells, AzgaarMapCoordinates coords)
     {
-        // Red channel = intensity: land cells painted red (R=255), sea remains black.
-        var readSettings = new MagickReadSettings { Width = L.Map.MapWidth, Height = L.Map.MapHeight };
-        var img = new MagickImage("xc:black", readSettings);
-        img.Alpha(AlphaOption.Set);
+        var splat = SplatmapBuilder.BuildM1(cells, coords);
+        return SerialiseSplat(splat, intensityNotIndex: true);
+    }
 
-        var landCells = cells.Values
-            .Where(c => L.Cell.IsDryLand(c.Type))
-            .ToList();
-
-        if (landCells.Count > 0)
+    // Packs the 4-layer Splatmap into a single 8-bit RGBA MagickImage.
+    // When intensityNotIndex=false: writes BiomeIndex of each layer into R/G/B/A.
+    // When intensityNotIndex=true:  writes Intensity   of each layer into R/G/B/A.
+    private static MagickImage SerialiseSplat(Splatmap splat, bool intensityNotIndex)
+    {
+        int w = splat.Width, h = splat.Height;
+        var bytes = new byte[w * h * 4];
+        for (int i = 0; i < splat.Pixels.Length; i++)
         {
-            var drawables = ImageUtility.GenerateCellPolygons(landCells, MagickColors.Red, coords);
-            img.Draw(drawables);
+            var p = splat.Pixels[i];
+            int o = i * 4;
+            if (intensityNotIndex)
+            {
+                bytes[o    ] = p.L0.Intensity;
+                bytes[o + 1] = p.L1.Intensity;
+                bytes[o + 2] = p.L2.Intensity;
+                bytes[o + 3] = p.L3.Intensity;
+            }
+            else
+            {
+                bytes[o    ] = p.L0.BiomeIndex;
+                bytes[o + 1] = p.L1.BiomeIndex;
+                bytes[o + 2] = p.L2.BiomeIndex;
+                bytes[o + 3] = p.L3.BiomeIndex;
+            }
         }
 
-        // Apply alpha AFTER drawing — `img.Draw` with an opaque colour overwrites alpha to 255 on
-        // every drawn pixel, defeating the blend. Setting alpha last ensures all pixels (sea + land)
-        // end up at the low blend value.
-        img.Evaluate(Channels.Alpha, EvaluateOperator.Set, new Percentage(DetailIntensityAlphaPercent));
-
-        return img;
+        var settings = new MagickReadSettings
+        {
+            Width = w,
+            Height = h,
+            Format = MagickFormat.Rgba,
+            ColorSpace = ColorSpace.sRGB,
+        };
+        return new MagickImage(bytes, settings);
     }
 }

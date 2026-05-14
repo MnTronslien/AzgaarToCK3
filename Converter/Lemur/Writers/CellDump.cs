@@ -14,7 +14,8 @@ public static class CellDump
         string Type,
         bool IsRiverCell,
         int[] Neighbors,
-        float[][] GeoDataCoordinates);
+        float[][] GeoDataCoordinates,
+        int Biome = 0);  // optional for back-compat with old dumps; defaults to 0 (no biome)
 
     public record DumpFile(MapCoords Coords, CellRecord[] Cells);
 
@@ -34,7 +35,8 @@ public static class CellDump
                 c.Type.ToString(),
                 c.IsRiverCell,
                 c.Neighbors,
-                c.GeoDataCoordinates))
+                c.GeoDataCoordinates,
+                c.Biome))
             .ToArray();
 
         File.WriteAllText(path, JsonSerializer.Serialize(new DumpFile(coords, records), Options));
@@ -56,6 +58,7 @@ public static class CellDump
                 IsRiverCell        = r.IsRiverCell,
                 Neighbors          = r.Neighbors,
                 GeoDataCoordinates = r.GeoDataCoordinates,
+                Biome              = r.Biome,
                 Culture            = 0,
                 Religion           = 0,
                 State              = 0,
