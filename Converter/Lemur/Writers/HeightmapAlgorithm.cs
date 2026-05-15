@@ -9,6 +9,15 @@ public static class HeightmapAlgorithm
 {
     public const int CK3WaterLevel = 20;
 
+    // Coastal lift parameters — applied after Gaussian blur, before byte quantisation.
+    // Lifts above-water pixels and pushes down below-water pixels with a symmetric ramp+compress
+    // curve that pins byte 0 (seafloor), the waterline, and byte 255 (peak) as fixed points.
+    // The intent: produce a visibly pronounced coastline step in the 3D mesh and tighten the
+    // near-waterline pixel distribution so coastal splat materials (beach, mud) read as narrow
+    // bands instead of sprawling. See notes-for-later.md "Heightmap: lift above-sea land".
+    public const int CoastalLiftRampWidth = 2;
+    public const float CoastalLiftAmount  = 10f;
+
     public record Params(
         float LonW, float LonT,
         float LatS, float LatT,
@@ -506,6 +515,9 @@ public static class HeightmapAlgorithm
         var patches = PatchBayShortcuts(triangulation, coastNodes, originalCoastCount, constraintSegs, constraintSegToCellId, terrainNodes, combinedCoordIndex);
         var heightMap = RasterizeTriangles(triangulation, combinedCoordIndex, p, patches: patches);
         ApplyGaussianBlur(heightMap, p);
+        // Coastal lift goes AFTER blur so the lift produces a sharp step at the waterline that
+        // the blur cannot wash out. ToBytes below re-quantises with the lifted values.
+        ApplyCoastalLift(heightMap, CK3WaterLevel, CoastalLiftRampWidth, CoastalLiftAmount);
 
         return new GenerateResult(ToBytes(heightMap), heightMap, terrainNodes, polyNodes, coastNodes, originalCoastCount, constraintSegs, constraintSegToCellId, triangulation);
     }
@@ -878,6 +890,43 @@ public static class HeightmapAlgorithm
     {
         index.TryGetValue((RoundCoord((float)v.X), RoundCoord((float)v.Y)), out float h);
         return h;
+    }
+
+    // Lifts above-water pixels up and pushes below-water pixels down with a symmetric
+    // ramp+compress curve. Pinned fixed points: byte 0 (seafloor), waterLevel (coastline),
+    // byte 255 (peak). Operates on the float heightmap in place; downstream ToBytes re-quantises.
+    //
+    // Math:
+    //   d        = H - wl                            // signed offset from waterline
+    //   absD     = |d|
+    //   ramp     = min(absD / rampWidth, 1.0)         // 0 at wl, 1 at ±rampWidth
+    //   range    = (d > 0) ? (255 - wl) : wl          // distance to clip boundary
+    //   compress = max(0, 1 - absD / range)           // 1 at wl, 0 at edge
+    //   change   = sign(d) × baseLift × ramp × compress
+    //   new_H    = H + change
+    //
+    // See notes-for-later.md "Heightmap: lift above-sea land" for design rationale.
+    static void ApplyCoastalLift(float[] heightmapF, int waterLevel, int rampWidth, float baseLift)
+    {
+        if (rampWidth <= 0 || baseLift == 0f) return;
+        float wl = waterLevel;
+        float aboveRange = 255f - wl;
+        float belowRange = wl;
+        if (aboveRange <= 0f && belowRange <= 0f) return;
+
+        for (int i = 0; i < heightmapF.Length; i++)
+        {
+            float h = heightmapF[i];
+            float d = h - wl;
+            if (d == 0f) continue;                  // waterline pixel: fixed point
+            float absD = MathF.Abs(d);
+            float ramp = MathF.Min(absD / rampWidth, 1f);
+            float range = d > 0f ? aboveRange : belowRange;
+            if (range <= 0f) continue;
+            float compress = MathF.Max(0f, 1f - absD / range);
+            float change = (d > 0f ? 1f : -1f) * baseLift * ramp * compress;
+            heightmapF[i] = h + change;
+        }
     }
 
     static byte[] ToBytes(float[] heightMap)
