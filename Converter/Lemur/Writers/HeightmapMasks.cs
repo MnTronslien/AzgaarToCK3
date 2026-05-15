@@ -1,3 +1,4 @@
+using Converter.Lemur.Splats;
 using ImageMagick;
 
 namespace Converter.Lemur.Writers;
@@ -49,45 +50,9 @@ public static class HeightmapMasks
         Directory.CreateDirectory(masksDir);
         byte wl = HeightmapAlgorithm.CK3WaterLevel;
 
-        // ── 1. Surface steepness = 1 − N.z ───────────────────────────────────
-        // Use float heights for smooth gradients (byte quantization causes terracing).
-        // Divide by 2*kd so gx/gy are gradient per pixel.
-        // Zero out component if either sample crosses ocean boundary.
-        var steep = new float[width * height];
-        for (int y = kd; y < height - kd; y++)
-        for (int x = kd; x < width  - kd; x++)
-        {
-            int i = y * width + x;
-            if (pixels[i] < wl) continue;
-            float gx = (pixels[i + kd]         >= wl && pixels[i - kd]         >= wl)
-                ? (heightmapF[i + kd]         - heightmapF[i - kd])         / (2f * kd) : 0f;
-            float gy = (pixels[i + kd * width] >= wl && pixels[i - kd * width] >= wl)
-                ? (heightmapF[i + kd * width] - heightmapF[i - kd * width]) / (2f * kd) : 0f;
-            steep[i] = 1f - 1f / MathF.Sqrt(gx * gx + gy * gy + 1f);
-        }
-
-        // ── 2. p95 of steepness over land pixels ─────────────────────────────
-        // 1024 bins covering [0, 1.024), bin width = 0.001
-        var hist = new long[1024];
-        int landCount = 0;
-        for (int i = 0; i < pixels.Length; i++)
-        {
-            if (pixels[i] < wl) continue;
-            landCount++;
-            hist[Math.Clamp((int)(steep[i] * 1000f), 0, 1023)]++;
-        }
-
-        float p95 = 0.001f;
-        if (landCount > 0)
-        {
-            long target = (long)(landCount * 0.95), cum = 0;
-            for (int b = 0; b < hist.Length; b++)
-            {
-                cum += hist[b];
-                if (cum >= target) { p95 = Math.Max(0.001f, b / 1000f); break; }
-            }
-        }
-        Logger.Info($"HeightmapMasks: steepness p95={p95:F4} (normalisation ceiling)");
+        // ── 1+2. Steepness (already p95-normalised, 0..1, 0 over sea) ────────
+        // Shared with SplatmapBuilder — both consume the same scalar field.
+        var steep = SteepnessField.Compute(heightmapF, pixels, width, height);
 
         // ── 3. Fill mask arrays ───────────────────────────────────────────────
         var hillsMask     = new byte[width * height];
@@ -99,7 +64,7 @@ public static class HeightmapMasks
             byte h = pixels[i];
             if (h < wl) continue;
 
-            float s = p95 > 0f ? steep[i] / p95 : 0f;
+            float s = steep[i];   // already p95-normalised
 
             hillsMask[i]     = FloatToByte(Tent(s,        HillsFloor, HillsPeak, HillsCeiling));
             mountainsMask[i] = FloatToByte(LinearRamp(s, MountainsFloor, 1f));

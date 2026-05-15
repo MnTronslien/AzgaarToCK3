@@ -44,6 +44,11 @@ public static class HeightmapWriter
 
         var (pixels, heightmapF) = await GenerateHeightmap(map, heightmapPath);
 
+        // Stash on Map so TerrainMaskWriter can use them for steepness-based splat materials.
+        // The TerrainMasks writer must run AFTER this one — ordering enforced in ConversionManager.
+        map.HeightmapPixels = pixels;
+        map.HeightmapF = heightmapF;
+
         var masksDir = Helper.GetPath(outputDirectory, "gfx", "map", "terrain", "masks");
         var packed = await CreatePackedHeightmap(pixels, L.Map.MapWidth, L.Map.MapHeight);
         await Task.WhenAll(

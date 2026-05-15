@@ -64,12 +64,16 @@ public static class TerrainMaskWriter
             WriteMasksGenAsync(tcsSandboxPath, terrainDir, blankPath),
             Task.Run(async () =>
             {
-                using var img = RenderDetailIndex(map.Cells!, map.JsonMap.mapCoordinates);
+                // map.HeightmapPixels/F are populated by HeightmapWriter if it ran first.
+                // Null → steepness materials produce 0 weight → biome-only output (M1 equivalent).
+                using var img = RenderDetailIndex(map.Cells!, map.JsonMap.mapCoordinates,
+                    map.HeightmapF, map.HeightmapPixels);
                 await img.WriteAsync(Helper.GetPath(terrainDir, "detail_index.tga"), MagickFormat.Tga);
             }),
             Task.Run(async () =>
             {
-                using var img = RenderDetailIntensity(map.Cells!, map.JsonMap.mapCoordinates);
+                using var img = RenderDetailIntensity(map.Cells!, map.JsonMap.mapCoordinates,
+                    map.HeightmapF, map.HeightmapPixels);
                 await img.WriteAsync(Helper.GetPath(terrainDir, "detail_intensity.tga"), MagickFormat.Tga);
             })
         );
@@ -142,44 +146,35 @@ public static class TerrainMaskWriter
         Logger.Verbose($"Generated {fileNames.Count} blank masks_gen PNGs at {L.Map.MapWidth}×{L.Map.MapHeight}");
     }
 
-    // Azgaar biome index → CK3 biome index (used in detail_index.tga splat layers).
-    // Indices match the CK3Biome enum in upstream BiomeConverter.
-    // Internal so SplatmapBuilder can share the same mapping.
-    internal static readonly Dictionary<int, int> AzgaarBiomeToCk3Index = new()
-    {
-        [1]  = 32,  // HotDesert          → desert_01
-        [2]  = 33,  // ColdDesert         → desert_02
-        [3]  = 1,   // Savanna            → plains_01_dry
-        [4]  = 0,   // Grassland          → plains_01
-        [5]  = 5,   // TropicalSeasonalForest → farmland_01
-        [6]  = 28,  // TemperateDeciduousForest → forest_leaf_01
-        [7]  = 29,  // TropicalRainforest  → forest_jungle_01
-        [8]  = 30,  // TemperateRainforest → forest_pine_01
-        [9]  = 31,  // Taiga              → forestfloor
-        [10] = 50,  // Tundra             → northern_plains_01
-        [11] = 54,  // Glacier            → snow
-        [12] = 14,  // Wetland            → floodplains_01
-    };
-
     // Public static so TerrainLab can call directly for fast iteration. Takes raw cells + coord
     // transform — no Map dependency, so cell dumps work too. Caller disposes.
     //
-    // M1 (current): both files are built from the same Splatmap. Per-pixel rule is Delaunay-
-    // barycentric over land-cell centroids — see SplatmapBuilder.BuildM1 and the canonical
-    // splat-map write-up in CK3_MAP_MODDING_FACTS.md.
+    // Both files are built from the same Splatmap. M2 uses MaterialRegistry — see
+    // SplatmapBuilder.Build and the canonical splat-map write-up in CK3_MAP_MODDING_FACTS.md.
     //
-    // detail_index R/G/B/A = biome index per layer (255 = "unused" sentinel).
-    // detail_intensity R/G/B/A = blend weight per layer (sums to ~255 per pixel from barycentric).
+    // detail_index R/G/B/A = CK3 material index per layer (255 = "unused" sentinel).
+    // detail_intensity R/G/B/A = blend weight per layer (sums to 255 per pixel from normalisation).
     // The two files MUST agree slot-for-slot: same SplatPixel drives both.
-    public static MagickImage RenderDetailIndex(IReadOnlyDictionary<int, L.Cell> cells, AzgaarMapCoordinates coords)
+    //
+    // heightmapF + heightmapBytes: required for steepness-based materials (hills, mountain).
+    // Pass null for biome-only output (equivalent to M1).
+    public static MagickImage RenderDetailIndex(
+        IReadOnlyDictionary<int, L.Cell> cells,
+        AzgaarMapCoordinates coords,
+        float[]? heightmapF = null,
+        byte[]? heightmapBytes = null)
     {
-        var splat = SplatmapBuilder.BuildM1(cells, coords);
+        var splat = SplatmapBuilder.Build(cells, coords, heightmapF, heightmapBytes);
         return SerialiseSplat(splat, intensityNotIndex: false);
     }
 
-    public static MagickImage RenderDetailIntensity(IReadOnlyDictionary<int, L.Cell> cells, AzgaarMapCoordinates coords)
+    public static MagickImage RenderDetailIntensity(
+        IReadOnlyDictionary<int, L.Cell> cells,
+        AzgaarMapCoordinates coords,
+        float[]? heightmapF = null,
+        byte[]? heightmapBytes = null)
     {
-        var splat = SplatmapBuilder.BuildM1(cells, coords);
+        var splat = SplatmapBuilder.Build(cells, coords, heightmapF, heightmapBytes);
         return SerialiseSplat(splat, intensityNotIndex: true);
     }
 

@@ -37,7 +37,8 @@ static class Program
         bool detailIntensity = false;
         bool paintDetailIndex = false;
         bool paintDetailIntensity = false;
-        int? alphaOverride = null;  // 0-255; null = leave painter default (255)
+        bool noHeightmapForPaint = false;       // skip heightmap pre-pass → biome-only output
+        int? alphaOverride = null;              // 0-255; null = leave painter default (255)
         bool checkNeighbors = false;
         bool neighborArrows = false;
         bool auditSharedEdges = false;
@@ -47,6 +48,9 @@ static class Program
         string? vertexRiver = null;
         string? sampleTgaPath = null;
         int sampleTgaCount = 32;
+        bool genMaterials = false;
+        string? genMaterialsCk3Dir = null;
+        string? genMaterialsOut = null;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -84,9 +88,13 @@ static class Program
                 case "--detail-intensity":        detailIntensity      = true; break;
                 case "--paint-detail-index":      paintDetailIndex     = true; break;
                 case "--paint-detail-intensity":  paintDetailIntensity = true; break;
+                case "--no-heightmap":            noHeightmapForPaint  = true; break;
                 case "--alpha":                   alphaOverride        = int.Parse(args[++i]); break;
                 case "--sample-tga":              sampleTgaPath        = args[++i]; break;
                 case "--samples":                 sampleTgaCount       = int.Parse(args[++i]); break;
+                case "--gen-materials":           genMaterials         = true; break;
+                case "--ck3-dir":                 genMaterialsCk3Dir   = args[++i]; break;
+                case "--gen-materials-out":       genMaterialsOut      = args[++i]; break;
                 case "--cells":           cellsDumpPath     = args[++i]; break;
                 case "--rivers-geojson":  riversGeojsonPath = args[++i]; break;
                 case "--river-cp-spacing": riverCpSpacing  = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
@@ -105,6 +113,12 @@ static class Program
         if (sampleTgaPath != null)
         {
             return SampleTgaPixels(sampleTgaPath, sampleTgaCount);
+        }
+
+        // ── Generate Ck3MaterialBytes.cs from CK3's materials.settings ───────
+        if (genMaterials)
+        {
+            return GenerateCk3MaterialBytes(genMaterialsCk3Dir, genMaterialsOut);
         }
 
         // ── Pixel comparison mode — no Azgaar data needed ────────────────────
@@ -181,9 +195,33 @@ static class Program
                 latT: latT, latN: latS + latT, latS: latS,
                 lonT: lonT, lonW: lonW,         lonE: lonW + lonT);
 
+            // ── Heightmap pre-pass (~30s) — required for steepness materials (hills/mountain).
+            // Pass --no-heightmap to skip for fast biome-only iteration.
+            byte[]? heightmapBytes = null;
+            float[]? heightmapF = null;
+            if (!noHeightmapForPaint)
+            {
+                Console.WriteLine("Heightmap pre-pass (required for hills/mountain materials)…");
+                var hp = new Converter.Lemur.Writers.HeightmapAlgorithm.Params(
+                    LonW: lonW, LonT: lonT, LatS: latS, LatT: latT,
+                    Width: Converter.Lemur.Entities.Map.MapWidth,
+                    Height: Converter.Lemur.Entities.Map.MapHeight);
+                var hsw = System.Diagnostics.Stopwatch.StartNew();
+                var hresult = Converter.Lemur.Writers.HeightmapAlgorithm.Generate(cells, hp);
+                hsw.Stop();
+                Console.WriteLine($"Heightmap pre-pass done in {hsw.Elapsed.TotalSeconds:F1}s.");
+                heightmapBytes = hresult.Pixels;
+                heightmapF = hresult.HeightmapF;
+            }
+            else
+            {
+                Console.WriteLine("--no-heightmap set — biome-only output (steepness materials disabled).");
+            }
+
             if (paintDetailIndex)
             {
-                using var indexImg = Converter.Lemur.Writers.TerrainMaskWriter.RenderDetailIndex(cells, coords);
+                using var indexImg = Converter.Lemur.Writers.TerrainMaskWriter.RenderDetailIndex(
+                    cells, coords, heightmapF, heightmapBytes);
                 if (alphaOverride.HasValue)
                 {
                     indexImg.Evaluate(Channels.Alpha, EvaluateOperator.Set, new Percentage(alphaOverride.Value * 100.0 / 255.0));
@@ -194,7 +232,8 @@ static class Program
             }
             if (paintDetailIntensity)
             {
-                using var intensityImg = Converter.Lemur.Writers.TerrainMaskWriter.RenderDetailIntensity(cells, coords);
+                using var intensityImg = Converter.Lemur.Writers.TerrainMaskWriter.RenderDetailIntensity(
+                    cells, coords, heightmapF, heightmapBytes);
                 if (alphaOverride.HasValue)
                 {
                     intensityImg.Evaluate(Channels.Alpha, EvaluateOperator.Set, new Percentage(alphaOverride.Value * 100.0 / 255.0));
@@ -1220,6 +1259,61 @@ static class Program
     // Random-pixel sampler for any RGBA image. Useful for inspecting how vanilla CK3 detail TGAs
     // encode information across the four channels — answers questions like "is the G channel
     // constant 255 everywhere, or does it carry data?"
+    // Parses CK3 materials.settings and writes Converter/Lemur/Splats/Ck3MaterialBytes.cs.
+    // Manual run, intentional — we want to review the diff when CK3 patches.
+    static int GenerateCk3MaterialBytes(string? ck3Dir, string? outPath)
+    {
+        ck3Dir ??= @"C:\Program Files (x86)\Steam\steamapps\common\Crusader Kings III";
+        var materialsPath = Path.Combine(ck3Dir, "game", "gfx", "map", "terrain", "materials.settings");
+        if (!File.Exists(materialsPath))
+        {
+            Console.Error.WriteLine($"materials.settings not found: {materialsPath}");
+            Console.Error.WriteLine("Pass --ck3-dir <path> if CK3 lives elsewhere.");
+            return 1;
+        }
+
+        // Default output: walk up from the running TerrainLab binary to the repo root, then to
+        // Converter/Lemur/Splats/Ck3MaterialBytes.cs. The binary lives at
+        // <repo>/TerrainLab/bin/Debug/net8.0/TerrainLab.exe, so up four levels gets us to the repo.
+        outPath ??= Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..",
+            "Converter", "Lemur", "Splats", "Ck3MaterialBytes.cs"));
+
+        Console.WriteLine($"Parsing: {materialsPath}");
+        var parsed = Converter.Lemur.Splats.MaterialsParser.Parse(materialsPath);
+        Console.WriteLine($"Active entries: {parsed.Materials.Count}");
+        Console.WriteLine($"Source mtime:   {parsed.SourceMtimeUtc:O}");
+        Console.WriteLine($"Source sha256:  {parsed.SourceSha256}");
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("// AUTO-GENERATED from CK3 materials.settings — DO NOT EDIT BY HAND.");
+        sb.AppendLine($"// Source:  {parsed.SourcePath}");
+        sb.AppendLine($"// Mtime:   {parsed.SourceMtimeUtc:O}");
+        sb.AppendLine($"// Sha256:  {parsed.SourceSha256}");
+        sb.AppendLine($"// Entries: {parsed.Materials.Count}");
+        sb.AppendLine("// Regenerate: ./TerrainLab --gen-materials");
+        sb.AppendLine();
+        sb.AppendLine("namespace Converter.Lemur.Splats;");
+        sb.AppendLine();
+        sb.AppendLine("public static class Ck3MaterialBytes");
+        sb.AppendLine("{");
+        sb.AppendLine("    public const string SourceMtimeUtc = \"" + parsed.SourceMtimeUtc.ToString("O") + "\";");
+        sb.AppendLine("    public const string SourceSha256   = \"" + parsed.SourceSha256 + "\";");
+        sb.AppendLine();
+        sb.AppendLine("    public static readonly IReadOnlyDictionary<string, byte> ByName = new Dictionary<string, byte>");
+        sb.AppendLine("    {");
+        foreach (var (idx, name) in parsed.Materials)
+            sb.AppendLine($"        [\"{name}\"] = {idx},");
+        sb.AppendLine("    };");
+        sb.AppendLine("}");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(outPath)!);
+        File.WriteAllText(outPath, sb.ToString());
+        Console.WriteLine($"Wrote: {outPath}");
+        return 0;
+    }
+
     static int SampleTgaPixels(string path, int count)
     {
         using var img = new MagickImage(path);

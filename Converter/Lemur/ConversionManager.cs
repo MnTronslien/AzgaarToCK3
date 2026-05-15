@@ -207,6 +207,11 @@ namespace Converter.Lemur
                 using var _ = OperationTimer.Start("Writing province terrain");
                 await ProvinceTerrainWriter.Write(map, Settings.OutputDirectory);
             }
+            // Heightmap MUST run before TerrainMasks: HeightmapWriter populates map.HeightmapPixels
+            // and map.HeightmapF, which TerrainMaskWriter feeds into SplatmapBuilder so that
+            // steepness-based materials (hills, mountain) can compute their weights.
+            if (w.Heightmap)
+                await HeightmapWriter.Write(map, Settings.OutputDirectory);
             if (w.TerrainMasks)
             {
                 var terrainMasks = TerrainMaskPreparer.Prepare(map);
@@ -216,8 +221,6 @@ namespace Converter.Lemur
                 await FlatmapWriter.Write(map, Settings.Instance.AzgaarSvgPath, Settings.OutputDirectory);
             if (w.MapStaticFiles)
                 await StaticFilesWriter.Write(Settings.Instance.TotalConversionSandboxPath, Settings.OutputDirectory);
-            if (w.Heightmap)
-                await HeightmapWriter.Write(map, Settings.OutputDirectory);
             if (w.Religion)
             {
                 using var _ = OperationTimer.Start("Writing religion files (copy from CK3)");

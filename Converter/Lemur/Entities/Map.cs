@@ -26,6 +26,13 @@ namespace Converter.Lemur.Entities
         public Dictionary<int, Cell>? Cells { get; set; }
         public Dictionary<int, Burg>? Burgs { get; set; }
 
+        // Populated by HeightmapWriter after HeightmapAlgorithm.Generate completes.
+        // Read by TerrainMaskWriter so steepness-based splat materials (hills, mountain) have
+        // access to the rendered heightmap. Null if the heightmap pipeline hasn't run yet — in
+        // which case splat painting falls back to biome-only output.
+        public byte[]? HeightmapPixels { get; set; }
+        public float[]? HeightmapF { get; set; }
+
         public List<Barony>? Baronies { get; set; } = new();
 
         public List<County>? Counties { get; set; } = new();

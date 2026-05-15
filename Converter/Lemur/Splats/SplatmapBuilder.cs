@@ -1,170 +1,147 @@
 using Converter.Lemur.Deserialization;
 using Converter.Lemur.Entities;
 using Converter.Lemur.Writers;
-using NetTopologySuite.Geometries;
-using NetTopologySuite.Triangulate;
 
 namespace Converter.Lemur.Splats;
 
-// Builds a Splatmap from cell data via Delaunay triangulation of land-cell centroids.
+// Top-level Splatmap builder. Coordinates the three phases of M2:
 //
-// Algorithm (M1):
-//   A) Filter land cells whose Azgaar biome has a CK3 mapping; compute pixel-space centroids.
-//   B) Delaunay-triangulate the centroids — every pixel inside the convex hull of land cells
-//      falls inside exactly one triangle whose 3 corners are 3 distinct cell biomes.
-//   C) For each triangle, scanline-rasterise; per-pixel compute barycentric (w0, w1, w2), bucket
-//      weights by CK3 biome (so [plains, plains, snow] at (0.4, 0.3, 0.3) → {plains: 0.7, snow: 0.3}),
-//      pack the top biomes into a SplatPixel with intensities = weight × 255.
+//   A. BiomeWeightField.Build  — per-pixel BiomeWeightTriple from Delaunay-rasterised land cells.
+//   B. SteepnessField.Compute  — per-pixel float[0..1] from heightmap gradient (if heightmap given).
+//   C. Per-pixel rule loop     — ask every Material in MaterialRegistry for its weight, take top 4,
+//                                 normalise so intensities sum to 255, pack into a SplatPixel.
 //
-// Pixels outside any triangle (open sea, beyond convex hull) remain at SplatPixel.AllUnused — the
-// writer leaves them unpainted so CK3 falls back to the engine default texture there.
-//
-// Math template: HeightmapAlgorithm.RasterizeTriangle (lines 826-849). Same barycentric pattern,
-// different per-pixel output.
+// Steepness materials (hills, mountain) need a heightmap; pass null heightmapF/heightmapBytes for
+// biome-only output equivalent to M1.
 public static class SplatmapBuilder
 {
-    public static Splatmap BuildM1(IReadOnlyDictionary<int, Cell> cells, AzgaarMapCoordinates coords)
+    public static Splatmap Build(
+        IReadOnlyDictionary<int, Cell> cells,
+        AzgaarMapCoordinates coords,
+        float[]? heightmapF = null,
+        byte[]? heightmapBytes = null)
     {
         int width = Map.MapWidth;
         int height = Map.MapHeight;
+        byte wl = HeightmapAlgorithm.CK3WaterLevel;
 
-        // Coord transform (identical to ImageUtility.GenerateCellPolygons(.., AzgaarMapCoordinates))
-        float xOffset = coords.lonW;
-        float yOffset = coords.latS;
-        float xRatio  = width  / coords.lonT;
-        float yRatio  = height / coords.latT;
+        // ── Phase A: per-pixel biome weights ──────────────────────────────────
+        var biomes = BiomeWeightField.Build(cells, coords);
 
-        // ── Phase A: filter + compute centroids ──────────────────────────────
-        // NTS perturbs/rounds coordinates during triangulation, so we cannot rely on Coordinate
-        // identity to map a triangle's vertex back to its source cell. Use rounded-int (x, y)
-        // tuples as keys — same pattern as HeightmapAlgorithm.BuildCoordIndex / Lookup.
-        var centroids = new List<Coordinate>();
-        var coordToBiome = new Dictionary<(int, int), int>();   // rounded centroid → CK3 biome
+        // ── Phase B: per-pixel steepness (optional, requires heightmap) ───────
+        float[]? steepness = (heightmapF != null && heightmapBytes != null)
+            ? SteepnessField.Compute(heightmapF, heightmapBytes, width, height)
+            : null;
 
-        foreach (var cell in cells.Values)
+        // Pre-resolve each material's CK3 byte index once — looking it up per-pixel would be
+        // 33M × N dict lookups, pointless work.
+        var materials = MaterialRegistry.All;
+        var materialBytes = new byte[materials.Count];
+        for (int m = 0; m < materials.Count; m++)
         {
-            if (!Cell.IsDryLand(cell.Type)) continue;
-            if (!TerrainMaskWriter.AzgaarBiomeToCk3Index.TryGetValue(cell.Biome, out int ck3Biome)) continue;
-            if (cell.GeoDataCoordinates == null || cell.GeoDataCoordinates.Length < 3) continue;
-
-            // Azgaar polygons close the ring (first == last); skip last to avoid double-counting.
-            double sx = 0, sy = 0;
-            int count = cell.GeoDataCoordinates.Length - 1;
-            if (count <= 0) continue;
-            for (int i = 0; i < count; i++)
-            {
-                sx += cell.GeoDataCoordinates[i][0];
-                sy += cell.GeoDataCoordinates[i][1];
-            }
-            double lon = sx / count;
-            double lat = sy / count;
-            double px = (lon - xOffset) * xRatio;
-            double py = height - (lat - yOffset) * yRatio;
-
-            var key = ((int)Math.Round(px), (int)Math.Round(py));
-            if (coordToBiome.ContainsKey(key)) continue;  // skip duplicates (rare)
-            centroids.Add(new Coordinate(px, py));
-            coordToBiome[key] = ck3Biome;
+            if (!Ck3MaterialBytes.ByName.TryGetValue(materials[m].TextureName, out var b))
+                throw new InvalidOperationException(
+                    $"Material '{materials[m].TextureName}' not found in Ck3MaterialBytes — " +
+                    "is the texture name correct, or did materials.settings change? " +
+                    "Try `./TerrainLab --gen-materials` to regenerate.");
+            materialBytes[m] = b;
         }
 
-        if (centroids.Count < 3)
-        {
-            // Not enough land cells to form a triangulation — return all-sentinel.
-            return AllSentinel(width, height);
-        }
-
-        // ── Phase B: Delaunay triangulate ────────────────────────────────────
-        var gf = new GeometryFactory();
-        var builder = new DelaunayTriangulationBuilder();
-        builder.SetSites(gf.CreateMultiPointFromCoords(centroids.ToArray()));
-        var triangles = builder.GetTriangles(gf);
-
-        // ── Phase C: init sentinel, then rasterise each triangle ─────────────
         var splat = new Splatmap(width, height);
-        for (int i = 0; i < splat.Pixels.Length; i++)
-            splat.Pixels[i] = SplatPixel.AllUnused;
+        var weights = new float[materials.Count];   // reused per pixel
 
-        foreach (var geom in triangles.Geometries)
+        for (int y = 0; y < height; y++)
         {
-            var ring = geom.Boundary.Coordinates;
-            if (ring.Length < 3) continue;
-            var vA = ring[0]; var vB = ring[1]; var vC = ring[2];
-
-            // Map each triangle vertex back to its source cell's biome (rounded-int key lookup).
-            if (!coordToBiome.TryGetValue(((int)Math.Round(vA.X), (int)Math.Round(vA.Y)), out int bA)) continue;
-            if (!coordToBiome.TryGetValue(((int)Math.Round(vB.X), (int)Math.Round(vB.Y)), out int bB)) continue;
-            if (!coordToBiome.TryGetValue(((int)Math.Round(vC.X), (int)Math.Round(vC.Y)), out int bC)) continue;
-
-            RasterizeTriangle(vA, vB, vC, bA, bB, bC, splat);
-        }
-
-        return splat;
-    }
-
-    private static Splatmap AllSentinel(int w, int h)
-    {
-        var splat = new Splatmap(w, h);
-        for (int i = 0; i < splat.Pixels.Length; i++)
-            splat.Pixels[i] = SplatPixel.AllUnused;
-        return splat;
-    }
-
-    // Scanline fill of a triangle. For each pixel inside, compute barycentric weights, bucket the
-    // 3 corner biomes (collapsing duplicates so [plains, plains, snow] → 2 entries not 3),
-    // sort descending, write the top entries into the SplatPixel.
-    private static void RasterizeTriangle(
-        Coordinate v0, Coordinate v1, Coordinate v2,
-        int biome0, int biome1, int biome2,
-        Splatmap splat)
-    {
-        int width = splat.Width;
-        int height = splat.Height;
-
-        int xMin = Math.Max(0,          (int)Math.Min(v0.X, Math.Min(v1.X, v2.X)));
-        int xMax = Math.Min(width  - 1, (int)Math.Ceiling(Math.Max(v0.X, Math.Max(v1.X, v2.X))));
-        int yMin = Math.Max(0,          (int)Math.Min(v0.Y, Math.Min(v1.Y, v2.Y)));
-        int yMax = Math.Min(height - 1, (int)Math.Ceiling(Math.Max(v0.Y, Math.Max(v1.Y, v2.Y))));
-
-        float denom = (float)((v1.Y - v2.Y) * (v0.X - v2.X) + (v2.X - v1.X) * (v0.Y - v2.Y));
-        if (MathF.Abs(denom) < 1e-6f) return;   // degenerate triangle
-
-        for (int py = yMin; py <= yMax; py++)
-        {
-            for (int px = xMin; px <= xMax; px++)
+            for (int x = 0; x < width; x++)
             {
-                float w0 = (float)((v1.Y - v2.Y) * (px - v2.X) + (v2.X - v1.X) * (py - v2.Y)) / denom;
-                float w1 = (float)((v2.Y - v0.Y) * (px - v2.X) + (v0.X - v2.X) * (py - v2.Y)) / denom;
-                float w2 = 1f - w0 - w1;
-                if (w0 < -0.001f || w1 < -0.001f || w2 < -0.001f) continue;
+                int i = y * width + x;
 
-                // ── Bucket the 3 corner biomes (collapse duplicates) ─────────
-                int bA = biome0;  float wA = w0;
-                int bB = -1;      float wB = 0f;
-                int bC = -1;      float wC = 0f;
+                // Land/sea gate. With heightmap: pixel < waterLevel → sea. Without heightmap:
+                // "land" = "any biome weight present" — preserves M1 behaviour for the biome-only
+                // path (TerrainLab with --no-heightmap).
+                bool isLand;
+                float h01;
+                if (heightmapBytes != null)
+                {
+                    isLand = heightmapBytes[i] >= wl;
+                    h01 = heightmapBytes[i] / 255f;
+                }
+                else
+                {
+                    var bt = biomes[i];
+                    isLand = bt.W0 > 0 || bt.W1 > 0 || bt.W2 > 0;
+                    h01 = 0f;
+                }
 
-                // Add corner-1
-                if (biome1 == bA) wA += w1;
-                else { bB = biome1; wB = w1; }
+                if (!isLand)
+                {
+                    splat.Pixels[i] = SplatPixel.AllUnused;
+                    continue;
+                }
 
-                // Add corner-2
-                if (biome2 == bA)        wA += w2;
-                else if (biome2 == bB)   wB += w2;
-                else                     { bC = biome2; wC = w2; }
+                float s = steepness != null ? steepness[i] : 0f;
+                var ctx = new PixelContext(x, y, biomes[i], s, h01, isLand: true);
 
-                // ── Sort by weight descending (3-element) ────────────────────
-                if (wB > wA) { (bA, bB) = (bB, bA); (wA, wB) = (wB, wA); }
-                if (wC > wB) { (bB, bC) = (bC, bB); (wB, wC) = (wC, wB); }
-                if (wB > wA) { (bA, bB) = (bB, bA); (wA, wB) = (wB, wA); }
+                // Evaluate every material once per pixel.
+                for (int m = 0; m < materials.Count; m++)
+                    weights[m] = materials[m].Evaluate(in ctx);
 
-                splat.Pixels[py * width + px] = new SplatPixel(
-                    bA >= 0 ? new SplatLayer((byte)bA, ToByteIntensity(wA)) : SplatLayer.Unused,
-                    bB >= 0 ? new SplatLayer((byte)bB, ToByteIntensity(wB)) : SplatLayer.Unused,
-                    bC >= 0 ? new SplatLayer((byte)bC, ToByteIntensity(wC)) : SplatLayer.Unused,
-                    SplatLayer.Unused);
+                splat.Pixels[i] = PackTopK(weights, materialBytes);
             }
         }
+
+        return splat;
     }
 
-    private static byte ToByteIntensity(float weight) =>
-        (byte)Math.Clamp((int)Math.Round(weight * 255f), 0, 255);
+    // Selects up to 4 highest-weight materials at this pixel, normalises so intensity bytes sum to
+    // 255 (matches vanilla detail_intensity), packs into a SplatPixel. Insertion-sort is fine —
+    // n ≤ MaterialRegistry.All.Count which is ~14 today.
+    private static SplatPixel PackTopK(float[] weights, byte[] materialBytes)
+    {
+        int total = weights.Length;
+        Span<int> idx = stackalloc int[total];
+        Span<float> w = stackalloc float[total];
+
+        int n = 0;
+        for (int m = 0; m < total; m++)
+        {
+            if (weights[m] > 0f) { idx[n] = m; w[n] = weights[m]; n++; }
+        }
+
+        if (n == 0) return SplatPixel.AllUnused;
+
+        // Sort descending by weight (stable: equal weights keep their registry-order)
+        for (int i = 1; i < n; i++)
+        {
+            int curIdx = idx[i]; float curW = w[i];
+            int j = i;
+            while (j > 0 && w[j - 1] < curW)
+            {
+                idx[j] = idx[j - 1]; w[j] = w[j - 1];
+                j--;
+            }
+            idx[j] = curIdx; w[j] = curW;
+        }
+
+        int take = Math.Min(n, 4);
+        float sum = 0f;
+        for (int i = 0; i < take; i++) sum += w[i];
+        if (sum <= 0f) return SplatPixel.AllUnused;
+
+        // Normalise to byte intensities summing to exactly 255. Give the last-taken slot the
+        // remainder so float rounding doesn't drift the total.
+        Span<SplatLayer> layers = stackalloc SplatLayer[4];
+        int remainder = 255;
+        for (int slot = 0; slot < take; slot++)
+        {
+            int intensity = (slot == take - 1)
+                ? remainder
+                : Math.Clamp((int)Math.Round(w[slot] / sum * 255f), 0, remainder);
+            remainder -= intensity;
+            layers[slot] = new SplatLayer(materialBytes[idx[slot]], (byte)intensity);
+        }
+        for (int slot = take; slot < 4; slot++) layers[slot] = SplatLayer.Unused;
+
+        return new SplatPixel(layers[0], layers[1], layers[2], layers[3]);
+    }
 }
