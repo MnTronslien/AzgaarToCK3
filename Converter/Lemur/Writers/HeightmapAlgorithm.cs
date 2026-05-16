@@ -7,7 +7,15 @@ namespace Converter.Lemur.Writers;
 
 public static class HeightmapAlgorithm
 {
-    public const int CK3WaterLevel = 20;
+    // Highest heightmap byte value that CK3 renders as ocean. A pixel with byte == MaxWaterByte
+    // sits AT the waterline and is treated as water by CK3's renderer. The FIRST land byte is
+    // MaxWaterByte + 1. All land/sea comparisons in this codebase should follow that convention:
+    //   isWater = (byte <= MaxWaterByte)   →  inclusive ≤
+    //   isLand  = (byte >  MaxWaterByte)   →  strict   >
+    // The choice of 20 is tied to MapDefinesWriter's WATERLEVEL output: with WORLD_EXTENTS_Y = 51
+    // we write WATERLEVEL = (20 / 255) × 51 = 4.0, which is what CK3 reads from the mod's
+    // mapsize_defines.txt. Keep these in sync — see notes in MapDefinesWriter.
+    public const int MaxWaterByte = 20;
 
     // Coastal lift parameters — applied after Gaussian blur, before byte quantisation.
     // Lifts above-water pixels and pushes down below-water pixels with a symmetric ramp+compress
@@ -111,8 +119,10 @@ public static class HeightmapAlgorithm
             .Select(c =>
             {
                 bool isLand = Cell.IsDryLand(c.Type);
+                // Land cells scale into [MaxWaterByte + 1, 255] — the lowest land cell sits one
+                // byte above the waterline so CK3 actually renders it above water.
                 float h = isLand
-                    ? (c.GeoHeight - minH) / (float)(maxH - minH) * (255f - CK3WaterLevel) + CK3WaterLevel
+                    ? (c.GeoHeight - minH) / (float)(maxH - minH) * (255f - (MaxWaterByte + 1)) + (MaxWaterByte + 1)
                     : 0f;
                 return new TerrainNode(
                     Id:       c.Id,
@@ -127,7 +137,7 @@ public static class HeightmapAlgorithm
         // Seed centerline TerrainNodes from major-river control points. These
         // act as interior anchors so the CDT triangulates a smooth carved
         // channel between the two bank coast chains. Pinned below water level
-        // (CK3WaterLevel - RiverCenterlineDepth) to give the channel visible
+        // (MaxWaterByte - RiverCenterlineDepth) to give the channel visible
         // depth in the rasterized heightmap.
         //
         // Densification: Azgaar's raw control points are unevenly spaced (some
@@ -137,7 +147,7 @@ public static class HeightmapAlgorithm
         // pixels, yielding a uniform spine.
         if (rivers != null && rivers.Count > 0)
         {
-            float riverHeight = Math.Max(0f, CK3WaterLevel - p.RiverCenterlineDepth);
+            float riverHeight = Math.Max(0f, MaxWaterByte - p.RiverCenterlineDepth);
             float maxSpacing  = Math.Max(1f, p.RiverControlPointSpacing);
             int riverNodeCount = 0;
             int rawCpCount = 0;
@@ -376,7 +386,7 @@ public static class HeightmapAlgorithm
         //   * land cells around rivers have IsLand=true at land elevation
         //   * centerline TerrainNodes have IsLand=false at depth 15 (below water 20)
         //   * the Delaunay triangulation interpolates a smooth gradient between them
-        //   * pixels < CK3WaterLevel render as water in-game
+        //   * pixels < MaxWaterByte render as water in-game
 
         int originalCoastCount = coastNodes.Count;
 
@@ -460,7 +470,7 @@ public static class HeightmapAlgorithm
             }
 
             float rawRand     = (float)(rng.NextDouble() * 2.0 - 1.0);
-            float perturbation = rawRand * MathF.Pow(idwRoughness, p.RoughnessPower) * p.DisplacementStrength * (255f - CK3WaterLevel);
+            float perturbation = rawRand * MathF.Pow(idwRoughness, p.RoughnessPower) * p.DisplacementStrength * (255f - MaxWaterByte);
             float nodeHeight  = Math.Clamp(baseHeight + perturbation, 0f, 255f);
 
             var pt = gf.CreatePoint(new Coordinate(s.Px, s.Py));
@@ -471,7 +481,7 @@ public static class HeightmapAlgorithm
                 if (cellPolygons.TryGetValue(tn.Id, out var poly) && poly.Contains(pt))
                     insideLand = tn.IsLand;
             }
-            insideLand ??= baseHeight > CK3WaterLevel;
+            insideLand ??= baseHeight > MaxWaterByte;
 
             if (!insideLand.Value) continue;
 
@@ -481,7 +491,7 @@ public static class HeightmapAlgorithm
                 if (cn1.Count > 0 && cn1[0].dist < p.CoastExclusionRadius) continue;
             }
 
-            nodeHeight = Math.Max(nodeHeight, CK3WaterLevel + 1f);
+            nodeHeight = Math.Max(nodeHeight, MaxWaterByte + 1f);
 
             int   c0 = nearest.Count > 0 ? nearest[0].item : -1;
             int   c1 = nearest.Count > 1 ? nearest[1].item : -1;
@@ -504,20 +514,20 @@ public static class HeightmapAlgorithm
         // ── 8. Delaunay triangulation + rasterization ─────────────────────────
         var allPoints = terrainNodes.Select(t  => (t.Px,  t.Py,  t.Height))
                            .Concat(polyNodes.Select(pn => (pn.Px, pn.Py, pn.Height)))
-                           .Concat(coastNodes.Select(cn => (cn.Px, cn.Py, (float)CK3WaterLevel)));
+                           .Concat(coastNodes.Select(cn => (cn.Px, cn.Py, (float)MaxWaterByte)));
         var combinedCoordIndex = BuildCoordIndex(allPoints);
 
         var allCoords = terrainNodes.Select(t  => new Coordinate(t.Px,  t.Py))
                            .Concat(polyNodes.Select(pn => new Coordinate(pn.Px, pn.Py)))
                            .Concat(coastNodes.Select(cn => new Coordinate(cn.Px, cn.Py)));
         var triangulation = Triangulate(allCoords, constraintSegs);
-        AbsorbSteinerPoints(triangulation, combinedCoordIndex, coastNodes, CK3WaterLevel);
+        AbsorbSteinerPoints(triangulation, combinedCoordIndex, coastNodes, MaxWaterByte);
         var patches = PatchBayShortcuts(triangulation, coastNodes, originalCoastCount, constraintSegs, constraintSegToCellId, terrainNodes, combinedCoordIndex);
         var heightMap = RasterizeTriangles(triangulation, combinedCoordIndex, p, patches: patches);
         ApplyGaussianBlur(heightMap, p);
         // Coastal lift goes AFTER blur so the lift produces a sharp step at the waterline that
         // the blur cannot wash out. ToBytes below re-quantises with the lifted values.
-        ApplyCoastalLift(heightMap, CK3WaterLevel, CoastalLiftRampWidth, CoastalLiftAmount);
+        ApplyCoastalLift(heightMap, MaxWaterByte, CoastalLiftRampWidth, CoastalLiftAmount);
 
         return new GenerateResult(ToBytes(heightMap), heightMap, terrainNodes, polyNodes, coastNodes, originalCoastCount, constraintSegs, constraintSegToCellId, triangulation);
     }

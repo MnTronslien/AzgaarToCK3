@@ -20,25 +20,37 @@ public static class SteepnessField
 
     /// <summary>
     /// Compute p95-normalised steepness for every pixel. Returns a fresh float[width*height].
-    /// Pixels over sea (heightmapBytes[i] &lt; CK3WaterLevel) are 0.
+    /// Pixels over sea (heightmapBytes[i] &lt;= MaxWaterByte) are 0.
     /// </summary>
     public static float[] Compute(float[] heightmapF, byte[] heightmapBytes, int width, int height)
     {
-        byte wl = HeightmapAlgorithm.CK3WaterLevel;
+        byte maxWaterByte = HeightmapAlgorithm.MaxWaterByte;
         var raw = new float[width * height];
 
-        // Step 1+2: central-difference gradient → steepness scalar
+        // Step 1+2: central-difference gradient → steepness scalar.
+        //
+        // CK3 shallow water is transparent for ~10-30 bytes below the waterline, so underwater
+        // terrain still needs valid steepness — otherwise steep underwater slopes (continental
+        // shelves, submerged cliffs) read as flat and the hills/mountain materials never kick in.
+        // We compute steepness for ALL pixels, not just land.
+        //
+        // Gradient component is zeroed when the kernel CROSSES the waterline (one sample land, one
+        // sea) — that crossing is an artificial discontinuity from the discrete waterline byte
+        // value. Same-side pairs (both land OR both sea) keep their gradient.
         for (int y = kd; y < height - kd; y++)
         {
             for (int x = kd; x < width - kd; x++)
             {
                 int i = y * width + x;
-                if (heightmapBytes[i] < wl) continue;     // sea pixel — leave 0
 
-                // Zero out a component if either sample crosses the ocean boundary.
-                float gx = (heightmapBytes[i + kd]         >= wl && heightmapBytes[i - kd]         >= wl)
+                // "Same side of waterline" means both samples are land OR both are water.
+                // byte > MaxWaterByte → land; byte <= MaxWaterByte → water (per CK3 semantics).
+                bool sameSideX = (heightmapBytes[i + kd] > maxWaterByte) == (heightmapBytes[i - kd] > maxWaterByte);
+                bool sameSideY = (heightmapBytes[i + kd * width] > maxWaterByte) == (heightmapBytes[i - kd * width] > maxWaterByte);
+
+                float gx = sameSideX
                     ? (heightmapF[i + kd]         - heightmapF[i - kd])         / (2f * kd) : 0f;
-                float gy = (heightmapBytes[i + kd * width] >= wl && heightmapBytes[i - kd * width] >= wl)
+                float gy = sameSideY
                     ? (heightmapF[i + kd * width] - heightmapF[i - kd * width]) / (2f * kd) : 0f;
                 raw[i] = 1f - 1f / MathF.Sqrt(gx * gx + gy * gy + 1f);
             }
@@ -49,7 +61,7 @@ public static class SteepnessField
         int landCount = 0;
         for (int i = 0; i < heightmapBytes.Length; i++)
         {
-            if (heightmapBytes[i] < wl) continue;
+            if (heightmapBytes[i] <= maxWaterByte) continue;   // p95 over land pixels only
             landCount++;
             hist[Math.Clamp((int)(raw[i] * 1000f), 0, 1023)]++;
         }

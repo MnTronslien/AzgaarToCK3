@@ -22,7 +22,7 @@ public static class HeightmapWriter
     // ──────────────────────────────────────────────────────────────────────────
     //  Constants (mirror upstream HeightMapConverter)
     // ──────────────────────────────────────────────────────────────────────────
-    public const int CK3WaterLevel = 20;
+    // (waterline byte threshold lives on HeightmapAlgorithm.MaxWaterByte — single source of truth)
 
     private static readonly int[] detailSize = [33, 17, 9, 5, 3];
     private static readonly byte[] averageSize = [1, 2, 4, 8, 16];

@@ -27,5 +27,5 @@ public record struct PolyNode(
 
 public record struct CoastNode(float Px, float Py) : IHeightmapNode
 {
-    public float Height => HeightmapAlgorithm.CK3WaterLevel;
+    public float Height => HeightmapAlgorithm.MaxWaterByte;
 }

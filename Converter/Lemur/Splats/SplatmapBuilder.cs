@@ -15,6 +15,12 @@ namespace Converter.Lemur.Splats;
 // biome-only output equivalent to M1.
 public static class SplatmapBuilder
 {
+    // Sea-side gate width. Pixels with heightmap byte > (MaxWaterByte - this) get evaluated by
+    // materials so coastal/beach rules can paint into the immediate underwater margin. Past this
+    // depth we shortcut to AllUnused. Roughly matches the underwater beach falloff distance in
+    // MaterialRegistry — keep them in sync.
+    public const int CoastalBandUnderwater = 30;
+
     public static Splatmap Build(
         IReadOnlyDictionary<int, Cell> cells,
         AzgaarMapCoordinates coords,
@@ -23,7 +29,7 @@ public static class SplatmapBuilder
     {
         int width = Map.MapWidth;
         int height = Map.MapHeight;
-        byte wl = HeightmapAlgorithm.CK3WaterLevel;
+        byte maxWaterByte = HeightmapAlgorithm.MaxWaterByte;
 
         // ── Phase A: per-pixel biome weights ──────────────────────────────────
         var biomes = BiomeWeightField.Build(cells, coords);
@@ -56,31 +62,42 @@ public static class SplatmapBuilder
             {
                 int i = y * width + x;
 
-                // Land/sea gate. With heightmap: pixel < waterLevel → sea. Without heightmap:
-                // "land" = "any biome weight present" — preserves M1 behaviour for the biome-only
-                // path (TerrainLab with --no-heightmap).
+                // Coastal-band gate. Land pixels always run. Sea pixels within
+                // CoastalBandUnderwater bytes of the waterline also run so coastal materials
+                // (beaches, surf) can paint into the immediate underwater margin. Deep-sea pixels
+                // skip the material loop and stay sentinel.
                 bool isLand;
+                bool inCoastalBand;
                 float h01;
                 if (heightmapBytes != null)
                 {
-                    isLand = heightmapBytes[i] >= wl;
+                    // Strict `>`: a byte == MaxWaterByte is water (CK3 renders it as ocean), so
+                    // first land byte is MaxWaterByte + 1. The coastal-band gate is `>` so the
+                    // pixel exactly at MaxWaterByte enters the loop and can pick up beach/mud
+                    // weight on the sea side.
+                    isLand = heightmapBytes[i] > maxWaterByte;
+                    inCoastalBand = heightmapBytes[i] > (maxWaterByte - CoastalBandUnderwater);
                     h01 = heightmapBytes[i] / 255f;
                 }
                 else
                 {
+                    // No heightmap: fall back to "in biome triangle" as the gate. No underwater
+                    // band because we don't know what's underwater.
                     var bt = biomes[i];
                     isLand = bt.W0 > 0 || bt.W1 > 0 || bt.W2 > 0;
+                    inCoastalBand = isLand;
                     h01 = 0f;
                 }
 
-                if (!isLand)
+                if (!inCoastalBand)
                 {
                     splat.Pixels[i] = SplatPixel.AllUnused;
                     continue;
                 }
 
                 float s = steepness != null ? steepness[i] : 0f;
-                var ctx = new PixelContext(x, y, biomes[i], s, h01, isLand: true);
+                var ctx = new PixelContext(x, y, biomes[i], s, h01,
+                    waterLevel01: maxWaterByte / 255f, isLand: isLand);
 
                 // Evaluate every material once per pixel.
                 for (int m = 0; m < materials.Count; m++)

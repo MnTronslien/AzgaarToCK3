@@ -10,7 +10,7 @@ namespace TerrainLab;
 // result.Core; diagnostic outputs (Connectivity, CascadingNodes) are on LabResult directly.
 static class HeightmapGenerator
 {
-    public const int CK3WaterLevel = HeightmapAlgorithm.CK3WaterLevel;
+    public const int MaxWaterByte = HeightmapAlgorithm.MaxWaterByte;
 
     public record CoastConnectivity(
         IReadOnlyList<int>  Connections,

@@ -10,16 +10,26 @@ public readonly struct PixelContext
     public readonly BiomeWeightTriple Biomes;
     public readonly float Steepness01;             // 0..1, p95-normalised gradient; 0 on sea or if no heightmap
     public readonly float Height01;                // 0..1, heightmap byte / 255; 0 if no heightmap
+    public readonly float WaterLevel01;            // 0..1, MaxWaterByte / 255. Height01 > WaterLevel01 ⇔ pixel is land.
     public readonly bool IsLand;
 
-    public PixelContext(int x, int y, BiomeWeightTriple biomes, float steepness01, float height01, bool isLand)
+    public PixelContext(int x, int y, BiomeWeightTriple biomes,
+        float steepness01, float height01, float waterLevel01, bool isLand)
     {
         X = x; Y = y; Biomes = biomes;
-        Steepness01 = steepness01; Height01 = height01; IsLand = isLand;
+        Steepness01 = steepness01; Height01 = height01;
+        WaterLevel01 = waterLevel01; IsLand = isLand;
     }
 
     // Sugar for Material rules — read biome weight by Azgaar enum value.
-    public float AzgaarBiomeWeight(AzgaarBiome b) => Biomes.WeightOf(b);
+    // Gated on IsLand so biome textures never leak onto sea-side pixels even when the relaxed
+    // coastal-band gate in SplatmapBuilder lets sub-water pixels through to the material loop.
+    public float AzgaarBiomeWeight(AzgaarBiome b) => IsLand ? Biomes.WeightOf(b) : 0f;
+
+    // Signed elevation relative to the waterline. 0 exactly at sea level, positive on land,
+    // negative underwater. Use this for rules that need to behave differently above vs below the
+    // waterline (beaches, tidal flats, kelp).
+    public float ElevationFromWaterline01 => Height01 - WaterLevel01;
 }
 
 // Holds the three Azgaar biomes at this pixel's Delaunay triangle corners and their barycentric

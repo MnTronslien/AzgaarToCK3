@@ -48,7 +48,7 @@ public static class HeightmapMasks
     public static async Task Write(float[] heightmapF, byte[] pixels, int width, int height, string masksDir)
     {
         Directory.CreateDirectory(masksDir);
-        byte wl = HeightmapAlgorithm.CK3WaterLevel;
+        byte maxWaterByte = HeightmapAlgorithm.MaxWaterByte;
 
         // ── 1+2. Steepness (already p95-normalised, 0..1, 0 over sea) ────────
         // Shared with SplatmapBuilder — both consume the same scalar field.
@@ -62,7 +62,7 @@ public static class HeightmapMasks
         for (int i = 0; i < pixels.Length; i++)
         {
             byte h = pixels[i];
-            if (h < wl) continue;
+            if (h <= maxWaterByte) continue;   // skip water pixels — masks only paint on land
 
             float s = steep[i];   // already p95-normalised
 

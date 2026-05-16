@@ -727,17 +727,17 @@ static class Program
             var pixels = result.Core.Pixels;
             int w = genParams.Width, h = genParams.Height;
             const int kd = 4;
-            const float wl = HeightmapGenerator.CK3WaterLevel;
+            const float wl = HeightmapGenerator.MaxWaterByte;
 
             var steep = new float[w * h];
             for (int y = kd; y < h - kd; y++)
             for (int x = kd; x < w - kd; x++)
             {
                 int idx = y * w + x;
-                if (pixels[idx] < wl) continue;
-                float gx = (pixels[idx + kd]     >= wl && pixels[idx - kd]     >= wl)
+                if (pixels[idx] <= wl) continue;
+                float gx = (pixels[idx + kd]     > wl && pixels[idx - kd]     > wl)
                     ? (hf[idx + kd]     - hf[idx - kd])     / (2f * kd) : 0f;
-                float gy = (pixels[idx + kd * w] >= wl && pixels[idx - kd * w] >= wl)
+                float gy = (pixels[idx + kd * w] > wl && pixels[idx - kd * w] > wl)
                     ? (hf[idx + kd * w] - hf[idx - kd * w]) / (2f * kd) : 0f;
                 steep[idx] = 1f - 1f / MathF.Sqrt(gx * gx + gy * gy + 1f);
             }
@@ -746,7 +746,7 @@ static class Program
             int landN = 0;
             for (int idx = 0; idx < pixels.Length; idx++)
             {
-                if (pixels[idx] < wl) continue;
+                if (pixels[idx] <= wl) continue;
                 landN++;
                 hist[Math.Clamp((int)(steep[idx] * 10000f), 0, 9999)]++;
             }
@@ -765,7 +765,7 @@ static class Program
             var steepBytes = new byte[w * h];
             for (int idx = 0; idx < pixels.Length; idx++)
             {
-                if (pixels[idx] < wl) continue;
+                if (pixels[idx] <= wl) continue;
                 float s = Math.Clamp(steep[idx] / p95, 0f, 1f);
                 steepBytes[idx] = (byte)(s * 255f);
             }
@@ -789,7 +789,7 @@ static class Program
             var roughBytes = new byte[w * h];
             for (int idx = 0; idx < roughF.Length; idx++)
             {
-                if (result.Core.Pixels[idx] < wl) continue;
+                if (result.Core.Pixels[idx] <= wl) continue;
                 roughBytes[idx] = (byte)Math.Clamp((int)(roughF[idx] * 255f), 0, 255);
             }
 
@@ -805,7 +805,7 @@ static class Program
         if (neighborArrows)
         {
             int w = genParams.Width, h = genParams.Height;
-            const byte wl = HeightmapGenerator.CK3WaterLevel;
+            const byte wl = HeightmapGenerator.MaxWaterByte;
 
             // Greyscale + blue water background, same as --coast-map / --river-map
             var rgb = new byte[w * h * 3];
@@ -813,7 +813,7 @@ static class Program
             {
                 byte px = result.Core.Pixels[idx];
                 int o = idx * 3;
-                if (px < wl)
+                if (px <= wl)
                 {
                     rgb[o]     = 0;
                     rgb[o + 1] = (byte)(px * 3);
@@ -907,7 +907,7 @@ static class Program
         if (riverMap)
         {
             int w = genParams.Width, h = genParams.Height;
-            const byte wl = HeightmapGenerator.CK3WaterLevel;
+            const byte wl = HeightmapGenerator.MaxWaterByte;
 
             // Same blue-water + greyscale background as --coast-map
             var rgb = new byte[w * h * 3];
@@ -915,7 +915,7 @@ static class Program
             {
                 byte px = result.Core.Pixels[idx];
                 int o = idx * 3;
-                if (px < wl)
+                if (px <= wl)
                 {
                     rgb[o]     = 0;
                     rgb[o + 1] = (byte)(px * 3);
@@ -1039,14 +1039,14 @@ static class Program
         if (coastMap)
         {
             int w = genParams.Width, h = genParams.Height;
-            const byte wl = HeightmapGenerator.CK3WaterLevel;
+            const byte wl = HeightmapGenerator.MaxWaterByte;
 
             var rgb = new byte[w * h * 3];
             for (int idx = 0; idx < result.Core.Pixels.Length; idx++)
             {
                 byte px = result.Core.Pixels[idx];
                 int o = idx * 3;
-                if (px < wl)
+                if (px <= wl)
                 {
                     rgb[o]     = 0;
                     rgb[o + 1] = (byte)(px * 3);
@@ -1452,7 +1452,7 @@ static class Program
                                         Includes major river cell modifications. Replaces --json + --geojson.
                   --rivers-geojson <path>
                                         Major-river control points used to seed centerline TerrainNodes at
-                                        CK3WaterLevel - Params.RiverCenterlineDepth. Filtered by MajorRiverThreshold
+                                        MaxWaterByte - Params.RiverCenterlineDepth. Filtered by MajorRiverThreshold
                                         from settings.json. Compatible with both --cells and --json/--geojson modes.
                   --river-cp-spacing F  Densify control points to ≤ F pixels apart along each river polyline.
                                         Default: 5. Lower = denser spine, more CDT cost, fewer rasterization gaps.
