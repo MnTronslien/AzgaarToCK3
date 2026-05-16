@@ -21,10 +21,25 @@ public readonly struct PixelContext
         WaterLevel01 = waterLevel01; IsLand = isLand;
     }
 
+    // Coast-fade band — biome materials ramp from 0 at the waterline to full weight this many
+    // Height01-units inland. Matches the beach material's above-water reach so beach (fading
+    // OUT) and biome (fading IN) crossfade across the same band, eliminating the jagged seam.
+    // 0.012 ≈ 3 heightmap bytes inland.
+    public const float CoastFadeUp01 = 0.012f;
+
     // Sugar for Material rules — read biome weight by Azgaar enum value.
-    // Gated on IsLand so biome textures never leak onto sea-side pixels even when the relaxed
-    // coastal-band gate in SplatmapBuilder lets sub-water pixels through to the material loop.
-    public float AzgaarBiomeWeight(AzgaarBiome b) => IsLand ? Biomes.WeightOf(b) : 0f;
+    // - Gated on IsLand so biome textures never leak onto sea-side pixels even when the relaxed
+    //   coastal-band gate in SplatmapBuilder lets sub-water pixels through to the material loop.
+    // - Ramped near the waterline (CoastFadeUp01) so biomes don't appear at full strength right
+    //   next to where beach is fading out.
+    public float AzgaarBiomeWeight(AzgaarBiome b)
+    {
+        if (!IsLand) return 0f;
+        float raw = Biomes.WeightOf(b);
+        if (raw <= 0f) return 0f;
+        float t = MathF.Min(ElevationFromWaterline01 / CoastFadeUp01, 1f);
+        return raw * t;
+    }
 
     // Signed elevation relative to the waterline. 0 exactly at sea level, positive on land,
     // negative underwater. Use this for rules that need to behave differently above vs below the
