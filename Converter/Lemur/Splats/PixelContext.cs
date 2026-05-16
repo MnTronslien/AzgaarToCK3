@@ -22,10 +22,14 @@ public readonly struct PixelContext
     }
 
     // Coast-fade band — biome materials ramp from 0 at the waterline to full weight this many
-    // Height01-units inland. Matches the beach material's above-water reach so beach (fading
-    // OUT) and biome (fading IN) crossfade across the same band, eliminating the jagged seam.
-    // 0.012 ≈ 3 heightmap bytes inland.
-    public const float CoastFadeUp01 = 0.012f;
+    // Height01-units inland. The beach material's above-water reach reads the SAME constant so
+    // beach (fading OUT) and biome (fading IN) crossfade across the exact same band.
+    //
+    // Width tuning: the coastal lift in HeightmapAlgorithm pushes pre-lift bytes 21-22 up to
+    // ~26-32, so the visible coast band sits roughly 6-15 bytes inland of the waterline. The
+    // fade has to span THAT range or the transition collapses to a single-byte jump. 0.06 ≈ 15
+    // heightmap bytes — generous coverage of the post-lift coast.
+    public const float CoastFadeUp01 = 0.06f;
 
     // Sugar for Material rules — read biome weight by Azgaar enum value.
     // - Gated on IsLand so biome textures never leak onto sea-side pixels even when the relaxed
