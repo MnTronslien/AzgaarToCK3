@@ -21,7 +21,7 @@ public static class MaterialRegistry
         new Material("plains_01_dry",      (in PixelContext ctx) => ctx.AzgaarBiomeWeight(AzgaarBiome.Savanna)),
         new Material("desert_01",          (in PixelContext ctx) => ctx.AzgaarBiomeWeight(AzgaarBiome.HotDesert)),
         new Material("desert_02",          (in PixelContext ctx) => ctx.AzgaarBiomeWeight(AzgaarBiome.ColdDesert)),
-        new Material("farmland_01",        (in PixelContext ctx) => ctx.AzgaarBiomeWeight(AzgaarBiome.TropicalSeasonalForest)),
+        new Material("drylands_01_grassy", (in PixelContext ctx) => ctx.AzgaarBiomeWeight(AzgaarBiome.TropicalSeasonalForest)),
         new Material("forest_leaf_01",     (in PixelContext ctx) => ctx.AzgaarBiomeWeight(AzgaarBiome.TemperateDeciduousForest)),
         new Material("forest_jungle_01",   (in PixelContext ctx) => ctx.AzgaarBiomeWeight(AzgaarBiome.TropicalRainforest)),
         new Material("forest_pine_01",     (in PixelContext ctx) => ctx.AzgaarBiomeWeight(AzgaarBiome.TemperateRainforest)),
@@ -35,6 +35,46 @@ public static class MaterialRegistry
         // a different one, swap the texture name here.
         new Material("hills_01",        (in PixelContext ctx) => Tent(ctx.Steepness01, 0.20f, 0.40f, 0.75f)),
         new Material("central_mountain",(in PixelContext ctx) => LinearRamp(ctx.Steepness01, 0.65f, 1.00f)),
+
+        // ── Seafloor material — fills the underwater coastal band, blending with beach ──
+        // Tent peaks ~25 bytes below the waterline, zero at the waterline (beach owns there) and
+        // zero at ~30 bytes underwater (matches CoastalBandUnderwater). Combined with the beach
+        // material's underwater taper, this gives beach→mud_wet_01 transition along the surf zone.
+        // Multiplier 1.5 so mud dominates the far half of the underwater band where beach has faded.
+        new Material("mud_wet_01", (in PixelContext ctx) =>
+        {
+            float e = ctx.ElevationFromWaterline01;
+            if (e >= 0f) return 0f;     // mud is sea-side only
+            return 1.5f * Tent(-e, 0f, 25f / 255f, 30f / 255f);
+        }),
+
+        // ── Coastline material — peaks AT the waterline, asymmetric falloff ──
+        // ElevationFromWaterline01 is signed: 0 at sea level, positive inland, negative underwater.
+        // Above water: aggressive linear taper to 0 over ~3 bytes (≈ 0.012 height units) so the
+        //   beach strip is thin on the land side.
+        // Below water: gentler linear taper to 0 over ~10 bytes (≈ 0.04 height units) so we get a
+        //   visible underwater margin (the surf zone). SplatmapBuilder.CoastalBandUnderwater is
+        //   sized to match this reach — keep them in sync.
+        // Peak weight 1.5 at the waterline beats the ~1.0 biome weight by half, so beach wins the
+        // top splat slot at the coast but doesn't completely erase biome blending.
+        new Material("beach_02", (in PixelContext ctx) =>
+        {
+            const float aboveBand = 0.012f;      // ~3 bytes inland
+            const float belowBand = 30f / 255f;  // ~30 bytes underwater (must match SplatmapBuilder.CoastalBandUnderwater)
+            const float peak      = 1.5f;        // weight at the exact waterline
+            float e = ctx.ElevationFromWaterline01;
+            if (e >= 0f)
+            {
+                if (e >= aboveBand) return 0f;
+                return peak * (1f - e / aboveBand);
+            }
+            else
+            {
+                float depth = -e;
+                if (depth >= belowBand) return 0f;
+                return peak * (1f - depth / belowBand);
+            }
+        }),
     };
 
     // Rises from 0 at `low` to 1 at `peak`, falls back to 0 at `high`. Outside [low, high] returns 0.
