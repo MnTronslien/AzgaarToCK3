@@ -514,7 +514,7 @@ public static class HeightmapAlgorithm
         // ── 8. Delaunay triangulation + rasterization ─────────────────────────
         var allPoints = terrainNodes.Select(t  => (t.Px,  t.Py,  t.Height))
                            .Concat(polyNodes.Select(pn => (pn.Px, pn.Py, pn.Height)))
-                           .Concat(coastNodes.Select(cn => (cn.Px, cn.Py, (float)MaxWaterByte)));
+                           .Concat(coastNodes.Select(cn => (cn.Px, cn.Py, (float)(MaxWaterByte + 1))));
         var combinedCoordIndex = BuildCoordIndex(allPoints);
 
         var allCoords = terrainNodes.Select(t  => new Coordinate(t.Px,  t.Py))
