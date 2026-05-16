@@ -8,14 +8,23 @@ namespace Converter.Lemur.Writers;
 public static class HeightmapAlgorithm
 {
     // Highest heightmap byte value that CK3 renders as ocean. A pixel with byte == MaxWaterByte
-    // sits AT the waterline and is treated as water by CK3's renderer. The FIRST land byte is
-    // MaxWaterByte + 1. All land/sea comparisons in this codebase should follow that convention:
-    //   isWater = (byte <= MaxWaterByte)   →  inclusive ≤
-    //   isLand  = (byte >  MaxWaterByte)   →  strict   >
+    // sits AT the waterline and is treated as water by CK3's renderer. The first visible land
+    // byte is one above — exposed as `LowestLandByte` for clarity at sites that pin to it.
+    //
+    // All land/sea comparisons in this codebase should follow this convention:
+    //   isWater = (byte <= MaxWaterByte)         →  inclusive ≤
+    //   isLand  = (byte >  MaxWaterByte)         →  strict   >
+    //   isLand  = (byte >= LowestLandByte)       →  equivalent inclusive form
+    //
     // The choice of 20 is tied to MapDefinesWriter's WATERLEVEL output: with WORLD_EXTENTS_Y = 51
     // we write WATERLEVEL = (20 / 255) × 51 = 4.0, which is what CK3 reads from the mod's
     // mapsize_defines.txt. Keep these in sync — see notes in MapDefinesWriter.
     public const int MaxWaterByte = 20;
+
+    // First heightmap byte value that CK3 renders as land. Always MaxWaterByte + 1 by definition.
+    // Prefer this name at sites that pin heights to "the first land byte" (coast nodes, the land
+    // height-scale floor, terrain-node minimums) — reads `LowestLandByte` instead of `+ 1` magic.
+    public const int LowestLandByte = MaxWaterByte + 1;
 
     // Coastal lift parameters — applied after Gaussian blur, before byte quantisation.
     // Lifts above-water pixels and pushes down below-water pixels with a symmetric ramp+compress
@@ -119,10 +128,10 @@ public static class HeightmapAlgorithm
             .Select(c =>
             {
                 bool isLand = Cell.IsDryLand(c.Type);
-                // Land cells scale into [MaxWaterByte + 1, 255] — the lowest land cell sits one
+                // Land cells scale into [LowestLandByte, 255] — the lowest land cell sits one
                 // byte above the waterline so CK3 actually renders it above water.
                 float h = isLand
-                    ? (c.GeoHeight - minH) / (float)(maxH - minH) * (255f - (MaxWaterByte + 1)) + (MaxWaterByte + 1)
+                    ? (c.GeoHeight - minH) / (float)(maxH - minH) * (255f - LowestLandByte) + LowestLandByte
                     : 0f;
                 return new TerrainNode(
                     Id:       c.Id,
@@ -491,7 +500,7 @@ public static class HeightmapAlgorithm
                 if (cn1.Count > 0 && cn1[0].dist < p.CoastExclusionRadius) continue;
             }
 
-            nodeHeight = Math.Max(nodeHeight, MaxWaterByte + 1f);
+            nodeHeight = Math.Max(nodeHeight, LowestLandByte);
 
             int   c0 = nearest.Count > 0 ? nearest[0].item : -1;
             int   c1 = nearest.Count > 1 ? nearest[1].item : -1;
@@ -514,7 +523,7 @@ public static class HeightmapAlgorithm
         // ── 8. Delaunay triangulation + rasterization ─────────────────────────
         var allPoints = terrainNodes.Select(t  => (t.Px,  t.Py,  t.Height))
                            .Concat(polyNodes.Select(pn => (pn.Px, pn.Py, pn.Height)))
-                           .Concat(coastNodes.Select(cn => (cn.Px, cn.Py, (float)(MaxWaterByte + 1))));
+                           .Concat(coastNodes.Select(cn => (cn.Px, cn.Py, (float)LowestLandByte)));
         var combinedCoordIndex = BuildCoordIndex(allPoints);
 
         var allCoords = terrainNodes.Select(t  => new Coordinate(t.Px,  t.Py))

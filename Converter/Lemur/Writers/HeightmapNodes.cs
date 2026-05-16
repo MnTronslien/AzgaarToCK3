@@ -27,9 +27,8 @@ public record struct PolyNode(
 
 public record struct CoastNode(float Px, float Py) : IHeightmapNode
 {
-    // Coast nodes mark the FIRST LAND BYTE — one above MaxWaterByte. With strict `> MaxWaterByte`
-    // = land semantics, sitting at MaxWaterByte would make coast nodes water; raising to +1 puts
-    // them on the land side so the rasterised coastline lines up with the actual cell-polygon
-    // boundary instead of creeping a few pixels inland.
-    public float Height => HeightmapAlgorithm.MaxWaterByte + 1;
+    // Coast nodes pin to the FIRST land byte (LowestLandByte = MaxWaterByte + 1) so they sit on
+    // the land side of the waterline. Sitting at MaxWaterByte would make coast nodes water under
+    // strict-`>` land semantics, and the rasterised coastline would creep a few pixels inland.
+    public float Height => HeightmapAlgorithm.LowestLandByte;
 }
