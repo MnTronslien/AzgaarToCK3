@@ -360,14 +360,41 @@ public static class HeightmapWriter
                     Value:              w.nonZeroP90));
         }
 
-        // Detail level thresholds (verbatim from upstream)
+        // Percentile-based detail-level cutoffs computed from the actual metric
+        // distribution. Self-calibrating across maps: no re-tuning when the input
+        // heightmap's gradient statistics shift (e.g. all-mountains vs all-flatland).
+        //
+        // Splits (cumulative from top): L0 top 5%, L1 next 10%, L2 next 10%, L3 next 15%, L4 bottom 60%.
+        // Picked to roughly mirror the LAND/OCEAN ratio on Oncyia (~40% land), so L0-L3
+        // get partitioned across the land tiles while L4 absorbs the ocean spike at 0.
+        // Tweak via the four constants below.
+        const double pctL0 = 0.95;   // tiles ≥ this percentile → L0
+        const double pctL1 = 0.85;
+        const double pctL2 = 0.75;
+        const double pctL3 = 0.60;
+
+        var sortedMetrics = weightedDerivatives
+            .Select(w => w.nonZeroP90)
+            .OrderBy(v => v)
+            .ToArray();
+        float Pct(double p)
+        {
+            if (sortedMetrics.Length == 0) return 0f;
+            int idx = (int)Math.Clamp(Math.Round(p * (sortedMetrics.Length - 1)), 0, sortedMetrics.Length - 1);
+            return sortedMetrics[idx];
+        }
+        float t0 = Pct(pctL0);
+        float t1 = Pct(pctL1);
+        float t2 = Pct(pctL2);
+        float t3 = Pct(pctL3);
+
         var detail = new[]
         {
-            weightedDerivatives.Where(n => n.nonZeroP90 >= 0.005f).ToArray(),
-            weightedDerivatives.Where(n => n.nonZeroP90 is >= 0.001f and < 0.005f).ToArray(),
-            weightedDerivatives.Where(n => n.nonZeroP90 is >= 0.0005f and < 0.001f).ToArray(),
-            weightedDerivatives.Where(n => n.nonZeroP90 is >= 0.0001f and < 0.0005f).ToArray(),
-            weightedDerivatives.Where(n => n.nonZeroP90 < 0.0001f).ToArray(),
+            weightedDerivatives.Where(n => n.nonZeroP90 >= t0).ToArray(),
+            weightedDerivatives.Where(n => n.nonZeroP90 >= t1 && n.nonZeroP90 < t0).ToArray(),
+            weightedDerivatives.Where(n => n.nonZeroP90 >= t2 && n.nonZeroP90 < t1).ToArray(),
+            weightedDerivatives.Where(n => n.nonZeroP90 >= t3 && n.nonZeroP90 < t2).ToArray(),
+            weightedDerivatives.Where(n => n.nonZeroP90 < t3).ToArray(),
         };
 
         var detailSamples = detail.Select((d, i) =>
