@@ -41,14 +41,14 @@ public static class BiomeWeightField
 
         foreach (var cell in cells.Values)
         {
-            // INCLUDE SEA CELLS in the triangulation — they get biome = 0 (AzgaarBiome.None).
-            // Inside a mixed land/sea Delaunay triangle, the sea corner takes part of the
-            // barycentric weight, which naturally drops land-biome weights as the pixel
-            // approaches the coast. This is cell-space distance-to-sea, much better than
-            // height-from-waterline as a "near coast" signal.
+            // Land cells always join; only COASTAL sea cells (touching at least one land cell)
+            // join with biome = 0 (AzgaarBiome.None). Interior ocean cells contribute nothing —
+            // their pixels are gated out by SplatmapBuilder's IsLand check anyway, so including
+            // them just bloats the triangulation. Skipping them keeps the convex hull tight around
+            // the actual coast and saves rasterise work.
             //
-            // Land cells: biome ∈ [1, 12] (AzgaarBiome.HotDesert .. Wetland)
-            // Sea cells:  biome = 0    (AzgaarBiome.None) — no land biome contribution
+            // The natural cell-space fade still works because every land cell that's adjacent to
+            // sea will share a Delaunay edge with at least one coastal sea cell.
             bool isLand = Cell.IsDryLand(cell.Type);
             byte biome;
             if (isLand)
@@ -58,6 +58,20 @@ public static class BiomeWeightField
             }
             else
             {
+                // Sea cell: include only if any neighbour is dry land.
+                bool isCoastal = false;
+                if (cell.Neighbors != null)
+                {
+                    foreach (int nId in cell.Neighbors)
+                    {
+                        if (cells.TryGetValue(nId, out var neighbor) && Cell.IsDryLand(neighbor.Type))
+                        {
+                            isCoastal = true;
+                            break;
+                        }
+                    }
+                }
+                if (!isCoastal) continue;
                 biome = 0;   // AzgaarBiome.None
             }
             if (cell.GeoDataCoordinates == null || cell.GeoDataCoordinates.Length < 3) continue;
