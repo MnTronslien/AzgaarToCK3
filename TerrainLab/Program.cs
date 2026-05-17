@@ -51,6 +51,9 @@ static class Program
         bool genMaterials = false;
         string? genMaterialsCk3Dir = null;
         string? genMaterialsOut = null;
+        bool packHeightmap = false;
+        bool packDebug = false;
+        string? packOut = null;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -95,6 +98,9 @@ static class Program
                 case "--gen-materials":           genMaterials         = true; break;
                 case "--ck3-dir":                 genMaterialsCk3Dir   = args[++i]; break;
                 case "--gen-materials-out":       genMaterialsOut      = args[++i]; break;
+                case "--pack-heightmap":          packHeightmap        = true; break;
+                case "--pack-debug":              packDebug            = true; break;
+                case "--pack-out":                packOut              = args[++i]; break;
                 case "--cells":           cellsDumpPath     = args[++i]; break;
                 case "--rivers-geojson":  riversGeojsonPath = args[++i]; break;
                 case "--river-cp-spacing": riverCpSpacing  = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
@@ -135,7 +141,7 @@ static class Program
         // --detail-intensity needs only --terrain-out (or --output for its dir); no Azgaar data needed
         // --check-neighbors needs cells but no output path
         bool dataRequired   = !detailIntensity;
-        bool outputRequired = !detailIntensity && !checkNeighbors && !auditSharedEdges && dumpPair == null;
+        bool outputRequired = !detailIntensity && !checkNeighbors && !auditSharedEdges && dumpPair == null && !packHeightmap;
         bool dataProvided   = cellsDumpPath != null || (jsonPath != null && geojsonPath != null);
         if ((dataRequired && !dataProvided) || (outputRequired && outputPath == null && terrainOut == null))
         {
@@ -605,6 +611,68 @@ static class Program
         var result = HeightmapGenerator.Generate(cells, genParams, riverInputs);
         sw.Stop();
         Console.WriteLine($"Generated in {sw.Elapsed.TotalSeconds:F1}s");
+
+        // ── Pack heightmap: run HeightmapWriter.PackAndWrite on freshly-generated pixels ─
+        // Writes packed_heightmap.png, indirection_heightmap.png, heightmap.heightmap
+        // (and heightmap.png + optional pack_detail_levels.png debug PNG) to the chosen dir.
+        // Default dir: %LOCALAPPDATA%\AzgaarToCK3\debug\pack_<timestamp>\
+        if (packHeightmap)
+        {
+            var packDir = packOut ?? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "AzgaarToCK3", "debug",
+                $"pack_{DateTime.Now:yyyyMMdd_HHmmss}");
+            Directory.CreateDirectory(packDir);
+
+            // Save the source heightmap.png alongside the packed files for visual inspection.
+            // PackAndWrite below doesn't write heightmap.png itself — only the three packed artifacts.
+            var heightmapPath = Path.Combine(packDir, "heightmap.png");
+            var hmSettings = new MagickReadSettings
+            {
+                Width      = genParams.Width,
+                Height     = genParams.Height,
+                ColorSpace = ColorSpace.Gray,
+                Format     = MagickFormat.Gray,
+            };
+            using (var hmImg = new MagickImage(result.Core.Pixels, hmSettings))
+            {
+                hmImg.Depth = 8;
+                await hmImg.WriteAsync(heightmapPath, MagickFormat.Png);
+            }
+            Console.WriteLine($"  heightmap.png written ({genParams.Width}×{genParams.Height})");
+
+            string? debugPath = packDebug
+                ? Path.Combine(packDir, "pack_detail_levels.png")
+                : null;
+
+            var packSw = System.Diagnostics.Stopwatch.StartNew();
+            var stats = await HeightmapWriter.PackAndWrite(
+                result.Core.Pixels, genParams.Width, genParams.Height,
+                packDir, debugPath);
+            packSw.Stop();
+
+            Console.WriteLine();
+            Console.WriteLine($"Pack done in {packSw.Elapsed.TotalSeconds:F1}s. Output: {packDir}");
+            Console.WriteLine($"  packed_heightmap.png:      {stats.PackedWidth}×{stats.PackedHeight}");
+            Console.WriteLine($"  indirection_heightmap.png: {stats.IndirectionWidth}×{stats.IndirectionHeight}  (= {stats.IndirectionWidth * stats.IndirectionHeight} tiles total)");
+            Console.WriteLine($"  Tiles per detail level (L0=highest, L4=lowest):");
+            int sumTiles = 0;
+            string[] avgSizeLabel = { "1×", "2×", "4×", "8×", "16×" };
+            int[] tileSize = { 33, 17, 9, 5, 3 };
+            for (int li = 0; li < stats.TilesPerDetailLevel.Count; li++)
+            {
+                int n = stats.TilesPerDetailLevel[li];
+                sumTiles += n;
+                double pct = stats.IndirectionWidth * stats.IndirectionHeight > 0
+                    ? 100.0 * n / (stats.IndirectionWidth * stats.IndirectionHeight) : 0;
+                Console.WriteLine($"    L{li}  tile {tileSize[li],2}×{tileSize[li],-2}  avg {avgSizeLabel[li],-3}  {n,6:N0} tiles  ({pct,5:F1}%)");
+            }
+            int unassigned = stats.IndirectionWidth * stats.IndirectionHeight - sumTiles;
+            Console.WriteLine($"    Sum assigned: {sumTiles:N0}   Unassigned (empty_tile fallback): {unassigned:N0}");
+            if (debugPath != null)
+                Console.WriteLine($"  pack_detail_levels.png: {debugPath}");
+            return 0;
+        }
 
         // ── Mesh visualisation (skipped when --coast-map / --river-map is set; mesh is drawn there instead) ─
         if (mesh && !coastMap && !riverMap)
@@ -1465,6 +1533,18 @@ static class Program
                   --alpha N                  Override the alpha channel to value N (0-255) on every pixel.
                                              Diagnostic — used with --paint-detail-* to test how CK3 interprets alpha.
                   --detail-intensity         (diagnostic) Write the row×column RGB checkerboard, no Azgaar data needed.
+
+                  --pack-heightmap           Generate heightmap, run the packing algorithm (CreatePackedHeightmap +
+                                             WritePackedHeightmap), write packed_heightmap.png + indirection_heightmap.png +
+                                             heightmap.heightmap + source heightmap.png to --pack-out. Prints per-detail-level
+                                             tile-count stats afterwards.
+                                             Default --pack-out: %LOCALAPPDATA%/AzgaarToCK3/debug/pack_<timestamp>/
+                                             For CK3 hot-reload, pass --pack-out '<mod>/map_data'.
+                  --pack-out <dir>           Override the output directory for --pack-heightmap.
+                  --pack-debug               Also writes pack_detail_levels.png — an indirection-grid-sized PNG with each
+                                             pixel coloured by the detail level the packer chose for that tile
+                                             (red=L0 highest, blue=L4 lowest). Killer diagnostic for spotting where
+                                             the packer over- or under-allocates detail.
 
                   TerrainLab --compare <path-a> <path-b>
                                 Pixel-by-pixel comparison of two grayscale PNGs. Exits 0 if identical.

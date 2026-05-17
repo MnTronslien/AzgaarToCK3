@@ -31,6 +31,22 @@ public static class HeightmapWriter
     private static int PackedWidth => MaxColumnN * 17;
 
     // ──────────────────────────────────────────────────────────────────────────
+    //  Public packing stats — what TerrainLab inspects after PackAndWrite.
+    // ──────────────────────────────────────────────────────────────────────────
+    /// <summary>
+    /// Diagnostic numbers returned by <see cref="PackAndWrite"/>.
+    /// All five detail levels are always present in TilesPerDetailLevel (zero if unused).
+    /// Detail level 0 = highest detail (33×33 px tile, 1× averaging),
+    /// level 4 = lowest detail (3×3 px tile, 16× averaging).
+    /// </summary>
+    public sealed record PackingStats(
+        IReadOnlyList<int> TilesPerDetailLevel,
+        int IndirectionWidth,
+        int IndirectionHeight,
+        int PackedWidth,
+        int PackedHeight);
+
+    // ──────────────────────────────────────────────────────────────────────────
     //  Entry point
     // ──────────────────────────────────────────────────────────────────────────
     public static async Task Write(L.Map map, string outputDirectory)
@@ -56,6 +72,108 @@ public static class HeightmapWriter
             HeightmapMasks.Write(heightmapF, pixels, L.Map.MapWidth, L.Map.MapHeight, masksDir));
 
         Logger.Info("HeightmapWriter: wrote heightmap.png, packed_heightmap.png, indirection_heightmap.png, heightmap.heightmap + geometry masks");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  Lab entry point — pack an existing heightmap byte array and emit the
+    //  three CK3 packed files. Use this when iterating on the packing algorithm
+    //  in isolation (e.g. TerrainLab --pack-heightmap). The full-converter path
+    //  goes through Write(map, outputDirectory) above.
+    //
+    //  If detailLevelsDebugPath is set, ALSO writes a per-indirection-tile
+    //  color-coded PNG showing which detail level the packer assigned to each
+    //  tile — the killer diagnostic for "is the algorithm making sensible
+    //  detail-level decisions across the map?".
+    // ──────────────────────────────────────────────────────────────────────────
+    public static async Task<PackingStats> PackAndWrite(
+        byte[] pixels, int width, int height, string mapDataDir,
+        string? detailLevelsDebugPath = null)
+    {
+        Directory.CreateDirectory(mapDataDir);
+
+        var packed = await CreatePackedHeightmap(pixels, width, height);
+        await WritePackedHeightmap(packed, mapDataDir);
+
+        var tilesPerLevel = new int[detailSize.Length];
+        for (int i = 0; i < packed.Details.Length; i++)
+        {
+            var d = packed.Details[i];
+            if (d == null) continue;
+            int sum = 0;
+            foreach (var row in d.Rows) sum += row.Length;
+            tilesPerLevel[i] = sum;
+        }
+
+        if (detailLevelsDebugPath != null)
+            await WriteDetailLevelDebugPng(packed, width, height, detailLevelsDebugPath);
+
+        return new PackingStats(
+            TilesPerDetailLevel: tilesPerLevel,
+            IndirectionWidth:  width  / IndirectionProportion,
+            IndirectionHeight: height / IndirectionProportion,
+            PackedWidth:  PackedWidth,
+            PackedHeight: packed.PixelHeight);
+    }
+
+    // Writes an indirection-grid-sized PNG (width/32 × height/32) where each
+    // pixel is colored by the detail level assigned to that tile:
+    //   level 0 (highest detail) = bright red
+    //   level 1                  = orange
+    //   level 2                  = yellow
+    //   level 3                  = green
+    //   level 4 (lowest detail)  = blue
+    //   unassigned (e.g. open ocean tiles that hit no detail bucket) = black
+    // The coordinate space matches packed.Details[i].Coordinates — those are
+    // the top-left pixel coords of each tile's source area, sampled every
+    // IndirectionProportion (32) px.
+    private static async Task WriteDetailLevelDebugPng(
+        PackedHeightmap packed, int width, int height, string path)
+    {
+        int ihW = width  / IndirectionProportion;
+        int ihH = height / IndirectionProportion;
+        var px = new byte[ihW * ihH * 3];   // RGB
+
+        // Level colours roughly matching CK3 modder mental model
+        (byte r, byte g, byte b)[] colors = new (byte, byte, byte)[]
+        {
+            (230,  40,  40),   // L0  bright red    — highest detail
+            (240, 140,  40),   // L1  orange
+            (230, 220,  40),   // L2  yellow
+            ( 80, 200,  80),   // L3  green
+            ( 60, 110, 220),   // L4  blue          — lowest detail
+        };
+
+        for (int di = 0; di < packed.Details.Length; di++)
+        {
+            var d = packed.Details[di];
+            if (d == null) continue;
+            var (r, g, b) = colors[Math.Min(di, colors.Length - 1)];
+
+            foreach (var c in d.Coordinates)
+            {
+                int col = (int)c.X / IndirectionProportion;
+                // c.Y is the iteration index over the second-derivative array, which is itself
+                // built south-up by Gradient() (pixel row `height - vi - 1` is read at result[*, vi]).
+                // WritePackedHeightmap applies the flip `verticalTiles - TileI - 1` so the
+                // indirection PNG comes out north-up — do the same here to match.
+                int rowFromSouth = (int)c.Y / IndirectionProportion;
+                int rowPng = ihH - 1 - rowFromSouth;
+                if (col < 0 || col >= ihW || rowPng < 0 || rowPng >= ihH) continue;
+                int o = (rowPng * ihW + col) * 3;
+                px[o] = r; px[o + 1] = g; px[o + 2] = b;
+            }
+        }
+
+        var settings = new MagickReadSettings
+        {
+            Width = ihW,
+            Height = ihH,
+            ColorSpace = ColorSpace.sRGB,
+            Format = MagickFormat.Rgb,
+        };
+        using var img = new MagickImage(px, settings);
+        img.Depth = 8;
+        await img.WriteAsync(path, MagickFormat.Png);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
