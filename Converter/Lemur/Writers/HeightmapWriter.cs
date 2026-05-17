@@ -326,21 +326,29 @@ public static class HeightmapWriter
 
         const int samplesPerTile = 32;
 
+        // Per-tile metric = mean of first-derivative magnitudes — i.e. "average steepness
+        // across this 32×32 patch". Replaces upstream's signed-sum-of-2nd-derivative,
+        // which collapsed to ~0 on both flat ocean AND noisy interiors (cancellation),
+        // pushing every middle bucket below the L0 threshold.
+        //
+        // Magnitude (Euclidean norm of the gradient vector) is non-negative, so the
+        // distribution is single-sided (no negative tail) and rises monotonically from
+        // 0 over ocean to large values over mountain slopes — exactly the signal the
+        // detail-level bucketing wants.
         var firstDerivative = Gradient(pixels, mapWidth, mapHeight);
-        var secondDerivative = Gradient(firstDerivative, mapWidth, mapHeight);
 
         var gradientAreas = new List<Vector2[,]>();
         var areaCoordinates = new List<Vector2>();
 
-        for (int vi = 0; vi < secondDerivative.GetLength(1); vi += samplesPerTile)
-            for (int hi = 0; hi < secondDerivative.GetLength(0); hi += samplesPerTile)
+        for (int vi = 0; vi < firstDerivative.GetLength(1); vi += samplesPerTile)
+            for (int hi = 0; hi < firstDerivative.GetLength(0); hi += samplesPerTile)
             {
-                gradientAreas.Add(GetArea(secondDerivative, hi, vi, samplesPerTile, samplesPerTile));
+                gradientAreas.Add(GetArea(firstDerivative, hi, vi, samplesPerTile, samplesPerTile));
                 areaCoordinates.Add(new Vector2(hi, vi));
             }
 
         var weightedDerivatives = gradientAreas
-            .Select((n, i) => (i, nonZeroP90: Avg(n), coordinates: areaCoordinates[i]))
+            .Select((n, i) => (i, nonZeroP90: MeanMagnitude(n), coordinates: areaCoordinates[i]))
             .ToArray();
 
         if (perTileMetricsOut != null)
@@ -585,6 +593,25 @@ public static class HeightmapWriter
                 sum += values[hi, vi].Y;
             }
         return count > 0 ? (float)(sum / count) : 0f;
+    }
+
+    /// <summary>
+    /// Mean of Euclidean magnitudes √(x² + y²) across a 2-D Vector2 array, normalised
+    /// to [0..1] by the maximum possible 8-bit gradient magnitude (√(255²+255²) ≈ 360.62).
+    /// Used as the per-tile detail-level metric in CreatePackedHeightmap.
+    /// </summary>
+    private static float MeanMagnitude(Vector2[,] values)
+    {
+        const float maxByteGradient = 360.624458f;   // √(255² + 255²)
+        double sum = 0;
+        int count = values.GetLength(0) * values.GetLength(1);
+        for (int vi = 0; vi < values.GetLength(1); vi++)
+            for (int hi = 0; hi < values.GetLength(0); hi++)
+            {
+                var v = values[hi, vi];
+                sum += Math.Sqrt(v.X * v.X + v.Y * v.Y);
+            }
+        return count > 0 ? (float)(sum / count) / maxByteGradient : 0f;
     }
 
     /// <summary>
