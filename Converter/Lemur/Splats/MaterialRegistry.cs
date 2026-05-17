@@ -59,9 +59,12 @@ public static class MaterialRegistry
         // top splat slot at the coast but doesn't completely erase biome blending.
         new Material("beach_02", (in PixelContext ctx) =>
         {
-            // Above-water reach is shared with the biome coast-fade so beach fading OUT and
-            // biomes fading IN cover the exact same byte range — eliminating the jagged seam.
-            float aboveBand = PixelContext.CoastFadeUp01;
+            // Above-water taper: 3 bytes inland to zero — keeps the crisp beachline visible
+            // at the exact waterline pixel. Biome materials fade in over a WIDER band via the
+            // Delaunay sea-corner mechanic in BiomeWeightField, so beach (sharp peak at coast)
+            // and biome (gradual rise inland) overlap to give a smooth coast-to-land blend
+            // without elevation acting as a stand-in for distance.
+            const float aboveBand = 0.012f;      // ~3 bytes inland — crisp coast strip
             const float belowBand = 30f / 255f;  // ~30 bytes underwater (must match SplatmapBuilder.CoastalBandUnderwater)
             const float peak      = 1.5f;        // weight at the exact waterline
             float e = ctx.ElevationFromWaterline01;

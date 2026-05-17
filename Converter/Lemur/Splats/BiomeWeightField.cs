@@ -41,9 +41,25 @@ public static class BiomeWeightField
 
         foreach (var cell in cells.Values)
         {
-            if (!Cell.IsDryLand(cell.Type)) continue;
-            // Accept any Azgaar biome 1..12; rules in MaterialRegistry decide what's rendered.
-            if (cell.Biome <= 0 || cell.Biome > 12) continue;
+            // INCLUDE SEA CELLS in the triangulation — they get biome = 0 (AzgaarBiome.None).
+            // Inside a mixed land/sea Delaunay triangle, the sea corner takes part of the
+            // barycentric weight, which naturally drops land-biome weights as the pixel
+            // approaches the coast. This is cell-space distance-to-sea, much better than
+            // height-from-waterline as a "near coast" signal.
+            //
+            // Land cells: biome ∈ [1, 12] (AzgaarBiome.HotDesert .. Wetland)
+            // Sea cells:  biome = 0    (AzgaarBiome.None) — no land biome contribution
+            bool isLand = Cell.IsDryLand(cell.Type);
+            byte biome;
+            if (isLand)
+            {
+                if (cell.Biome <= 0 || cell.Biome > 12) continue;   // unmapped land — skip
+                biome = (byte)cell.Biome;
+            }
+            else
+            {
+                biome = 0;   // AzgaarBiome.None
+            }
             if (cell.GeoDataCoordinates == null || cell.GeoDataCoordinates.Length < 3) continue;
 
             // Azgaar polygons close the ring (first == last); skip last to avoid double-counting.
@@ -63,7 +79,7 @@ public static class BiomeWeightField
             var key = ((int)Math.Round(px), (int)Math.Round(py));
             if (coordToBiome.ContainsKey(key)) continue;  // skip duplicates (rare)
             centroids.Add(new Coordinate(px, py));
-            coordToBiome[key] = (byte)cell.Biome;
+            coordToBiome[key] = biome;
         }
 
         var field = new BiomeWeightTriple[width * height];   // zero-init = BiomeWeightTriple.Empty
@@ -107,6 +123,28 @@ public static class BiomeWeightField
 
         float denom = (float)((v1.Y - v2.Y) * (v0.X - v2.X) + (v2.X - v1.X) * (v0.Y - v2.Y));
         if (MathF.Abs(denom) < 1e-6f) return;   // degenerate triangle
+
+        // Fast path: all three corners share the same biome → every interior pixel gets the
+        // exact same BiomeWeightTriple regardless of barycentric position. Common cases:
+        //   - 3 same-biome land cells (large biome clusters interior)
+        //   - 3 sea cells (oceans away from land)
+        // Skip the per-pixel barycentric math entirely; the inside-triangle check still applies.
+        if (biome0 == biome1 && biome1 == biome2)
+        {
+            var uniform = new BiomeWeightTriple(biome0, 1f, 0, 0f, 0, 0f);
+            for (int py = yMin; py <= yMax; py++)
+            {
+                for (int px = xMin; px <= xMax; px++)
+                {
+                    float w0 = (float)((v1.Y - v2.Y) * (px - v2.X) + (v2.X - v1.X) * (py - v2.Y)) / denom;
+                    float w1 = (float)((v2.Y - v0.Y) * (px - v2.X) + (v0.X - v2.X) * (py - v2.Y)) / denom;
+                    float w2 = 1f - w0 - w1;
+                    if (w0 < -0.001f || w1 < -0.001f || w2 < -0.001f) continue;
+                    field[py * width + px] = uniform;
+                }
+            }
+            return;
+        }
 
         for (int py = yMin; py <= yMax; py++)
         {
