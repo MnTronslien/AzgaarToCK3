@@ -38,13 +38,25 @@ public static class HeightmapWriter
     /// All five detail levels are always present in TilesPerDetailLevel (zero if unused).
     /// Detail level 0 = highest detail (33×33 px tile, 1× averaging),
     /// level 4 = lowest detail (3×3 px tile, 16× averaging).
+    ///
+    /// PerTileMetrics is non-empty only if a debug PNG was requested — the harness uses
+    /// the raw float values to print distribution percentiles vs the threshold cutoffs.
     /// </summary>
     public sealed record PackingStats(
         IReadOnlyList<int> TilesPerDetailLevel,
         int IndirectionWidth,
         int IndirectionHeight,
         int PackedWidth,
-        int PackedHeight);
+        int PackedHeight,
+        IReadOnlyList<PerTileMetric> PerTileMetrics);
+
+    /// <summary>
+    /// One indirection-tile metric sample emitted by PackAndWrite for diagnostic use.
+    /// IndirRowFromSouth follows the gradient-array convention (south-up); flip with
+    /// `IndirectionHeight - 1 - row` to convert to north-up display coordinates.
+    /// </summary>
+    public readonly record struct PerTileMetric(
+        int IndirCol, int IndirRowFromSouth, float Value);
 
     // ──────────────────────────────────────────────────────────────────────────
     //  Entry point
@@ -87,11 +99,18 @@ public static class HeightmapWriter
     // ──────────────────────────────────────────────────────────────────────────
     public static async Task<PackingStats> PackAndWrite(
         byte[] pixels, int width, int height, string mapDataDir,
-        string? detailLevelsDebugPath = null)
+        string? detailLevelsDebugPath = null,
+        string? metricDebugPath = null)
     {
         Directory.CreateDirectory(mapDataDir);
 
-        var packed = await CreatePackedHeightmap(pixels, width, height);
+        // Capture per-tile metric values when ANY debug PNG is requested. Cheap — it's
+        // just the float we already compute, copied out by (col, row, value).
+        var metrics = (detailLevelsDebugPath != null || metricDebugPath != null)
+            ? new List<PerTileMetric>()
+            : null;
+
+        var packed = await CreatePackedHeightmap(pixels, width, height, metrics);
         await WritePackedHeightmap(packed, mapDataDir);
 
         var tilesPerLevel = new int[detailSize.Length];
@@ -107,12 +126,62 @@ public static class HeightmapWriter
         if (detailLevelsDebugPath != null)
             await WriteDetailLevelDebugPng(packed, width, height, detailLevelsDebugPath);
 
+        if (metricDebugPath != null && metrics != null)
+            await WriteMetricDebugPng(metrics, width, height, metricDebugPath);
+
         return new PackingStats(
             TilesPerDetailLevel: tilesPerLevel,
             IndirectionWidth:  width  / IndirectionProportion,
             IndirectionHeight: height / IndirectionProportion,
             PackedWidth:  PackedWidth,
-            PackedHeight: packed.PixelHeight);
+            PackedHeight: packed.PixelHeight,
+            PerTileMetrics: metrics ?? (IReadOnlyList<PerTileMetric>)Array.Empty<PerTileMetric>());
+    }
+
+    // Writes a grayscale PNG sized to the indirection grid where each pixel encodes
+    // the raw per-tile metric value, linearly mapped from [min..max] → [0..255].
+    // Use this to see the *distribution* of the metric across the map: bimodal vs
+    // smooth, where the high-detail signal actually lives, etc.
+    //
+    // Linear scaling shows the signal as the algorithm sees it — if the high tail
+    // is much wider than the bulk, the bulk will compress to near-black; that
+    // itself is a useful observation about the metric.
+    private static async Task WriteMetricDebugPng(
+        IReadOnlyList<PerTileMetric> metrics, int width, int height, string path)
+    {
+        int ihW = width  / IndirectionProportion;
+        int ihH = height / IndirectionProportion;
+        var px = new byte[ihW * ihH];   // single-channel grayscale
+
+        float lo =  float.PositiveInfinity, hi = float.NegativeInfinity;
+        foreach (var m in metrics)
+        {
+            if (m.Value < lo) lo = m.Value;
+            if (m.Value > hi) hi = m.Value;
+        }
+        if (!float.IsFinite(lo) || !float.IsFinite(hi) || hi <= lo) hi = lo + 1f;
+        float range = hi - lo;
+
+        foreach (var m in metrics)
+        {
+            int col    = m.IndirCol;
+            int rowPng = ihH - 1 - m.IndirRowFromSouth;   // match orientation of detail-level PNG
+            if (col < 0 || col >= ihW || rowPng < 0 || rowPng >= ihH) continue;
+            float t = (m.Value - lo) / range;
+            byte v = (byte)Math.Clamp((int)(t * 255f), 0, 255);
+            px[rowPng * ihW + col] = v;
+        }
+
+        var settings = new MagickReadSettings
+        {
+            Width = ihW,
+            Height = ihH,
+            ColorSpace = ColorSpace.Gray,
+            Format = MagickFormat.Gray,
+        };
+        using var img = new MagickImage(px, settings);
+        img.Depth = 8;
+        await img.WriteAsync(path, MagickFormat.Png);
     }
 
     // Writes an indirection-grid-sized PNG (width/32 × height/32) where each
@@ -250,7 +319,8 @@ public static class HeightmapWriter
     //   of SixLabors to stay consistent with the Lemur codebase)
     // ──────────────────────────────────────────────────────────────────────────
     private static Task<PackedHeightmap> CreatePackedHeightmap(
-        byte[] pixels, int mapWidth, int mapHeight)
+        byte[] pixels, int mapWidth, int mapHeight,
+        List<PerTileMetric>? perTileMetricsOut = null)
     {
         using var _ = OperationTimer.Start("  Building packed heightmap structure");
 
@@ -272,6 +342,15 @@ public static class HeightmapWriter
         var weightedDerivatives = gradientAreas
             .Select((n, i) => (i, nonZeroP90: Avg(n), coordinates: areaCoordinates[i]))
             .ToArray();
+
+        if (perTileMetricsOut != null)
+        {
+            foreach (var w in weightedDerivatives)
+                perTileMetricsOut.Add(new PerTileMetric(
+                    IndirCol:           (int)w.coordinates.X / IndirectionProportion,
+                    IndirRowFromSouth:  (int)w.coordinates.Y / IndirectionProportion,
+                    Value:              w.nonZeroP90));
+        }
 
         // Detail level thresholds (verbatim from upstream)
         var detail = new[]

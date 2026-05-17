@@ -644,11 +644,14 @@ static class Program
             string? debugPath = packDebug
                 ? Path.Combine(packDir, "pack_detail_levels.png")
                 : null;
+            string? metricPath = packDebug
+                ? Path.Combine(packDir, "pack_metric.png")
+                : null;
 
             var packSw = System.Diagnostics.Stopwatch.StartNew();
             var stats = await HeightmapWriter.PackAndWrite(
                 result.Core.Pixels, genParams.Width, genParams.Height,
-                packDir, debugPath);
+                packDir, debugPath, metricPath);
             packSw.Stop();
 
             Console.WriteLine();
@@ -671,6 +674,37 @@ static class Program
             Console.WriteLine($"    Sum assigned: {sumTiles:N0}   Unassigned (empty_tile fallback): {unassigned:N0}");
             if (debugPath != null)
                 Console.WriteLine($"  pack_detail_levels.png: {debugPath}");
+            if (metricPath != null)
+                Console.WriteLine($"  pack_metric.png:        {metricPath}");
+
+            // Distribution of per-tile metric vs the four threshold cutoffs.
+            // If most values pile up at one extreme, the metric is bimodal — the right
+            // fix is to change the metric, not the thresholds.
+            if (stats.PerTileMetrics.Count > 0)
+            {
+                var vals = stats.PerTileMetrics.Select(m => m.Value).OrderBy(v => v).ToArray();
+                float P(double p)
+                {
+                    int idx = (int)Math.Clamp(Math.Round(p * (vals.Length - 1)), 0, vals.Length - 1);
+                    return vals[idx];
+                }
+                Console.WriteLine($"  Per-tile metric distribution ({vals.Length:N0} tiles):");
+                Console.WriteLine($"    min  = {vals[0]:E3}");
+                Console.WriteLine($"    p10  = {P(0.10):E3}");
+                Console.WriteLine($"    p25  = {P(0.25):E3}");
+                Console.WriteLine($"    p50  = {P(0.50):E3}");
+                Console.WriteLine($"    p75  = {P(0.75):E3}");
+                Console.WriteLine($"    p90  = {P(0.90):E3}");
+                Console.WriteLine($"    p95  = {P(0.95):E3}");
+                Console.WriteLine($"    p99  = {P(0.99):E3}");
+                Console.WriteLine($"    max  = {vals[^1]:E3}");
+                Console.WriteLine($"  Current threshold cutoffs:  0.0001  0.0005  0.001  0.005");
+                int Pct(float threshold) => vals.Count(v => v >= threshold);
+                Console.WriteLine($"    tiles ≥ 0.0001 : {Pct(0.0001f),6:N0} ({100.0 * Pct(0.0001f) / vals.Length:F1}%)");
+                Console.WriteLine($"    tiles ≥ 0.0005 : {Pct(0.0005f),6:N0} ({100.0 * Pct(0.0005f) / vals.Length:F1}%)");
+                Console.WriteLine($"    tiles ≥ 0.001  : {Pct(0.001f),6:N0} ({100.0 * Pct(0.001f)  / vals.Length:F1}%)");
+                Console.WriteLine($"    tiles ≥ 0.005  : {Pct(0.005f),6:N0} ({100.0 * Pct(0.005f)  / vals.Length:F1}%)");
+            }
             return 0;
         }
 
