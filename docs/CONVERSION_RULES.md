@@ -42,9 +42,41 @@ The images below show the same map at each tier — each colour is a distinct ti
 |----------|---------|
 | ![Kingdoms](images/pipeline_kingdoms.png) | ![Empires](images/pipeline_empires.png) |
 
-Zooming in: barony positions faithfully reflect Azgaar burg placement. Terrain variety is a known gap — every province currently renders as plains.
+Zooming in: barony positions faithfully reflect Azgaar burg placement.
 
 ![Close-up of barony placement in CK3](images/ck3_barony_closeup.png)
+
+---
+
+## Biome textures
+
+Each Azgaar biome is rendered with a chosen CK3 ground texture, plus steepness-driven hills/mountain overlays and a coastal beach/seafloor blend. All of this lives in one file — `Converter/Lemur/Splats/MaterialRegistry.cs` — and a single line maps one biome to one texture.
+
+| Azgaar biome | CK3 texture |
+|---|---|
+| Wetland (swamp) | `wetlands_02` |
+| Grassland | `plains_01` |
+| Savanna | `plains_01_dry` |
+| Hot Desert | `desert_01` |
+| Cold Desert | `desert_02` |
+| Tropical Seasonal Forest | `drylands_01_grassy` |
+| Temperate Deciduous Forest | `forest_leaf_01` |
+| Tropical Rainforest | `forest_jungle_01` |
+| Temperate Rainforest | `forest_pine_01` |
+| Taiga | `forestfloor` |
+| Tundra | `northern_plains_01` |
+| Glacier | `snow` |
+
+Three extra materials run on top of the biome layer:
+
+| Material | When it fires | CK3 texture |
+|---|---|---|
+| Hills | Mid-steepness slopes (steepness tent 0.20 → 0.40 → 0.75) | `hills_01` |
+| Mountain | High-steepness slopes (steepness ramp 0.65 → 1.0) | `central_mountain` |
+| Beach | Narrow band at the waterline, asymmetric (3 bytes inland, 30 bytes underwater) | `beach_02` |
+| Seafloor | Underwater coastal blend matching the beach band | `mud_wet_01` |
+
+These texture choices are a starting point — see [CONTRIBUTING.md](../CONTRIBUTING.md) for how to propose better ones.
 
 ---
 
