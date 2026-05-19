@@ -121,6 +121,14 @@ namespace Converter.Lemur
 
             var w = Settings.Instance.Writers;
 
+            if (w.TerrainMasks && !w.Heightmap)
+            {
+                Logger.Warning("TerrainMasks writer is enabled but Heightmap writer is disabled. " +
+                               "TerrainMasks depends on map.HeightmapPixels populated by HeightmapWriter; " +
+                               "without it, the splatmap will silently fall back to biome-only output " +
+                               "(no steepness-based hills/mountain weighting). Enable the Heightmap writer.");
+            }
+
             if (w.DefinitionCsv)
             {
                 using var _ = OperationTimer.Start("Writing definition.csv");
