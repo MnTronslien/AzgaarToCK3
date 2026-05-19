@@ -1538,50 +1538,106 @@ static class Program
     static void PrintUsage()
     {
         Console.WriteLine("""
-            Usage: TerrainLab --json <path> --geojson <path> --output <path.png>
-                  OR             --cells <dump.json>           --output <path.png>
-                                [--seed N]            default: 42
-                                [--strength F]        displacement strength, default: 0.25
-                                [--nodes N]           poly-nodes per land cell, default: 4
-                                [--sample-count N]    IDW nearest nodes, default: 4
-                                [--roughness-norm F]  normalisation factor, default: 1.0
-                                [--relax N]                 repulsion relaxation iterations, default: 5
-                                [--terrain-to-poly-sep F]  min distance from terrain centroid, default: 0.25
-                                [--blur-radius N]           Gaussian blur radius in pixels, default: 3
-                                [--debug]             overlay green dots (centroids) + red dots (poly-nodes)
+            Usage:
+              TerrainLab --json <path> --geojson <path> --output <path.png> [options]
+              TerrainLab --cells <dump.json> --output <path.png>            [options]
+              TerrainLab --compare <path-a> <path-b>
+              TerrainLab --sample-tga <path.tga> [--samples N]
+              TerrainLab --gen-materials [--ck3-dir <dir>] [--gen-materials-out <path>]
 
-                  --cells <dump.json>   Load cell dump produced by ConsoleUI --dump-cells instead of raw Azgaar files.
-                                        Includes major river cell modifications. Replaces --json + --geojson.
-                  --rivers-geojson <path>
-                                        Major-river control points used to seed centerline TerrainNodes at
-                                        MaxWaterByte - Params.RiverCenterlineDepth. Filtered by MajorRiverThreshold
-                                        from settings.json. Compatible with both --cells and --json/--geojson modes.
-                  --river-cp-spacing F  Densify control points to ≤ F pixels apart along each river polyline.
-                                        Default: 5. Lower = denser spine, more CDT cost, fewer rasterization gaps.
+            Input (choose one):
+              --json <path>                Azgaar full JSON export.
+              --geojson <path>             Azgaar cells GeoJSON export (paired with --json).
+              --cells <dump.json>          Cell dump produced by ConsoleUI --dump-cells (includes
+                                           major-river cell modifications). Replaces --json + --geojson.
+              --rivers-geojson <path>      Major-river control points used to seed centerline
+                                           TerrainNodes. Filtered by MajorRiverThreshold from
+                                           settings.json. Compatible with both input modes.
+              --river-cp-spacing F         Densify river control points to ≤ F pixels apart.
+                                           Default: 5. Lower = denser spine, more CDT cost.
 
-                  --paint-detail-index       Render the real cell-painted detail_index.tga and exit.
-                                             Writes to --terrain-out (or dirname of --output). Accepts both
-                                             --json/--geojson (raw Azgaar cells) and --cells (post-pipeline cells).
-                  --paint-detail-intensity   Render the real cell-painted detail_intensity.tga and exit.
-                                             Same requirements as --paint-detail-index.
-                  --alpha N                  Override the alpha channel to value N (0-255) on every pixel.
-                                             Diagnostic — used with --paint-detail-* to test how CK3 interprets alpha.
-                  --detail-intensity         (diagnostic) Write the row×column RGB checkerboard, no Azgaar data needed.
+            Output:
+              --output <path.png>          Main heightmap PNG output path.
+              --terrain-out <dir>          Write hills/mountains/snow masks (and detail TGAs) to
+                                           this directory alongside the main PNG.
 
-                  --pack-heightmap           Generate heightmap, run the packing algorithm (CreatePackedHeightmap +
-                                             WritePackedHeightmap), write packed_heightmap.png + indirection_heightmap.png +
-                                             heightmap.heightmap + source heightmap.png to --pack-out. Prints per-detail-level
-                                             tile-count stats afterwards.
-                                             Default --pack-out: %LOCALAPPDATA%/AzgaarToCK3/debug/pack_<timestamp>/
-                                             For CK3 hot-reload, pass --pack-out '<mod>/map_data'.
-                  --pack-out <dir>           Override the output directory for --pack-heightmap.
-                  --pack-debug               Also writes pack_detail_levels.png — an indirection-grid-sized PNG with each
-                                             pixel coloured by the detail level the packer chose for that tile
-                                             (red=L0 highest, blue=L4 lowest). Killer diagnostic for spotting where
-                                             the packer over- or under-allocates detail.
+            Generation parameters:
+              --seed N                     RNG seed for poly-node placement/perturbation. Default: 42
+              --strength F                 Poly-node displacement magnitude as fraction of height
+                                           range. Default: 0.25
+              --nodes N                    Poly-nodes spawned per land cell. Default: 4
+              --sample-count N             IDW nearest-neighbour count for poly-node base height.
+                                           Default: 4
+              --roughness-norm F           Multiplier on top of auto p95 normalization. Default: 1.0
+              --roughness-power F          Power curve on roughness before perturbation. Default: 2.0
+              --blur-radius N              Separable Gaussian blur radius in pixels. Default: 3
+              --relax N                    Repulsion relaxation iterations. Default: 5
+              --relax-step F               Per-step damping (1.0 = full force). Default: 0.05
+              --terrain-to-poly-sep F      Min poly-to-terrain-centroid distance as fraction of
+                                           avg cell spacing. Default: 0.25
 
-                  TerrainLab --compare <path-a> <path-b>
-                                Pixel-by-pixel comparison of two grayscale PNGs. Exits 0 if identical.
+            Visualisation modes (mutually exclusive — replace plain heightmap output):
+              --debug                      Overlay: green = terrain nodes, blue/red = poly-nodes
+                                           (alpha = roughness).
+              --mesh                       Delaunay triangulation wireframe (white on black).
+              --spawn-lines                Lines from each poly-node to its parent terrain centroid.
+              --drift-lines                Lines from spawn position to final relaxed position.
+              --coast-map                  Greyscale land + blue-tinted ocean; coast nodes colour-
+                                           coded by status. Combine with --mesh or --debug.
+              --steepness-map              Black = flat, white = vertical (p95-normalized gradient).
+              --roughness-map              Delaunay barycentric raster of per-cell roughness
+                                           (terrain nodes only).
+              --river-map                  Diagnostic raster highlighting major-river control-point
+                                           cells and centerline nodes.
+
+            Detail TGA painting:
+              --detail-intensity           Write a row×column RGB checkerboard detail_intensity.tga
+                                           to --terrain-out (or dirname of --output). No Azgaar
+                                           data needed.
+              --paint-detail-index         Render the real cell-painted detail_index.tga and exit.
+                                           Writes to --terrain-out (or dirname of --output).
+              --paint-detail-intensity     Render the real cell-painted detail_intensity.tga and
+                                           exit. Same requirements as --paint-detail-index.
+              --no-heightmap               With --paint-detail-* : skip the heightmap pre-pass for
+                                           biome-only output.
+              --alpha N                    Override alpha channel to value N (0-255) on every pixel.
+                                           Diagnostic for testing how CK3 interprets alpha.
+
+            Diagnostic modes (no PNG output required):
+              --check-neighbors            Audit cell-neighbour graph; reports orphans / asymmetric
+                                           edges and exits.
+              --neighbor-arrows            Visualise cell-neighbour graph as arrows over the cells.
+              --audit-shared-edges         Audit shared-edge geometry between adjacent cells.
+              --dump-pair <id1,id2>        Dump diagnostic data for the specified pair of cells.
+              --vertex-debug               Per-vertex diagnostic mode.
+              --region <name>              (with --vertex-debug) restrict to named region.
+              --river-cell <id>            (with --vertex-debug) restrict to cells of a river.
+
+            Packed-heightmap export:
+              --pack-heightmap             Generate heightmap, run the packing algorithm, write
+                                           packed_heightmap.png + indirection_heightmap.png +
+                                           heightmap.heightmap + source heightmap.png to --pack-out.
+                                           Default --pack-out: %LOCALAPPDATA%/AzgaarToCK3/debug/
+                                           pack_<timestamp>/.  For CK3 hot-reload, pass
+                                           --pack-out '<mod>/map_data'.
+              --pack-out <dir>             Override output directory for --pack-heightmap.
+              --pack-debug                 Also writes pack_detail_levels.png — each pixel coloured
+                                           by the detail level the packer chose for that tile
+                                           (red = L0 highest, blue = L4 lowest).
+
+            Utility modes (no generation):
+              --compare <a> <b>            Pixel-by-pixel compare of two grayscale PNGs.
+                                           Exits 0 if identical, 1 otherwise.
+              --sample-tga <path.tga>      Sample N random pixels from a TGA and print their
+                                           RGBA values. No Azgaar data needed.
+              --samples N                  (with --sample-tga) number of pixels to sample.
+                                           Default: 32
+              --gen-materials              Regenerate Converter/Lemur/Splats/Ck3MaterialBytes.cs
+                                           from CK3's game/gfx/map/terrain/materials.settings.
+                                           Run after a CK3 update.
+              --ck3-dir <dir>              (with --gen-materials) CK3 install root.
+                                           Defaults to Settings.Ck3Directory.
+              --gen-materials-out <path>   (with --gen-materials) override the output .cs path.
             """);
     }
 }
