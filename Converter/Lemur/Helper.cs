@@ -107,36 +107,6 @@ public static class Helper
             target[kvp.Key] = target.GetValueOrDefault(kvp.Key, 0) + kvp.Value;
     }
 
-    /// <summary>
-    /// Computes per-cell roughness as the average absolute elevation deviation from
-    /// land neighbours, normalised to [0, 1].
-    ///
-    /// roughness(cell) = clamp( avg(|cell.h − neighbour.h|) / normalisationFactor, 0, 1 )
-    ///
-    /// Sea neighbours are excluded so coastal cells aren't penalised for bordering the ocean.
-    /// Only land cells are returned in the result — sea cells are omitted.
-    /// </summary>
-    public static Dictionary<int, float> ComputeRoughness(
-        IReadOnlyDictionary<int, Cell> cells,
-        float normalisationFactor)
-    {
-        var result = new Dictionary<int, float>();
-        foreach (var cell in cells.Values)
-        {
-            if (!Cell.IsDryLand(cell.Type)) continue;
-            var neighbourHeights = cell.Neighbors
-                .Select(id => cells.TryGetValue(id, out var n) ? n : null)
-                .Where(n => n != null && Cell.IsDryLand(n!.Type))
-                .Select(n => n!.GeoHeight)
-                .ToList();
-            float r = neighbourHeights.Count > 0
-                ? (float)neighbourHeights.Average(h => Math.Abs(cell.GeoHeight - h)) / normalisationFactor
-                : 0f;
-            result[cell.Id] = Math.Clamp(r, 0f, 1f);
-        }
-        return result;
-    }
-
     public static MagickColor GetColor(int i, int maxI)
     {
         if (maxI >= 16777216)
