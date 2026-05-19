@@ -1,8 +1,6 @@
 namespace Converter.Lemur
 {
     using System.Diagnostics;
-    using System.Drawing;
-    using System.Security.Cryptography.X509Certificates;
     using Converter.Lemur.Entities;
     using Converter.Lemur.Deserialization;
     using Converter.Lemur.Graphs;
