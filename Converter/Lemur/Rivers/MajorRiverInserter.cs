@@ -83,12 +83,6 @@ namespace Converter.Lemur.Rivers
         // ─── Helpers ──────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// For every land cell whose burg position now lies outside the cell polygon (displaced
-        /// by river carving), snaps the burg to the nearest point on the cell boundary then
-        /// nudges it inward toward the centroid by min(0.5, half the boundary-to-centroid distance).
-        /// Returns the number of burgs relocated.
-        /// </summary>
-        /// <summary>
         /// After all carving for a river is complete, merge each deferred tiny piece into
         /// the land neighbor with the most surface contact. Runs after the main carving loop
         /// so all split results (e.g. 800/801 from a subsequently carved neighbor) are stable.
@@ -161,6 +155,12 @@ namespace Converter.Lemur.Rivers
             return merged;
         }
 
+        /// <summary>
+        /// For every land cell whose burg position now lies outside the cell polygon (displaced
+        /// by river carving), snaps the burg to the nearest point on the cell boundary then
+        /// nudges it inward toward the centroid by min(0.5, half the boundary-to-centroid distance).
+        /// Returns the number of burgs relocated.
+        /// </summary>
         private static int NudgeBurgsOutOfRiver(Map map)
         {
             int count = 0;

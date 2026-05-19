@@ -1,8 +1,6 @@
 namespace Converter.Lemur
 {
     using System.Diagnostics;
-    using System.Drawing;
-    using System.Security.Cryptography.X509Certificates;
     using Converter.Lemur.Entities;
     using Converter.Lemur.Deserialization;
     using Converter.Lemur.Graphs;
@@ -120,6 +118,14 @@ namespace Converter.Lemur
             using (var _ = OperationTimer.Start("DrawProvincesImage")) await ShowBaronies(map);
 
             var w = Settings.Instance.Writers;
+
+            if (w.TerrainMasks && !w.Heightmap)
+            {
+                Logger.Warning("TerrainMasks writer is enabled but Heightmap writer is disabled. " +
+                               "TerrainMasks depends on map.HeightmapPixels populated by HeightmapWriter; " +
+                               "without it, the splatmap will silently fall back to biome-only output " +
+                               "(no steepness-based hills/mountain weighting). Enable the Heightmap writer.");
+            }
 
             if (w.DefinitionCsv)
             {
