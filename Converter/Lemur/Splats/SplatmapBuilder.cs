@@ -54,10 +54,17 @@ public static class SplatmapBuilder
         }
 
         var splat = new Splatmap(width, height);
-        var weights = new float[materials.Count];   // reused per pixel
 
-        for (int y = 0; y < height; y++)
+        // Parallelise across rows. Each thread gets its own `weights` scratch buffer (allocated
+        // inside the lambda) — pixel writes go to disjoint indices in splat.Pixels, biomes/
+        // steepness/heightmapBytes are read-only inputs, and Material.Evaluate is a pure function
+        // of PixelContext (see MaterialRegistry — no shared mutable state). ~26M Evaluate calls at
+        // 8192x4096, trivially parallel.
+        Parallel.For(0, height, y =>
         {
+            // Per-thread scratch — must be inside the lambda so threads don't stomp each other.
+            var weights = new float[materials.Count];
+
             for (int x = 0; x < width; x++)
             {
                 int i = y * width + x;
@@ -105,7 +112,7 @@ public static class SplatmapBuilder
 
                 splat.Pixels[i] = PackTopK(weights, materialBytes);
             }
-        }
+        });
 
         return splat;
     }
