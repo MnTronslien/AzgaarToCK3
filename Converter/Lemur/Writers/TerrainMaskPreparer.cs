@@ -21,11 +21,6 @@ public record TerrainMaskEntry(string FileName, IReadOnlyList<Cell> WhiteCells);
 /// ── INPUTS ──────────────────────────────────────────────────────────────────
 /// • Cell.Biome     — Azgaar biome index (0=Marine … 12=Wetland). See BiomeMasks.
 /// • Cell.GeoHeight — Azgaar elevation (0–100; sea ≤ 20, land > 20).
-/// • Cell.Neighbors — adjacent cell IDs used to compute per-cell roughness.
-///
-/// ── ROUGHNESS ────────────────────────────────────────────────────────────────
-/// Computed via Helper.ComputeRoughness — see that method for the formula.
-/// Hills and mountains masks are mutually exclusive (a cell appears in at most one).
 /// </summary>
 public static class TerrainMaskPreparer
 {
