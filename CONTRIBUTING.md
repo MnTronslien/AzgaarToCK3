@@ -43,6 +43,17 @@ git checkout -b feature/your-feature develop
 
 ---
 
+## Good first contributions
+
+A few areas where additional eyes / opinions are particularly welcome:
+
+- **Biome textures.** Each Azgaar biome currently maps to one CK3 ground texture — see the [Biome textures table in CONVERSION_RULES.md](docs/CONVERSION_RULES.md#biome-textures). The current choices are a reasonable first pass; better picks per biome, or refinements to the hills / mountain / beach rules, are a self-contained way to contribute. All of the mapping lives in one file: `Converter/Lemur/Splats/MaterialRegistry.cs`. Each line declares one texture + one rule, so a change is usually one or two lines.
+- **CK3 vanilla textures.** Run `./TerrainLab --gen-materials` to see the full list of available CK3 textures by name. A swap is just changing the string in `MaterialRegistry.cs`.
+
+If you have a screenshot of "before / after" for a texture proposal, drop it in the PR — visual diffs are the most useful thing here.
+
+---
+
 ## Making changes
 
 - **One logical change per commit.** Don't bundle unrelated fixes.

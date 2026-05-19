@@ -11,17 +11,19 @@ public static class MapDefinesWriter
 
         // mapsize_defines.txt — extents are 0-based max (width-1, height-1)
         //
-        // WORLD_EXTENTS_Y and WATERLEVEL match upstream's formula exactly:
-        //   WORLD_EXTENTS_Y = MaxElevation = 51
-        //   WATERLEVEL = (MaxElevation / 255.0) * CK3WaterLevel = (51/255) * 20 = 4.0
+        // WATERLEVEL is the world-Y coordinate that corresponds to the highest-water heightmap byte.
+        // CK3 renders any pixel whose world-Y is AT or BELOW WATERLEVEL as ocean. We derive the
+        // exact byte threshold from HeightmapAlgorithm.MaxWaterByte (canonical single source of
+        // truth — defined there with semantic notes).
         //
-        // HeightmapWriter draws land starting at greyscale 20 (CK3WaterLevel).
-        // In world-space: (20/255) * 51 = 4.0, which equals WATERLEVEL exactly.
-        // CK3 renders pixels AT or BELOW WATERLEVEL as ocean, so land (grey=20 → 4.0)
-        // sits right at the water surface — matching upstream's behaviour.
+        //   WATERLEVEL = (MaxWaterByte / 255) × WORLD_EXTENTS_Y = (20 / 255) × 51 = 4.0
+        //
+        // So byte == MaxWaterByte sits exactly at WATERLEVEL → water. Byte == MaxWaterByte + 1
+        // sits one byte above → first visible land. The land/sea boundary is a clean step,
+        // matching how downstream code (SplatmapBuilder, HeightmapMasks etc.) gates with
+        // `byte > MaxWaterByte`.
         const int maxElevation = 51;
-        const int ck3WaterLevel = 20;  // must match HeightmapWriter.CK3WaterLevel
-        var waterLevel = ((float)maxElevation / 255f) * ck3WaterLevel;
+        var waterLevel = ((float)maxElevation / 255f) * HeightmapAlgorithm.MaxWaterByte;
         var mapContent =
             "NJominiMap = {\n" +
             $"\tWORLD_EXTENTS_X = {L.Map.MapWidth - 1}\n" +

@@ -233,7 +233,8 @@ public static class LocatorWriter
         double sumX = 0, sumZ = 0;
         int count = 0;
 
-        foreach (var cell in cells)
+        // Sort by cell ID so summation order is independent of cell insertion order (FP determinism).
+        foreach (var cell in cells.OrderBy(c => c.Id))
             foreach (var vertex in cell.GeoDataCoordinates)
             {
                 sumX += (vertex[0] - map.XOffset) * map.XRatio;

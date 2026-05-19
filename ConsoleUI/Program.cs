@@ -11,7 +11,8 @@ internal class Program
         LogLevel? logLevel = null, bool noImages = false, bool? empireFromCulture = null,
         int? minDuchiesPerKingdom = null, int? minKingdomsPerEmpire = null,
         bool noRivers = false, bool noWipe = false, string? svgPath = null, string? inputDir = null,
-        int? seed = null, int? tenetCount = null, float? doctrineMutationRate = null)
+        int? seed = null, int? tenetCount = null, float? doctrineMutationRate = null, string? outputDir = null,
+        string? dumpCellsPath = null)
     {
         Logger.Title();
 
@@ -32,6 +33,8 @@ internal class Program
             Settings.Instance.AzgaarSvgPath = svgPath;
         if (!string.IsNullOrWhiteSpace(inputDir))
             Settings.Instance.InputDirectory = inputDir;
+        if (!string.IsNullOrWhiteSpace(outputDir))
+            Settings.OutputDirectoryOverride = outputDir;
 
         if (!string.IsNullOrWhiteSpace(jsonPath))
         {
@@ -127,6 +130,14 @@ internal class Program
             Logger.Error($"Please, place it in '{Settings.Instance.InputGeojsonPath}' or change '{nameof(Settings.Instance.InputGeojsonPath)}' in 'settings.json'.");
             Exit();
         }
+        // --dump-cells: run pipeline through major river insertion, write cell dump, exit
+        if (dumpCellsPath != null)
+        {
+            SettingsManager.Configure();
+            await Converter.Lemur.ConversionManager.DumpCellsAfterRivers(dumpCellsPath);
+            return;
+        }
+
         Logger.Info("Start conversion?");
         if (YesNo())
         {
@@ -167,11 +178,14 @@ internal class Program
             string? validateRiversPath = null;
             string? validateProvincesPath = null;
             string? definitionCsvPath = null;
+            string? dumpCellsPath = null;
+            string? manifestDir = null;
             string? jsonPath = null;
             string? geojsonPath = null;
             string? riversGeojsonPath = null;
             string? svgPath = null;
             string? inputDir = null;
+            string? outputDir = null;
             LogLevel? logLevel = null;
             bool noImages = false;
             bool noRivers = false;
@@ -208,6 +222,11 @@ internal class Program
                 else if ((args[i] == "--input-dir" || args[i] == "-d") && i + 1 < args.Length)
                 {
                     inputDir = args[i + 1];
+                    i++;
+                }
+                else if ((args[i] == "--output-dir" || args[i] == "-o") && i + 1 < args.Length)
+                {
+                    outputDir = args[i + 1];
                     i++;
                 }
                 else if ((args[i] == "--svg" || args[i] == "-s") && i + 1 < args.Length)
@@ -273,6 +292,14 @@ internal class Program
                     definitionCsvPath = args[i + 1];
                     i++;
                 }
+                else if (args[i] == "--dump-cells" && i + 1 < args.Length)
+                {
+                    dumpCellsPath = args[++i];
+                }
+                else if (args[i] == "--manifest" && i + 1 < args.Length)
+                {
+                    manifestDir = args[++i];
+                }
                 else if (args[i] == "--help" || args[i] == "-h")
                 {
                     PrintUsage();
@@ -294,6 +321,13 @@ internal class Program
                         riversGeojsonPath = args[i];
                     }
                 }
+            }
+
+            // --manifest: hash all files in <dir> and print a sorted SHA256 manifest
+            if (manifestDir != null)
+            {
+                RunManifest(manifestDir);
+                return;
             }
 
             // --validate-provinces: validate a provinces.png without full conversion
@@ -329,7 +363,7 @@ internal class Program
                 return;
             }
 
-            await Run(jsonPath, geojsonPath, riversGeojsonPath, logLevel, noImages, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire, noRivers, noWipe, svgPath, inputDir, seed, tenetCount, doctrineMutationRate);
+            await Run(jsonPath, geojsonPath, riversGeojsonPath, logLevel, noImages, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire, noRivers, noWipe, svgPath, inputDir, seed, tenetCount, doctrineMutationRate, outputDir, dumpCellsPath);
         }
         catch (Exception ex)
         {
@@ -337,6 +371,36 @@ internal class Program
             Console.WriteLine(ex.Message);
             Console.WriteLine(ex.StackTrace);
         }
+    }
+
+    private static void RunManifest(string dir)
+    {
+        if (!Directory.Exists(dir))
+        {
+            Console.WriteLine($"Error: directory not found: {dir}");
+            return;
+        }
+
+        Console.WriteLine($"# manifest {dir} @ {DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ}");
+
+        var allFiles = Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories);
+
+        var entries = new List<(string RelPath, string Hash)>();
+        using var sha256 = System.Security.Cryptography.SHA256.Create();
+
+        foreach (var file in allFiles)
+        {
+            var relPath = Path.GetRelativePath(dir, file).Replace('\\', '/');
+            using var stream = File.OpenRead(file);
+            var hashBytes = sha256.ComputeHash(stream);
+            var hashHex = Convert.ToHexString(hashBytes).ToLowerInvariant();
+            entries.Add((relPath, hashHex));
+        }
+
+        entries.Sort((a, b) => string.Compare(a.RelPath, b.RelPath, StringComparison.OrdinalIgnoreCase));
+
+        foreach (var (relPath, hash) in entries)
+            Console.WriteLine($"{hash}  {relPath}");
     }
 
     private static void PrintUsage()
@@ -349,6 +413,7 @@ internal class Program
         Console.WriteLine();
         Console.WriteLine("Input Options:");
         Console.WriteLine("  --input-dir, -d <dir>            Directory to scan for input files (see detection rules below)");
+        Console.WriteLine("  --output-dir, -o <dir>           Override output directory (replaces ModsDirectory+ModName)");
         Console.WriteLine("  --json, -j <path>                Path to the full data .json file (overrides --input-dir)");
         Console.WriteLine("  --geojson, -g <path>             Path to the cells .geojson file (overrides --input-dir)");
         Console.WriteLine("  --rivers-geojson, -r <path>      Path to the rivers .geojson file (overrides --input-dir)");
@@ -377,6 +442,9 @@ internal class Program
         Console.WriteLine("  --validate-rivers, -vr <path>    Validate a rivers.png against CK3 requirements and exit");
         Console.WriteLine("  --validate-provinces, -vp <path> Validate a provinces.png against CK3 requirements and exit");
         Console.WriteLine("  --definition-csv, -dc <path>     Cross-check provinces.png against a definition.csv (use with -vp)");
+        Console.WriteLine("  --dump-cells <path.json>         Load data, run major river insertion, write cell dump JSON and exit");
+        Console.WriteLine("                                   Use with TerrainLab --cells to iterate on heightmap with river data");
+        Console.WriteLine("  --manifest <dir>                 Hash all files in <dir> and print a sorted SHA256 manifest");
         Console.WriteLine();
         Console.WriteLine("Other:");
         Console.WriteLine("  --help, -h                       Show this help message");

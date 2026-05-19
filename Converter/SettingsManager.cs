@@ -26,7 +26,10 @@ public class Settings
     public static Settings Instance { get; set; }
 #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
     [JsonIgnore]
-    public static string OutputDirectory => Helper.GetPath(Instance.ModsDirectory, Instance.ModName);
+    public static string? OutputDirectoryOverride { get; set; } = null;
+
+    [JsonIgnore]
+    public static string OutputDirectory => OutputDirectoryOverride ?? Helper.GetPath(Instance.ModsDirectory, Instance.ModName);
 
     public LogLevel LogLevel { get; set; } = LogLevel.Info;
     public bool GenerateDebugImages { get; set; } = true;
@@ -202,6 +205,12 @@ public partial class SettingsJsonContext : JsonSerializerContext { }
 
 public static class SettingsManager
 {
+    /// <summary>
+    /// The CK3 game version this converter targets. Update this when a new major CK3 release drops.
+    /// Written into every generated descriptor.mod / LemurTest.mod as supported_version.
+    /// </summary>
+    public const string Ck3SupportedVersion = "1.18.*";
+
     private static readonly string settingsFileName = Helper.GetPath(ExecutablePath, "settings.json");
     private static readonly string defaultModsDirectory = Helper.GetPath(MyDocuments, "Paradox Interactive", "Crusader Kings III", "mod");
     private static string MyDocuments => Helper.GetPath(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));

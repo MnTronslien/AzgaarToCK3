@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Converter.Lemur.Deserialization;
 using Converter.Lemur.Entities;
 using ImageMagick;
 
@@ -184,51 +185,6 @@ namespace Converter.Lemur
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             await img.WriteAsync(path);
             Logger.Debug($"Saved cells+neighbors image to '{path}'");
-            RegisterGeneratedImage(path);
-        }
-
-        public static async Task DrawCellsWithIds(List<Entities.Cell> cells, Entities.Map map)
-        {
-            if (!Settings.Instance.GenerateDebugImages) return;
-
-            var settings = new MagickReadSettings() { Width = Map.MapWidth, Height = Map.MapHeight };
-            using var img = new MagickImage("xc:white", settings);
-            var drawables = new Drawables();
-
-            // Pass 1: cell outlines
-            foreach (var cell in cells)
-            {
-                drawables
-                    .DisableStrokeAntialias()
-                    .StrokeWidth(1)
-                    .StrokeColor(MagickColors.Black)
-                    .FillOpacity(new Percentage(0))
-                    .Polygon(cell.GeoDataCoordinates.Select(n => Helper.GeoToPixel(n[0], n[1], map)));
-            }
-
-            // Pass 2: ID labels at cell centroids
-            foreach (var cell in cells)
-            {
-                var cx = cell.GeoDataCoordinates.Average(n => n[0]);
-                var cy = cell.GeoDataCoordinates.Average(n => n[1]);
-                var cp = Helper.GeoToPixel(cx, cy, map);
-
-                drawables
-                    .FontPointSize(24)
-                    .FillColor(MagickColors.Black)
-                    .StrokeWidth(0)
-                    .TextAlignment(TextAlignment.Center)
-                    .Text(cp.X, cp.Y, cell.Id.ToString());
-            }
-
-            img.Draw(drawables);
-
-            var path = Helper.GetPath(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "AzgaarToCK3", "debug", GetDebugFolderName(), "1_cells_ids.png");
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            await img.WriteAsync(path);
-            Logger.Debug($"Saved cells+ids image to '{path}'");
             RegisterGeneratedImage(path);
         }
 
@@ -611,7 +567,17 @@ namespace Converter.Lemur
         }
 
         internal static Drawables GenerateCellPolygons(IEnumerable<Entities.Cell> cells, MagickColor color, Entities.Map map)
+            => GenerateCellPolygons(cells, color, map.JsonMap.mapCoordinates);
+
+        // Map-free overload: painters that work from raw cells + coord transform (e.g. TerrainLab from a cell dump)
+        // call this directly so they don't need to fabricate a Map.
+        internal static Drawables GenerateCellPolygons(IEnumerable<Entities.Cell> cells, MagickColor color, AzgaarMapCoordinates coords)
         {
+            float xOffset = coords.lonW;
+            float yOffset = coords.latS;
+            float xRatio  = Entities.Map.MapWidth  / coords.lonT;
+            float yRatio  = Entities.Map.MapHeight / coords.latT;
+
             var drawables = new Drawables();
             foreach (var cell in cells)
             {
@@ -619,7 +585,9 @@ namespace Converter.Lemur
                     .DisableStrokeAntialias()
                     .StrokeColor(color)
                     .FillColor(color)
-                    .Polygon(cell.GeoDataCoordinates.Select(n => new PointD((n[0] - map.XOffset) * map.XRatio, Map.MapHeight - (n[1] - map.YOffset) * map.YRatio)));
+                    .Polygon(cell.GeoDataCoordinates.Select(n => new PointD(
+                        (n[0] - xOffset) * xRatio,
+                        Entities.Map.MapHeight - (n[1] - yOffset) * yRatio)));
             }
             return drawables;
         }

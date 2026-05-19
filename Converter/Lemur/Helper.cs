@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using Converter.Lemur.Entities;
 using ImageMagick;
 
 namespace Converter.Lemur;
