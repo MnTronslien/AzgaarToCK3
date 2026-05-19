@@ -30,6 +30,16 @@ public static class HeightmapWriter
     private static int MaxColumnN => L.Map.MapWidth / IndirectionProportion;
     private static int PackedWidth => MaxColumnN * 17;
 
+    // Percentile cutoffs for detail-level bucketing (higher = stricter; only the
+    // top tail goes to the highest-detail bucket). Splits within the non-zero
+    // tile population, cumulative from the top of the metric distribution:
+    //   L0 = top 12.5%, L1 = next 25%, L2 = next 25%, L3 = next 25%,
+    //   L4 = bottom 12.5% + all zero-metric tiles (ocean / dead-flat).
+    private const double PercentileLevel0 = 0.875;   // tiles ≥ this percentile → L0
+    private const double PercentileLevel1 = 0.625;
+    private const double PercentileLevel2 = 0.375;
+    private const double PercentileLevel3 = 0.125;
+
     // ──────────────────────────────────────────────────────────────────────────
     //  Public packing stats — what TerrainLab inspects after PackAndWrite.
     // ──────────────────────────────────────────────────────────────────────────
@@ -377,12 +387,7 @@ public static class HeightmapWriter
         //   L2 = next 25%
         //   L3 = next 25%
         //   L4 = bottom 12.5% (textured-but-near-flat ground) + all zero-metric tiles
-        // Tweak via the four constants below.
-        const double pctL0 = 0.875;   // tiles ≥ this percentile of non-zero → L0
-        const double pctL1 = 0.625;
-        const double pctL2 = 0.375;
-        const double pctL3 = 0.125;
-
+        // Tweak via the PercentileLevel* constants at the top of the class.
         var nonZeroSorted = weightedDerivatives
             .Where(w => w.nonZeroP90 > 0f)
             .Select(w => w.nonZeroP90)
@@ -395,10 +400,10 @@ public static class HeightmapWriter
             int idx = (int)Math.Clamp(Math.Round(p * (nonZeroSorted.Length - 1)), 0, nonZeroSorted.Length - 1);
             return nonZeroSorted[idx];
         }
-        float t0 = Pct(pctL0);
-        float t1 = Pct(pctL1);
-        float t2 = Pct(pctL2);
-        float t3 = Pct(pctL3);
+        float t0 = Pct(PercentileLevel0);
+        float t1 = Pct(PercentileLevel1);
+        float t2 = Pct(PercentileLevel2);
+        float t3 = Pct(PercentileLevel3);
 
         // Note: comparisons use `> 0` (not `>=`) for the lower buckets so zero-metric
         // tiles always fall through to L4 regardless of where t3 lands.
