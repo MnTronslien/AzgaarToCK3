@@ -18,6 +18,13 @@ namespace Converter.Lemur.Entities
         public int DistanceToCoast { get; set; }  // 0 = uncomputed/land; ≥1 = sea cell distance
 
         public FeatureType Type { get; set; }
+
+        /// <summary>
+        /// True if this cell was synthetically created as a river slice (not derived from Azgaar data).
+        /// River cells are not dry land and are excluded from barony formation.
+        /// </summary>
+        public bool IsRiverCell { get; set; }
+
         /// <summary>
         /// Province in Crusader Kings 3 that can be a barony, sea zone, or a major river.
         /// </summary>

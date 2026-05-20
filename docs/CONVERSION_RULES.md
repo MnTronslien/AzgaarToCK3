@@ -2,38 +2,35 @@
 
 How your Azgaar data becomes a CK3 world — and where manual prep pays off.
 
+The converter is designed to work well with the default settings in Azgaar — the philosophy being that you probably started tweaking and falling in love with a default map before you started to understand what the best settings are.
+
+But for the very best results some handcrafting is recommended.
+
 ---
 
 ## Mapping table
 
 | Azgaar | CK3 | Notes |
 |--------|-----|-------|
-| Burg | Barony (province) | Exact 1:1. Every burg becomes one barony. |
-| Province | Duchy | Exact 1:1. |
-| State | Kingdom | Approximate. Small states are absorbed into larger kingdoms — see De Jure Consolidation below. |
-| Culture | Culture | Name and heritage from Azgaar. Pillars and traditions seeded-randomly assigned, mutating down the lineage. |
-| Religion | Faith + Religion group | Each root Azgaar religion becomes a religion group. Offshoot religions become faiths within their root religion's group. |
-| Cell | — | Data basis for culture/religion distribution and province geometry. |
-| **County** | County | **Inferred** — see below. |
+| Burg | Barony (province) | Exact 1:1. Every burg becomes one barony. Cells within a province are distributed among the burgs using a BFS algorithm along the neighbour graph. If there are cells that it cannot reach through land-only neighbour traversal (such as if blocked by a major river or ocean) it will make a temporary connection and continue using the same BFS algorithm.|
+| Province | Duchy | Exact 1:1. For very small states they can be generated without any Provinces in Azgaar. In those cases we backform a province from the state and use that as basis for the Duchy in CK3. Provinces without any burgs are skipped and rendered as wasteland.|
+| State | Kingdom | Approximate. Small states are absorbed into larger kingdoms — see De Jure Consolidation below. But they remain de facto independents as a duchy on game start. |
+| **County** | County | **Inferred** counties are constructed by grouping baronies together. The algorithm targets equal population per county and respects duchy boundaries. The balance tries to mimic base CK3 where in populous urbanized parts of the world there are fewer baronies per county (ref Byzantium), but in sparsely populated areas of the world (Russia, Nordics) there are more baronies per county. All this while maintaining a decent ratio between duchies and counties. The county capital is the most populous barony, unless a barony is marked as the province or state capital in Azgaar — that takes precedence. |
 | **Empire** | Empire | **Inferred** — grouped by culture or faith, depending on the `EmpireFromCulture` setting. |
+| Culture | Culture | Name and lineage from Azgaar. Pillars and traditions are selected randomly for root cultures and then mutated randomly for diverging cultures and merge-mutated for hybrid cultures. Culture also randomly selects a "theme bundle" — a converter concept for namelist, clothing, genes and architecture. |
+| Religion | Faith + Religion group | Each root Azgaar religion becomes a religion group. Offshoot religions become faiths within their root religion's group. Tenets and doctrines are randomly selected for the base faith, and mutated slightly for new religions in the same group. |
+| Cell | — | Data basis for culture/religion distribution and province geometry. |
+
 
 The same Azgaar map, before and after conversion:
 
 | Azgaar | CK3 |
 |--------|-----|
-| ![Azgaar political map](images/azgaar_political.png) | ![CK3 kingdoms](images/ck3_kingdoms.png) |
-| ![Azgaar culture map](images/azgaar_cultures.png) | ![CK3 culture map](images/ck3_cultures.png) |
-| ![Azgaar religion map](images/azgaar_religion.png) | ![CK3 religion map](images/ck3_religion.png) |
+|**Political** ![Azgaar political map](images/azgaar_political.png) | ![CK3 kingdoms](images/ck3_kingdoms.png) |
+|**Cultural** ![Azgaar culture map](images/azgaar_cultures.png) | ![CK3 culture map](images/ck3_cultures.png) |
+|**Religious** ![Azgaar religion map](images/azgaar_religion.png) | ![CK3 religion map](images/ck3_religion.png) |
 
 ---
-
-## The inferred tiers
-
-Azgaar has no direct equivalent for CK3 counties or empires. The converter creates them algorithmically.
-
-**Counties** are formed by grouping baronies within a duchy using population-balanced graph partitioning. The algorithm targets equal population per county and respects duchy boundaries. Results are deterministic given the same input and seed. The county capital is the most populous barony, unless a barony is marked as the province or state capital in Azgaar — that takes precedence.
-
-**Empires** group kingdoms by shared culture or faith (controlled by the `EmpireFromCulture` setting), then apply the same consolidation process described below.
 
 The images below show the same map at each tier — each colour is a distinct title:
 
@@ -45,9 +42,41 @@ The images below show the same map at each tier — each colour is a distinct ti
 |----------|---------|
 | ![Kingdoms](images/pipeline_kingdoms.png) | ![Empires](images/pipeline_empires.png) |
 
-Zooming in: barony positions faithfully reflect Azgaar burg placement. Terrain variety is a known gap — every province currently renders as plains.
+Zooming in: barony positions faithfully reflect Azgaar burg placement.
 
 ![Close-up of barony placement in CK3](images/ck3_barony_closeup.png)
+
+---
+
+## Biome textures
+
+Each Azgaar biome is rendered with a chosen CK3 ground texture, plus steepness-driven hills/mountain overlays and a coastal beach/seafloor blend. All of this lives in one file — `Converter/Lemur/Splats/MaterialRegistry.cs` — and a single line maps one biome to one texture.
+
+| Azgaar biome | CK3 texture |
+|---|---|
+| Wetland (swamp) | `wetlands_02` |
+| Grassland | `plains_01` |
+| Savanna | `plains_01_dry` |
+| Hot Desert | `desert_01` |
+| Cold Desert | `desert_02` |
+| Tropical Seasonal Forest | `drylands_01_grassy` |
+| Temperate Deciduous Forest | `forest_leaf_01` |
+| Tropical Rainforest | `forest_jungle_01` |
+| Temperate Rainforest | `forest_pine_01` |
+| Taiga | `forestfloor` |
+| Tundra | `northern_plains_01` |
+| Glacier | `snow` |
+
+Three extra materials run on top of the biome layer:
+
+| Material | When it fires | CK3 texture |
+|---|---|---|
+| Hills | Mid-steepness slopes (steepness tent 0.20 → 0.40 → 0.75) | `hills_01` |
+| Mountain | High-steepness slopes (steepness ramp 0.65 → 1.0) | `central_mountain` |
+| Beach | Narrow band at the waterline, asymmetric (3 bytes inland, 30 bytes underwater) | `beach_02` |
+| Seafloor | Underwater coastal blend matching the beach band | `mud_wet_01` |
+
+These texture choices are a starting point — see [CONTRIBUTING.md](../CONTRIBUTING.md) for how to propose better ones.
 
 ---
 
@@ -118,9 +147,26 @@ Each Azgaar religion becomes a faith with its own doctrine set and holy sites. C
 
 ---
 
+## Major Rivers
+
+Rivers with a discharge value at or above `MajorRiverThreshold` are treated as navigable rivers in CK3. They might need a little help to look their best.
+Tips:
+- Move the river control point closer to one or the other side of the cells they run through.
+- Move burgs that are in the middle of rivers to the side of the river.
+- Shape province borders along rivers.
+
+**How it works:**
+
+1. Each major river is traced as a ribbon of cells following the Azgaar river path using A\* pathfinding. The ribbon width (in cells) is set by `RiverProvinceCellCount`.
+2. The ribbon cells are carved out of any land cells they overlap, splitting land cells along the river edge.
+3. The carved ribbon becomes a river province.
+4. Very small fragments produced by carving (less than 30% the size of the main piece) are absorbed into their geometrically closest land neighbor to prevent orphaned slivers.
+
+---
+
 ## Fine-tuning your Azgaar map
 
-The converter works from any default Azgaar map. These areas benefit from deliberate choices in Azgaar — none are required.
+The converter works from any default Azgaar map. These areas benefit from deliberate choices in Azgaar. None are required.
 
 **Provinces without burgs become wasteland.**
 A province with no burgs generates no county and no playable territory. Add at least one burg if you want a region inhabited.
@@ -133,3 +179,12 @@ A province with 10 burgs becomes a duchy with 10 baronies. A province with 1 bur
 
 **Culture and religion distribution is cell-weighted.**
 Each barony's starting culture and religion are determined by a vote across the cells that make up that barony. A barony on a cultural border reflects whichever culture holds more cells. Adjusting cultural borders in Azgaar directly adjusts the CK3 output.
+
+**Major rivers work best along duchy borders.**
+A major river that runs between two Azgaar provinces produces clean barony borders on both sides. A river that cuts through the middle of a single province will divide that province's baronies but cannot prevent them from being assigned across the river — the converter does its best to reassign cross-river cells, but the result is cleaner when rivers follow your political boundaries.
+
+**Check discharge values before setting the threshold.**
+In Azgaar, hover over a river to see its discharge. Major rivers typically read in the hundreds to thousands; minor rivers are in the single or low double digits. Set `MajorRiverThreshold` just below the discharge of the rivers you want to be navigable. A threshold of 1000 is a reasonable starting point for most maps.
+
+**Fewer major rivers = faster conversion and cleaner maps.**
+Each major river requires cell carving and geometry operations. 2–5 major rivers per map is a good sweet spot. If conversion is slow or province geometry looks fragmented near rivers, try raising the threshold to reduce the number of rivers processed.

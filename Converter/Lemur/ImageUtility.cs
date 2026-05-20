@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Converter.Lemur.Deserialization;
 using Converter.Lemur.Entities;
 using ImageMagick;
 
@@ -73,7 +74,7 @@ namespace Converter.Lemur
             Process.Start(psi);
         }
 
-        public static async Task DrawCells(List<Entities.Cell> cells, Entities.Map map)
+        public static async Task DrawCells(List<Entities.Cell> cells, Entities.Map map, string fileName = "1_cells.png")
         {
             try
             {
@@ -101,7 +102,7 @@ namespace Converter.Lemur
                 if (Settings.Instance.GenerateDebugImages)
                 {
                     var debugRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AzgaarToCK3", "debug");
-                    var path = Helper.GetPath(debugRoot, GetDebugFolderName(),"1_cells.png");
+                    var path = Helper.GetPath(debugRoot, GetDebugFolderName(), fileName);
                     Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                     await cellsMap.WriteAsync(path);
                     Logger.Debug($"Saved cells image to '{path}'");
@@ -117,6 +118,75 @@ namespace Converter.Lemur
 
         }
 
+
+        public static async Task DrawCellsWithNeighborLines(List<Entities.Cell> cells, Entities.Map map, string fileName = "1_cells_neighbors.png")
+        {
+            if (!Settings.Instance.GenerateDebugImages) return;
+
+            var settings = new MagickReadSettings() { Width = Map.MapWidth, Height = Map.MapHeight };
+            using var img = new MagickImage("xc:white", settings);
+            var drawables = new Drawables();
+
+            // Draw cell polygons
+            foreach (var cell in cells)
+            {
+                drawables
+                    .DisableStrokeAntialias()
+                    .StrokeWidth(1)
+                    .StrokeColor(MagickColors.Black)
+                    .FillOpacity(new Percentage(0))
+                    .Polygon(cell.GeoDataCoordinates.Select(n => Helper.GeoToPixel(n[0], n[1], map)));
+            }
+
+            // Build lookup for neighbor access
+            var cellById = cells.ToDictionary(c => c.Id);
+
+            // Draw color-coded lines between each cell centroid and its neighbors (each edge once):
+            //   red     = dry  ↔ dry
+            //   blue    = wet  ↔ wet
+            //   burgundy = dry ↔ wet (coastline)
+            var burgundy = new MagickColor("#800020");
+            foreach (var cell in cells)
+            {
+                var cx = cell.GeoDataCoordinates.Average(n => n[0]);
+                var cy = cell.GeoDataCoordinates.Average(n => n[1]);
+                var cp = Helper.GeoToPixel(cx, cy, map);
+
+                foreach (var neighborId in cell.Neighbors)
+                {
+                    if (neighborId <= cell.Id) continue; // draw each edge once
+                    if (!cellById.TryGetValue(neighborId, out var neighbor)) continue;
+
+                    var nx = neighbor.GeoDataCoordinates.Average(n => n[0]);
+                    var ny = neighbor.GeoDataCoordinates.Average(n => n[1]);
+                    var np = Helper.GeoToPixel(nx, ny, map);
+
+                    var lineColor = (Entities.Cell.IsDryLand(cell.Type), Entities.Cell.IsDryLand(neighbor.Type)) switch
+                    {
+                        (true,  true)  => MagickColors.Red,
+                        (false, false) => MagickColors.Blue,
+                        _              => burgundy,
+                    };
+
+                    drawables
+                        .DisableStrokeAntialias()
+                        .StrokeWidth(1)
+                        .StrokeColor(lineColor)
+                        .FillOpacity(new Percentage(0))
+                        .Line(cp.X, cp.Y, np.X, np.Y);
+                }
+            }
+
+            img.Draw(drawables);
+
+            var path = Helper.GetPath(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "AzgaarToCK3", "debug", GetDebugFolderName(), fileName);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            await img.WriteAsync(path);
+            Logger.Debug($"Saved cells+neighbors image to '{path}'");
+            RegisterGeneratedImage(path);
+        }
 
         public static async Task DrawProvincesImage(Entities.Map map)
         {
@@ -185,6 +255,10 @@ namespace Converter.Lemur
                 // Draw wastelands (impassable land provinces — must be colored so CK3 can map pixel → province ID)
                 foreach (var wasteland in map.Wastelands!.Cast<IProvince>())
                     drawablesList.Add(GenerateCellPolygons(wasteland.Cells, wasteland.Color, map));
+
+                // Draw major river provinces
+                foreach (var rp in map.MajorRiverProvinces.Cast<IProvince>())
+                    drawablesList.Add(GenerateCellPolygons(rp.Cells, rp.Color, map));
 
                 // Draw sea zones
                 foreach (var zone in map.SeaZones!)
@@ -431,6 +505,61 @@ namespace Converter.Lemur
             }
         }
 
+        public static async Task DrawMajorRiverControlPoints(List<Entities.River> rivers, Entities.Map map, string fileName = "1c_major_river_control_points.png")
+        {
+            if (!Settings.Instance.GenerateDebugImages) return;
+            try
+            {
+                var imgSettings = new MagickReadSettings { Width = Map.MapWidth, Height = Map.MapHeight };
+                using var image = new MagickImage("xc:white", imgSettings);
+
+                // Distinct colors per river, cycling through a fixed palette
+                MagickColor[] palette =
+                [
+                    MagickColors.Red, MagickColors.Blue, MagickColors.Green,
+                    MagickColors.Orange, MagickColors.Purple, MagickColors.Cyan,
+                    MagickColors.Magenta, MagickColors.Brown,
+                ];
+
+                var drawables = new Drawables();
+                for (int ri = 0; ri < rivers.Count; ri++)
+                {
+                    var river = rivers[ri];
+                    if (river.ControlPoints == null || river.ControlPoints.Count < 2) continue;
+                    var color = palette[ri % palette.Length];
+
+                    // Polyline connecting control points
+                    var pixels = river.ControlPoints
+                        .Select(cp => Helper.GeoToPixel(cp[0], cp[1], map))
+                        .ToList();
+
+                    drawables.StrokeColor(color).StrokeWidth(2).FillOpacity(new Percentage(0));
+                    for (int i = 0; i + 1 < pixels.Count; i++)
+                        drawables.Line(pixels[i].X, pixels[i].Y, pixels[i + 1].X, pixels[i + 1].Y);
+
+                    // Dot at each control point (larger dot at first and last)
+                    for (int i = 0; i < pixels.Count; i++)
+                    {
+                        int r = (i == 0 || i == pixels.Count - 1) ? 6 : 3;
+                        Dot(drawables, color, r, pixels[i].X, pixels[i].Y);
+                    }
+                }
+
+                image.Draw(drawables);
+
+                var debugRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AzgaarToCK3", "debug");
+                var path = Helper.GetPath(debugRoot, GetDebugFolderName(), fileName);
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                await image.WriteAsync(path);
+                Logger.Debug($"Saved major river control points image to '{path}'");
+                RegisterGeneratedImage(path);
+            }
+            catch (Exception ex)
+            {
+                Logger.Warning($"DrawMajorRiverControlPoints failed: {ex.Message}");
+            }
+        }
+
         private static void Dot(Drawables dots, MagickColor fill, int radius, double x, double z)
         {
             dots.StrokeColor(MagickColors.Black).StrokeWidth(1).FillColor(fill)
@@ -438,7 +567,17 @@ namespace Converter.Lemur
         }
 
         internal static Drawables GenerateCellPolygons(IEnumerable<Entities.Cell> cells, MagickColor color, Entities.Map map)
+            => GenerateCellPolygons(cells, color, map.JsonMap.mapCoordinates);
+
+        // Map-free overload: painters that work from raw cells + coord transform (e.g. TerrainLab from a cell dump)
+        // call this directly so they don't need to fabricate a Map.
+        internal static Drawables GenerateCellPolygons(IEnumerable<Entities.Cell> cells, MagickColor color, AzgaarMapCoordinates coords)
         {
+            float xOffset = coords.lonW;
+            float yOffset = coords.latS;
+            float xRatio  = Entities.Map.MapWidth  / coords.lonT;
+            float yRatio  = Entities.Map.MapHeight / coords.latT;
+
             var drawables = new Drawables();
             foreach (var cell in cells)
             {
@@ -446,7 +585,9 @@ namespace Converter.Lemur
                     .DisableStrokeAntialias()
                     .StrokeColor(color)
                     .FillColor(color)
-                    .Polygon(cell.GeoDataCoordinates.Select(n => new PointD((n[0] - map.XOffset) * map.XRatio, Map.MapHeight - (n[1] - map.YOffset) * map.YRatio)));
+                    .Polygon(cell.GeoDataCoordinates.Select(n => new PointD(
+                        (n[0] - xOffset) * xRatio,
+                        Entities.Map.MapHeight - (n[1] - yOffset) * yRatio)));
             }
             return drawables;
         }

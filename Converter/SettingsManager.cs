@@ -26,7 +26,10 @@ public class Settings
     public static Settings Instance { get; set; }
 #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
     [JsonIgnore]
-    public static string OutputDirectory => Helper.GetPath(Instance.ModsDirectory, Instance.ModName);
+    public static string? OutputDirectoryOverride { get; set; } = null;
+
+    [JsonIgnore]
+    public static string OutputDirectory => OutputDirectoryOverride ?? Helper.GetPath(Instance.ModsDirectory, Instance.ModName);
 
     public LogLevel LogLevel { get; set; } = LogLevel.Info;
     public bool GenerateDebugImages { get; set; } = true;
@@ -92,6 +95,12 @@ public class Settings
     /// For testing purposes, set this very high (e.g. 999999) to treat all rivers as minor.
     /// </summary>
     public float MajorRiverThreshold { get; set; } = 999999f;  // Very high for testing - all rivers will be minor
+
+    /// <summary>
+    /// Number of river cells per major river province segment.
+    /// Each major river is divided into multiple MajorRiverProvince objects of this size.
+    /// </summary>
+    public int RiverProvinceCellCount { get; set; } = 2;
 
     /// <summary>
     /// Target area per sea zone (Azgaar cell-area units). Zone grows until it hits this.
@@ -196,6 +205,12 @@ public partial class SettingsJsonContext : JsonSerializerContext { }
 
 public static class SettingsManager
 {
+    /// <summary>
+    /// The CK3 game version this converter targets. Update this when a new major CK3 release drops.
+    /// Written into every generated descriptor.mod / LemurTest.mod as supported_version.
+    /// </summary>
+    public const string Ck3SupportedVersion = "1.18.*";
+
     private static readonly string settingsFileName = Helper.GetPath(ExecutablePath, "settings.json");
     private static readonly string defaultModsDirectory = Helper.GetPath(MyDocuments, "Paradox Interactive", "Crusader Kings III", "mod");
     private static string MyDocuments => Helper.GetPath(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));

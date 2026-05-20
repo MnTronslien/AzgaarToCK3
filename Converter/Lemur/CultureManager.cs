@@ -34,15 +34,43 @@ public static class CultureManager
         ["papuan"],
     ];
 
-    // Thematically coherent packs: GFX keys + vanilla name list.
-    // Future: expand bundles, match to Azgaar namebase string.
-    private static readonly ThemeBundle[] ThemeBundles =
-    [
-        new("western",   "western_coa_gfx",         "western_building_gfx",   "western_clothing_gfx",   "western_unit_gfx",  "name_list_english"),
-        new("byzantine", "byzantine_group_coa_gfx",  "byzantine_building_gfx", "byzantine_clothing_gfx", "eastern_unit_gfx",  "name_list_greek"),
-        new("mena",      "mena_coa_gfx",             "african_building_gfx",   "mena_clothing_gfx",      "eastern_unit_gfx",  "name_list_arabic"),
-        new("northern",  "western_coa_gfx",          "western_building_gfx",   "northern_clothing_gfx",  "western_unit_gfx",  "name_list_norse"),
-    ];
+    // Thematically coherent packs: GFX keys + vanilla name list. Male/Female names per bundle are
+    // sourced from vanilla name_list_*.txt at startup via NameListLoader. The bare identifiers in
+    // vanilla male_names/female_names blocks (e.g. O_lafr, T_orsteinn, E_lfric) double as the
+    // localization keys CK3 resolves at runtime to the proper Unicode display form, so we pass them
+    // through unchanged into name = "..." in character history.
+    //
+    // To add a new bundle: pick any top-level name_list_* key that exists in
+    // <Ck3Directory>/game/common/culture/name_lists/ and add a Bundle(...) line. NameListLoader
+    // throws on unknown keys with a list of available ones — no separate allowlist to maintain.
+    //
+    // Lazy init: Settings.Instance.Ck3Directory must be populated before first read.
+    private static ThemeBundle[]? _themeBundles;
+    private static ThemeBundle[] ThemeBundles => _themeBundles ??= BuildThemeBundles();
+
+    private static ThemeBundle[] BuildThemeBundles()
+    {
+        var ck3 = Converter.Settings.Instance.Ck3Directory;
+        ThemeBundle Bundle(string name, string coa, string building, string clothing, string unit, string nameList)
+        {
+            var (male, female) = NameListLoader.GetNames(ck3, nameList);
+            // Empty pools would crash CharacterFactory on modulo. Substitute a single placeholder
+            // so the converter completes and the issue is glaringly obvious in-game ("Nameless"
+            // rulers everywhere of that culture) rather than a stack trace mid-run.
+            // Vanilla CK3 only defines male_names / female_names — no gender-neutral pool exists
+            // (verified 2026-05-20), so empty here means the chosen name_list lacks names of that gender.
+            male = SubstituteIfEmpty(male, name, nameList, "male_names");
+            female = SubstituteIfEmpty(female, name, nameList, "female_names");
+            return new(name, coa, building, clothing, unit, nameList, male, female);
+        }
+        return
+        [
+            Bundle("western",   "western_coa_gfx",          "western_building_gfx",   "western_clothing_gfx",   "western_unit_gfx",  "name_list_english"),
+            Bundle("byzantine", "byzantine_group_coa_gfx",  "byzantine_building_gfx", "byzantine_clothing_gfx", "eastern_unit_gfx",  "name_list_greek"),
+            Bundle("mena",      "mena_coa_gfx",             "african_building_gfx",   "mena_clothing_gfx",      "eastern_unit_gfx",  "name_list_bedouin"),
+            Bundle("northern",  "western_coa_gfx",          "western_building_gfx",   "northern_clothing_gfx",  "western_unit_gfx",  "name_list_norse"),
+        ];
+    }
 
     public static Dictionary<int, Culture> Build(AzgaarCulture[] cultures, int seed)
     {
@@ -391,6 +419,21 @@ public static class CultureManager
         }
     }
 
+    /// <summary>
+    /// Returns <paramref name="pool"/> if non-empty; otherwise logs at Error level and returns
+    /// a single-entry placeholder pool so the converter keeps running and the issue is visible
+    /// in-game (rulers of affected cultures all named "Nameless").
+    /// </summary>
+    private static string[] SubstituteIfEmpty(string[] pool, string bundleName, string nameList, string blockName)
+    {
+        if (pool.Length > 0) return pool;
+        Logger.Error(
+            $"ThemeBundle '{bundleName}' (NameList={nameList}): vanilla '{blockName}' is empty. " +
+            $"Substituting [\"Nameless\"] placeholder so the converter completes — pick a different " +
+            $"name_list with both male_names and female_names, or extend the loader to merge pools.");
+        return ["Nameless"];
+    }
+
     /// <summary>Extract non-zero, non-null origin IDs. Returns at most 2.</summary>
     private static int[] GetRealOrigins(int[]? origins)
     {
@@ -430,5 +473,7 @@ public record ThemeBundle(
     string BuildingGfx,
     string ClothingGfx,
     string UnitGfx,
-    string NameList
+    string NameList,
+    string[] MaleNames,
+    string[] FemaleNames
 );

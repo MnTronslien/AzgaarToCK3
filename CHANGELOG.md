@@ -1,3 +1,55 @@
+# 1.1.0 — Terra Bella — 2026-05-20
+
+Three flagship features: biome-textured maps, a rewritten heightmap pipeline, and major rivers drawn as proper provinces. Plus a regression fix to character names, the usual performance pass, and known gaps documented for the next release.
+
+### Splatmap — biome textures + steepness overlays + coastal blend
+The "all terrain renders as plains" gap from 1.0.0 is closed.
+- Per-pixel material registry driving the CK3 detail TGAs. 12 biome → texture mappings, exposed for tuning in `MaterialRegistry.cs` (called out in `CONTRIBUTING.md` as a single-file contributor entry point).
+- Delaunay-barycentric biome blending with sea cells included in the triangulation, so the biome boundary fades smoothly into the coast.
+- Steepness-driven hills + mountain layers cross-fading on top of the biome base.
+- Asymmetric beach + mud-seafloor blend at the waterline.
+- Mapping documented in `docs/CONVERSION_RULES.md`.
+
+### Heightmap — new build pipeline
+Older flat-polygon heightmap replaced with a Delaunay + poly-node algorithm.
+- Conforming-Delaunay-Triangulation algorithm: terrain nodes per cell plus relaxed poly-nodes for sub-cell detail, with coast-walked boundary nodes pinned as CDT constraints. Bay-shortcut Steiner edges patched via triangle-fan replacement.
+- Coastal lift: pronounced coastline pinned at the first land byte (`LowestLandByte`); waterline semantics tightened (`MaxWaterByte`) end-to-end.
+- Packed heightmap rewrite. Detail-level metric replaced — the old signed-2nd-derivative collapsed to zero on both ocean and rough interiors, starving the middle detail levels. Now mean-magnitude of the first derivative, with percentile-based cutoffs that self-calibrate per map regardless of land/ocean balance.
+
+### Major rivers — provinces, not just lines
+Previously only minor rivers were drawn (to `rivers.png`). Major rivers are now first-class provinces.
+- Mouth-width / discharge above `MajorRiverThreshold` → drawn as river-tier provinces with their own IDs in `definition.csv` and entries in landed_titles.
+- Discharge-based width scaling, self-calibrating per cell diameter (replaces hard-coded thresholds).
+- Tributary-first ordering with perpendicular junction cuts at confluences — no overlapping cells where rivers join.
+- Tiny split pieces auto-merged into the best geometric neighbour. Cells fully engulfed by an oversized ribbon fall back to land (workaround until the width clamp lands — see Known gaps).
+
+### Also added
+- **TerrainLab** — new sibling project. Standalone harness for iterating on splatmap and heightmap tuning without full converter runs: cell painting, pixel sampling, packing diagnostics (`pack_metric.png`, `pack_detail_levels.png`), `--coast-map` / `--river-map` / `--steepness-map` debug images. `./TerrainLab --gen-materials` regenerates `Ck3MaterialBytes.cs` from `materials.settings` after CK3 patches.
+- Pipeline warning when the `TerrainMasks` writer is enabled without `Heightmap` (silent fallback used to leave splatmap biome-only).
+
+### Performance
+- `SplatmapBuilder` outer pixel loop parallelized.
+- `AssignCellsToBaronies` parallelized across duchies.
+- Terrain mask write steps parallelized; colormap + blank-mask file-copy caches.
+- O(C log C) cell assignment (was LINQ scan).
+
+### Fixed
+- **Characters generated without names** (regression). Two stacked bugs: `name_list_arabic` did not exist in vanilla CK3 (now `name_list_bedouin` for the mena ThemeBundle); CK3 does not auto-fill names for history-defined characters, so we now emit explicit `name = "..."` with pools parsed from vanilla `name_lists/*.txt` via a new `NameListLoader`. Side effect: kingdom and duchy titles no longer render as `[blank]` in the UI.
+- `LocatorWriter.ComputeCentroid` sorts cells by ID for run-to-run determinism.
+- `HeightmapMasks` now emits `hills_01_mask.png` / `mountain_02_mask.png` / `mountain_02_c_snow_mask.png` as black placeholders. These files are CK3 Map Editor input, not runtime-consumed — generating real per-pixel data was wasted CPU and disk.
+- Dead `Settings` tunables (`RoughnessNormalisation`, `HillsThreshold`, `MountainsThreshold`) and unused `Helper.ComputeRoughness` removed — abandoned earlier design, superseded by the per-pixel steepness pipeline.
+- Major rivers wider than a cell no longer corrupt the province grid: engulfed cells fall back to being kept as land. Workaround, not a root-cause fix — full width clamp tracked for next release.
+
+### CI
+- Linux and macOS release builds disabled — no hardware available to verify these binaries before publishing.
+
+### Known gaps
+- `province_terrain` still emits `plains` for every land province. Visual terrain is in; gameplay terrain assignment (combat/movement/supply modifiers) is queued for the next release.
+- CK3 1.19 compatibility deferred — dev environment is intentionally pinned to 1.18.4 due to a vanilla 1.19 stack-overflow bug.
+- Activity locators (tournaments, hunts, etc.) default to map position (0, 0). The 8 standard locator types from 1.0.0 are correct; activity-specific locators are next release.
+
+---
+
 # 1.0.0 — 2026-03-26
 
 ### Added
