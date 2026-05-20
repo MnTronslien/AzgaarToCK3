@@ -1,100 +1,36 @@
-# 1.1.0 — 2026-05-20
+# 1.1.0 — Terra Bella — 2026-05-20
+
+Visual map quality release. Closes the "all terrain renders as plains" gap from 1.0.0 — land now has biome-driven ground textures, steepness-driven hills and mountain overlays, an asymmetric beach/seafloor blend at the waterline, and meaningful detail allocation across mountains, valleys, and coastlines.
 
 ### Added
-- add major river province entity and supporting foundation
-- implement MajorRiverInserter with 4-phase pipeline
-- wire major river provinces into pipeline output
-- restore round-cap ribbon slices with overlap + coverage/overlap assertions
-- eliminate intra-river cell overlap via perpendicular junction cuts
-- process rivers per-river in tributary-first order; carve river cells
-- merge tiny split pieces into best geometric neighbor
-- add HeightmapLab standalone heightmap experiment harness
-- replace Perlin with separable Gaussian blur
-- auto-normalize roughness to p95, power curve, land floor
-- replace flat polygon heightmap with Delaunay + poly-node algorithm
-- generate hills/mountains/snow masks from heightmap gradient
-- roughness map via Delaunay barycentric rasterization of terrain nodes
-- add --coast-map debug image
-- --terrain-out flag for hot-reload iteration in CK3
-- insert coast constraint nodes at land/sea polygon boundary vertices
-- show terrain+poly nodes on --coast-map when --debug is also set
-- assert coast node Delaunay connectivity >= 2 coast-coast edges
-- three-colour coast connectivity visualisation
-- colour Steiner points magenta, write nodes+mesh as separate files
-- assert no Steiner-Steiner Delaunay edges
-- walk-based coastline for CDT constraints
-- add --dump-cells / --cells pipeline for river-aware heightmap iteration
-- add --manifest <dir> mode for output verification
-- discharge-based width scaling with self-calibrating cell diameter
-- drop river cell TerrainNodes, seed centerline from control points
-- densify river centerline + add --river-map diagnostic
-- add --check-neighbors and --neighbor-arrows diagnostics
-- add --vertex-debug for inspecting river-cell vs neighbour geometry
-- skip rivers in coast walk's land-iteration
-- add --alpha N override flag to TerrainLab paint flags
-- add --sample-tga pixel-histogram tool + document splat-map model
-- M1 — Delaunay-barycentric biome blending
-- M2 — Material framework + hills/mountain layers
-- coastal lift — pronounced coastline, tighter beach band
-- asymmetric beach curve + mud_wet_01 seafloor + tropical→drylands
-- include sea cells in Delaunay → natural cell-space biome fade
-- --pack-heightmap harness for iterating on packed-heightmap algorithm
-- emit pack_metric.png + per-tile metric distribution percentiles
-- replace per-tile metric with mean(|first-derivative|)
-- percentile-based detail-level bucketing
-- warn when TerrainMasks runs without Heightmap
+- **Splatmap pipeline** (`Converter/Lemur/Splats/`). Per-pixel material registry, Delaunay-barycentric biome blending with sea cells included for natural coast fade, hills and mountain layers driven by steepness, beach + mud seafloor at the waterline. 12 biome → CK3 texture mappings, exposed for tuning in `MaterialRegistry.cs`.
+- **Heightmap coastal lift**. Pronounced coastline pinned at the first land byte (`LowestLandByte`); waterline semantics tightened (`MaxWaterByte`) end-to-end.
+- **Packed heightmap rewrite**. Detail-level metric replaced (was signed 2nd-derivative, which collapsed to zero on both ocean and rough interiors and starved the middle detail levels). Now mean-magnitude of the first derivative, with percentile-based cutoffs that self-calibrate per map regardless of land/ocean balance.
+- **Major rivers as provinces**. Major rivers are now drawn as river-tier provinces with discharge-based width scaling (self-calibrating per cell diameter), tributary-first ordering, perpendicular junction cuts, and tiny-piece merging into geometric neighbours.
+- **TerrainLab** — new sibling project. Standalone harness for iterating on splatmap and heightmap tuning without full converter runs: cell painting, pixel sampling, packing diagnostics (`pack_metric.png`, `pack_detail_levels.png`). `./TerrainLab --gen-materials` regenerates `Ck3MaterialBytes.cs` from `materials.settings` after CK3 patches.
+- **Documentation** — `docs/CONVERSION_RULES.md` documents the biome → texture mapping; `CONTRIBUTING.md` invites texture refinement as a single-file contribution.
+- Pipeline warning when the `TerrainMasks` writer is enabled without `Heightmap` (silent fallback used to leave splatmap biome-only).
+
+### Performance
+- `SplatmapBuilder` outer pixel loop parallelized.
+- `AssignCellsToBaronies` parallelized across duchies.
+- Terrain mask write steps parallelized; colormap + blank-mask file-copy caches.
+- O(C log C) cell assignment (was LINQ scan).
 
 ### Fixed
-- eliminate river cell geometry overlap via sequential subtraction
-- use true angular bisector for junction cuts; add river CP debug image
-- exclude river cells as merge targets for tiny land splinters
-- exclude river cells from sea zone generation
-- river provinces display plain river name in-game
-- correct NearestN early-exit causing bucket-boundary artifacts
-- widen gradient kernel to suppress quantization banding
-- use float heightmap for normal computation, add roughness-map to lab
-- hills tent function — no overlap with mountains at high steepness
-- restore detail_index + detail_intensity per-cell biome painting
-- copy+resize detail_intensity.tga from TCS instead of generating it
-- correct detail_intensity.tga checkerboard to row×column independent cycling
-- --coast-map --mesh now combines correctly; mesh skips early exit when coast-map active
-- classify poly nodes by cell polygon containment, not IDW baseHeight
-- use ConformingDelaunayTriangulation with coast-coast CDT constraints
-- drop sea poly nodes; add violation rings on coast map
-- eliminate all coast connectivity violations via exclusion zone
-- exclude sea cells from CDT constraint collection
-- only constrain coast pairs present in both land AND sea cell rings
-- per-sea-body coast walk to handle inland lakes
-- patch bay-shortcut Steiner-Steiner edges via triangle fan replacement
-- add OutputDirectoryOverride to Settings
-- sort cells by ID in ComputeCentroid for FP determinism
-- default MajorRiverThreshold when Settings.Instance is null
-- re-verify split-piece neighbours against geometry
-- snap shared boundaries between adjacent cell polygons
-- write detail_intensity.tga with low alpha to eliminate cell-square artefact
-- pin coast nodes to first land byte instead of waterline byte
-- biome coast-fade to crossfade with beach material
-- widen beach+biome coast fade to span post-lift coast band
-- use name_list_bedouin in mena ThemeBundle (was non-existent name_list_arabic)
-- emit explicit names; load name pools from vanilla name_lists
-- empty-pool fallback + deterministic random name pick
+- **Characters generated without names** (regression). Two stacked bugs: `name_list_arabic` did not exist in vanilla CK3 (now `name_list_bedouin` for the mena ThemeBundle); CK3 does not auto-fill names for history-defined characters, so we now emit explicit `name = "..."` with pools parsed from vanilla `name_lists/*.txt` via a new `NameListLoader`. Side effect: kingdom and duchy titles no longer render as `[blank]` in the UI.
+- `LocatorWriter.ComputeCentroid` sorts cells by ID for run-to-run determinism.
+- `HeightmapMasks` now emits `hills_01_mask.png` / `mountain_02_mask.png` / `mountain_02_c_snow_mask.png` as black placeholders. These files are CK3 Map Editor input, not runtime-consumed — generating real per-pixel data was wasted CPU and disk.
+- Dead `Settings` tunables (`RoughnessNormalisation`, `HillsThreshold`, `MountainsThreshold`) and unused `Helper.ComputeRoughness` removed — abandoned earlier design, superseded by the per-pixel steepness pipeline.
+- Major rivers wider than a cell no longer corrupt the province grid: engulfed cells fall back to being kept as land. Workaround, not a root-cause fix — full width clamp tracked for next release.
 
-### Changed
-- defer tiny-piece merging to post-carve pass
-- extract TerrainMaskPreparer — move biome/cell decisions out of writer
-- replace Delaunay rasterization with unified IDW over terrain+poly-nodes
-- replace per-pixel IDW with Delaunay triangle rasterization
-- struct nodes, IDW roughness, relaxation step + tuned defaults
-- port heightmap algorithm to Converter, invert HeightmapLab dependency
-- rename HeightmapLab → TerrainLab to reflect expanding scope
-- lift detail_index/intensity painters to public static for TerrainLab use
-- decouple detail painters from Map
-- rename CK3WaterLevel → MaxWaterByte, fix off-by-one semantics
-- add LowestLandByte = MaxWaterByte + 1 for clarity
-- make percentile bucketing ocean-ratio-independent
-- drop dead roughness-threshold settings + ComputeRoughness
-- write hills/mountain/snow masks as black (Map Editor input only)
-- lift detail-level percentile cutoffs to named constants
+### CI
+- Linux and macOS release builds disabled — no hardware available to verify these binaries before publishing.
+
+### Known gaps
+- `province_terrain` still emits `plains` for every land province. Visual terrain is in; gameplay terrain assignment (combat/movement/supply modifiers) is queued for the next release.
+- CK3 1.19 compatibility deferred — dev environment is intentionally pinned to 1.18.4 due to a vanilla 1.19 stack-overflow bug.
+- Activity locators (tournaments, hunts, etc.) default to map position (0, 0). The 8 standard locator types from 1.0.0 are correct; activity-specific locators are next release.
 
 ---
 
