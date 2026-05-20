@@ -34,34 +34,40 @@ public static class CultureManager
         ["papuan"],
     ];
 
-    // Thematically coherent packs: GFX keys + vanilla name list.
-    // Future: expand bundles, match to Azgaar namebase string.
+    // Thematically coherent packs: GFX keys + vanilla name list. Male/Female names per bundle are
+    // sourced from vanilla name_list_*.txt at startup via NameListLoader. The bare identifiers in
+    // vanilla male_names/female_names blocks (e.g. O_lafr, T_orsteinn, E_lfric) double as the
+    // localization keys CK3 resolves at runtime to the proper Unicode display form, so we pass them
+    // through unchanged into name = "..." in character history.
     //
-    // IMPORTANT: NameList values MUST be top-level vanilla name_list keys (e.g. `name_list_bedouin`,
-    // not `name_list_arabic`). The vanilla file at game/common/culture/name_lists/00_arabic.txt
-    // defines name_list_bedouin/levantine/egyptian/etc. — there is no `name_list_arabic`.
-    // Referencing a non-existent name_list silently leaves CK3 with no name pool for that culture,
-    // and every history-defined character of that culture renders as its literal ID (`lemur_42`).
-    // Validated at startup by AssertThemeBundleNameListsValid().
-    private static readonly ThemeBundle[] ThemeBundles =
-    [
-        new("western",   "western_coa_gfx",         "western_building_gfx",   "western_clothing_gfx",   "western_unit_gfx",  "name_list_english"),
-        new("byzantine", "byzantine_group_coa_gfx",  "byzantine_building_gfx", "byzantine_clothing_gfx", "eastern_unit_gfx",  "name_list_greek"),
-        new("mena",      "mena_coa_gfx",             "african_building_gfx",   "mena_clothing_gfx",      "eastern_unit_gfx",  "name_list_bedouin"),
-        new("northern",  "western_coa_gfx",          "western_building_gfx",   "northern_clothing_gfx",  "western_unit_gfx",  "name_list_norse"),
-    ];
+    // To add a new bundle: pick any top-level name_list_* key that exists in
+    // <Ck3Directory>/game/common/culture/name_lists/ and add a Bundle(...) line. NameListLoader
+    // throws on unknown keys with a list of available ones — no separate allowlist to maintain.
+    //
+    // Lazy init: Settings.Instance.Ck3Directory must be populated before first read.
+    private static ThemeBundle[]? _themeBundles;
+    private static ThemeBundle[] ThemeBundles => _themeBundles ??= BuildThemeBundles();
 
-    // Vanilla CK3 1.18 top-level name_list keys we rely on. Used by AssertThemeBundleNameListsValid
-    // to fail fast if a future edit introduces a typo or a non-existent key.
-    private static readonly HashSet<string> KnownVanillaNameLists =
-    [
-        "name_list_english", "name_list_greek", "name_list_norse", "name_list_bedouin",
-    ];
+    private static ThemeBundle[] BuildThemeBundles()
+    {
+        var ck3 = Converter.Settings.Instance.Ck3Directory;
+        ThemeBundle Bundle(string name, string coa, string building, string clothing, string unit, string nameList)
+        {
+            var (male, female) = NameListLoader.GetNames(ck3, nameList);
+            return new(name, coa, building, clothing, unit, nameList, male, female);
+        }
+        return
+        [
+            Bundle("western",   "western_coa_gfx",          "western_building_gfx",   "western_clothing_gfx",   "western_unit_gfx",  "name_list_english"),
+            Bundle("byzantine", "byzantine_group_coa_gfx",  "byzantine_building_gfx", "byzantine_clothing_gfx", "eastern_unit_gfx",  "name_list_greek"),
+            Bundle("mena",      "mena_coa_gfx",             "african_building_gfx",   "mena_clothing_gfx",      "eastern_unit_gfx",  "name_list_bedouin"),
+            Bundle("northern",  "western_coa_gfx",          "western_building_gfx",   "northern_clothing_gfx",  "western_unit_gfx",  "name_list_norse"),
+        ];
+    }
 
     public static Dictionary<int, Culture> Build(AzgaarCulture[] cultures, int seed)
     {
         Converter.Lemur.Logger.Section("Building cultures");
-        AssertThemeBundleNameListsValid();
         var result = new Dictionary<int, Culture>();
 
         // Pass 1: create all Culture objects, skip sentinel (i == 0)
@@ -406,26 +412,6 @@ public static class CultureManager
         }
     }
 
-    /// <summary>
-    /// Verifies every ThemeBundle.NameList points to a known vanilla top-level name_list key.
-    /// Throws if any are missing — a silent bad key produces blank character names in-game
-    /// (regression observed 2026-05-19: name_list_arabic does not exist; mena-themed cultures
-    /// rendered all characters with their literal IDs).
-    /// </summary>
-    private static void AssertThemeBundleNameListsValid()
-    {
-        var unknown = ThemeBundles
-            .Where(b => !KnownVanillaNameLists.Contains(b.NameList))
-            .ToList();
-        if (unknown.Count == 0) return;
-
-        var detail = string.Join(", ",
-            unknown.Select(b => $"{b.Name} → {b.NameList}"));
-        throw new InvalidOperationException(
-            $"ThemeBundle references unknown name_list(s): {detail}. " +
-            $"Known vanilla keys: {string.Join(", ", KnownVanillaNameLists)}.");
-    }
-
     /// <summary>Extract non-zero, non-null origin IDs. Returns at most 2.</summary>
     private static int[] GetRealOrigins(int[]? origins)
     {
@@ -465,5 +451,7 @@ public record ThemeBundle(
     string BuildingGfx,
     string ClothingGfx,
     string UnitGfx,
-    string NameList
+    string NameList,
+    string[] MaleNames,
+    string[] FemaleNames
 );

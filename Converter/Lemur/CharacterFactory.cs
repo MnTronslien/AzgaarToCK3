@@ -212,6 +212,17 @@ public static class CharacterFactory
         var azFaith = title.GetDominantReligion(map);
         var faith = map.Faiths.GetValueOrDefault(azFaith.i) ?? map.Faiths.Values.First();
 
-        return new Character(culture, faith);
+        // Pick a name from the culture's ThemeBundle pool.
+        // History-defined CK3 characters need explicit name= — CK3 does not auto-fill from name_list
+        // (that's only for run-time-spawned characters). Without an explicit name, CK3 logs
+        // "Missing loc for name ''" and the UI renders "King [blank] of [Kingdom]".
+        // Round-robin via map.Characters.Count, offset by AzgaarId so different cultures using the
+        // same bundle don't all start at index 0. Gender doctrine is a separate next-release item;
+        // every ruler is male for now.
+        var pool = culture.ThemeBundle.MaleNames;
+        var idx = ((map.Characters.Count + culture.AzgaarId) % pool.Length + pool.Length) % pool.Length;
+        var name = pool[idx];
+
+        return new Character(culture, faith, name);
     }
 }
