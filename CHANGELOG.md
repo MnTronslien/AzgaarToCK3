@@ -1,14 +1,30 @@
 # 1.1.0 — Terra Bella — 2026-05-20
 
-Visual map quality release. Closes the "all terrain renders as plains" gap from 1.0.0 — land now has biome-driven ground textures, steepness-driven hills and mountain overlays, an asymmetric beach/seafloor blend at the waterline, and meaningful detail allocation across mountains, valleys, and coastlines.
+Three flagship features: biome-textured maps, a rewritten heightmap pipeline, and major rivers drawn as proper provinces. Plus a regression fix to character names, the usual performance pass, and known gaps documented for the next release.
 
-### Added
-- **Splatmap pipeline** (`Converter/Lemur/Splats/`). Per-pixel material registry, Delaunay-barycentric biome blending with sea cells included for natural coast fade, hills and mountain layers driven by steepness, beach + mud seafloor at the waterline. 12 biome → CK3 texture mappings, exposed for tuning in `MaterialRegistry.cs`.
-- **Heightmap coastal lift**. Pronounced coastline pinned at the first land byte (`LowestLandByte`); waterline semantics tightened (`MaxWaterByte`) end-to-end.
-- **Packed heightmap rewrite**. Detail-level metric replaced (was signed 2nd-derivative, which collapsed to zero on both ocean and rough interiors and starved the middle detail levels). Now mean-magnitude of the first derivative, with percentile-based cutoffs that self-calibrate per map regardless of land/ocean balance.
-- **Major rivers as provinces**. Major rivers are now drawn as river-tier provinces with discharge-based width scaling (self-calibrating per cell diameter), tributary-first ordering, perpendicular junction cuts, and tiny-piece merging into geometric neighbours.
-- **TerrainLab** — new sibling project. Standalone harness for iterating on splatmap and heightmap tuning without full converter runs: cell painting, pixel sampling, packing diagnostics (`pack_metric.png`, `pack_detail_levels.png`). `./TerrainLab --gen-materials` regenerates `Ck3MaterialBytes.cs` from `materials.settings` after CK3 patches.
-- **Documentation** — `docs/CONVERSION_RULES.md` documents the biome → texture mapping; `CONTRIBUTING.md` invites texture refinement as a single-file contribution.
+### Splatmap — biome textures + steepness overlays + coastal blend
+The "all terrain renders as plains" gap from 1.0.0 is closed.
+- Per-pixel material registry driving the CK3 detail TGAs. 12 biome → texture mappings, exposed for tuning in `MaterialRegistry.cs` (called out in `CONTRIBUTING.md` as a single-file contributor entry point).
+- Delaunay-barycentric biome blending with sea cells included in the triangulation, so the biome boundary fades smoothly into the coast.
+- Steepness-driven hills + mountain layers cross-fading on top of the biome base.
+- Asymmetric beach + mud-seafloor blend at the waterline.
+- Mapping documented in `docs/CONVERSION_RULES.md`.
+
+### Heightmap — new build pipeline
+Older flat-polygon heightmap replaced with a Delaunay + poly-node algorithm.
+- Conforming-Delaunay-Triangulation algorithm: terrain nodes per cell plus relaxed poly-nodes for sub-cell detail, with coast-walked boundary nodes pinned as CDT constraints. Bay-shortcut Steiner edges patched via triangle-fan replacement.
+- Coastal lift: pronounced coastline pinned at the first land byte (`LowestLandByte`); waterline semantics tightened (`MaxWaterByte`) end-to-end.
+- Packed heightmap rewrite. Detail-level metric replaced — the old signed-2nd-derivative collapsed to zero on both ocean and rough interiors, starving the middle detail levels. Now mean-magnitude of the first derivative, with percentile-based cutoffs that self-calibrate per map regardless of land/ocean balance.
+
+### Major rivers — provinces, not just lines
+Previously only minor rivers were drawn (to `rivers.png`). Major rivers are now first-class provinces.
+- Mouth-width / discharge above `MajorRiverThreshold` → drawn as river-tier provinces with their own IDs in `definition.csv` and entries in landed_titles.
+- Discharge-based width scaling, self-calibrating per cell diameter (replaces hard-coded thresholds).
+- Tributary-first ordering with perpendicular junction cuts at confluences — no overlapping cells where rivers join.
+- Tiny split pieces auto-merged into the best geometric neighbour. Cells fully engulfed by an oversized ribbon fall back to land (workaround until the width clamp lands — see Known gaps).
+
+### Also added
+- **TerrainLab** — new sibling project. Standalone harness for iterating on splatmap and heightmap tuning without full converter runs: cell painting, pixel sampling, packing diagnostics (`pack_metric.png`, `pack_detail_levels.png`), `--coast-map` / `--river-map` / `--steepness-map` debug images. `./TerrainLab --gen-materials` regenerates `Ck3MaterialBytes.cs` from `materials.settings` after CK3 patches.
 - Pipeline warning when the `TerrainMasks` writer is enabled without `Heightmap` (silent fallback used to leave splatmap biome-only).
 
 ### Performance
