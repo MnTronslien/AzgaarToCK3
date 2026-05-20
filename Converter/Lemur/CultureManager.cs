@@ -54,6 +54,13 @@ public static class CultureManager
         ThemeBundle Bundle(string name, string coa, string building, string clothing, string unit, string nameList)
         {
             var (male, female) = NameListLoader.GetNames(ck3, nameList);
+            // Empty pools would crash CharacterFactory on modulo. Substitute a single placeholder
+            // so the converter completes and the issue is glaringly obvious in-game ("Nameless"
+            // rulers everywhere of that culture) rather than a stack trace mid-run.
+            // Vanilla CK3 only defines male_names / female_names — no gender-neutral pool exists
+            // (verified 2026-05-20), so empty here means the chosen name_list lacks names of that gender.
+            male = SubstituteIfEmpty(male, name, nameList, "male_names");
+            female = SubstituteIfEmpty(female, name, nameList, "female_names");
             return new(name, coa, building, clothing, unit, nameList, male, female);
         }
         return
@@ -410,6 +417,21 @@ public static class CultureManager
             int year = startYear - ((maxDepth - d + 1) * stepYears);
             culture.CreationDate = $"{year}.1.1";
         }
+    }
+
+    /// <summary>
+    /// Returns <paramref name="pool"/> if non-empty; otherwise logs at Error level and returns
+    /// a single-entry placeholder pool so the converter keeps running and the issue is visible
+    /// in-game (rulers of affected cultures all named "Nameless").
+    /// </summary>
+    private static string[] SubstituteIfEmpty(string[] pool, string bundleName, string nameList, string blockName)
+    {
+        if (pool.Length > 0) return pool;
+        Logger.Error(
+            $"ThemeBundle '{bundleName}' (NameList={nameList}): vanilla '{blockName}' is empty. " +
+            $"Substituting [\"Nameless\"] placeholder so the converter completes — pick a different " +
+            $"name_list with both male_names and female_names, or extend the loader to merge pools.");
+        return ["Nameless"];
     }
 
     /// <summary>Extract non-zero, non-null origin IDs. Returns at most 2.</summary>
