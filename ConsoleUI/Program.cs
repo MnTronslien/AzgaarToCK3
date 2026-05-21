@@ -366,10 +366,36 @@ internal class Program
         }
         catch (Exception ex)
         {
-            Console.WriteLine("An error has occurred.");
-            Console.WriteLine(ex.Message);
-            Console.WriteLine(ex.StackTrace);
+            HandleFatal(ex);
         }
+    }
+
+    private static void HandleFatal(Exception ex)
+    {
+        Console.WriteLine();
+        Console.WriteLine("─────────────────────────────────────────────────────────────");
+        Console.WriteLine("  Something went wrong and the converter has to stop.");
+        Console.WriteLine("─────────────────────────────────────────────────────────────");
+        Console.WriteLine(ex.Message);
+        Console.WriteLine();
+        Console.WriteLine("Full stack trace (please include this if you file a bug):");
+        Console.WriteLine(ex.ToString());
+        Console.WriteLine();
+        Console.WriteLine("Report issues at https://github.com/MnTronslien/AzgaarToCK3/issues");
+        PauseOnExit();
+    }
+
+    /// <summary>
+    /// Pause for a keypress so a console window launched from Explorer doesn't vanish
+    /// before the user can read what's on it. No-op when stdin is redirected (piped/CI)
+    /// so scripted runs don't hang.
+    /// </summary>
+    private static void PauseOnExit()
+    {
+        if (Console.IsInputRedirected) return;
+        Console.WriteLine("Press any key to exit...");
+        try { Console.ReadKey(intercept: true); }
+        catch { /* no console attached — nothing to wait on */ }
     }
 
     private static void RunManifest(string dir)
@@ -510,8 +536,7 @@ internal class Program
 
     private static void Exit()
     {
-        Console.WriteLine("Press any key to exit.");
-        Console.ReadKey();
+        PauseOnExit();
         SettingsManager.Save();
         Environment.Exit(0);
     }
