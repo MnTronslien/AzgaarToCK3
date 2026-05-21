@@ -372,6 +372,10 @@ public static class SettingsManager
     }
     public static void Save()
     {
+        // Save can be called from generic exit paths (Exit()) before Settings.Instance
+        // is populated — e.g. when the user aborts FirstTimeSetup at the first prompt.
+        // Treat that as a no-op rather than NRE-ing into the fatal handler.
+        if (Settings.Instance == null) return;
         File.WriteAllText(settingsFileName, JsonSerializer.Serialize(Settings.Instance, SettingsJsonContext.Default.Settings));
     }
 }
