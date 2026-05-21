@@ -554,6 +554,10 @@ internal class Program
         };
         SettingsManager.Save();
 
+        // Step 5/5 — Azgaar exports. PromptForInputDirectory writes its results
+        // into Settings.Instance and saves again.
+        PromptForInputDirectory();
+
         Console.WriteLine();
         Console.WriteLine($"   Saved {SettingsManager.SettingsFilePath}. You won't see this screen again.");
         Console.WriteLine("   Edit that file later if you need to change anything.");
@@ -563,7 +567,7 @@ internal class Program
     private static string ResolveCk3Directory()
     {
         Console.WriteLine();
-        Console.WriteLine("──[ 1/4 ]── Crusader Kings III install");
+        Console.WriteLine("──[ 1/5 ]── Crusader Kings III install");
 
         var found = SettingsManager.TryFindCk3InstallRoot();
         if (found != null)
@@ -598,7 +602,7 @@ internal class Program
     private static string ResolveTcsDirectory()
     {
         Console.WriteLine();
-        Console.WriteLine("──[ 2/4 ]── Total Conversion Sandbox mod");
+        Console.WriteLine("──[ 2/5 ]── Total Conversion Sandbox mod");
 
         var candidates = SettingsManager.TryFindTotalConversionSandbox();
 
@@ -767,7 +771,7 @@ internal class Program
     private static string ResolveModsDirectory()
     {
         Console.WriteLine();
-        Console.WriteLine("──[ 3/4 ]── Where to put the converted mod");
+        Console.WriteLine("──[ 3/5 ]── Where to put the converted mod");
         Console.WriteLine($"   CK3's standard mod folder (where the launcher looks for local mods):");
         Console.WriteLine($"     {SettingsManager.DefaultModsDirectory}");
         Console.WriteLine("   Your mod will be created as a subfolder there.");
@@ -814,7 +818,7 @@ internal class Program
     private static string PromptModName()
     {
         Console.WriteLine();
-        Console.WriteLine("──[ 4/4 ]── What should we name your mod?");
+        Console.WriteLine("──[ 4/5 ]── What should we name your mod?");
         Console.Write("   ModName [MyAzgaarMod]: ");
         var raw = (Console.ReadLine() ?? "").Trim();
         return string.IsNullOrWhiteSpace(raw) ? "MyAzgaarMod" : raw;
