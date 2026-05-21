@@ -776,8 +776,32 @@ internal class Program
         Console.WriteLine($"     {SettingsManager.DefaultModsDirectory}");
         Console.WriteLine("   Your mod will be created as a subfolder there.");
         Console.Write("   Use this? [Y/n]: ");
-        if (ReadConfirm(defaultIsYes: true) && TryAcceptModsDirectory(SettingsManager.DefaultModsDirectory))
-            return SettingsManager.DefaultModsDirectory;
+        if (ReadConfirm(defaultIsYes: true))
+        {
+            if (TryAcceptModsDirectory(SettingsManager.DefaultModsDirectory))
+                return SettingsManager.DefaultModsDirectory;
+
+            // Default failed write test. If the default was OneDrive-managed,
+            // offer the local-profile Documents path as a one-tap fix — this
+            // is by far the most common reason the write test fails (Windows
+            // OneDrive locks the Documents folder against external writers).
+            if (SettingsManager.DefaultModsDirectory.Contains("OneDrive", StringComparison.OrdinalIgnoreCase))
+            {
+                var localFallback = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    "Documents", "Paradox Interactive", "Crusader Kings III", "mod");
+
+                Console.WriteLine();
+                Console.WriteLine("   That path is OneDrive-managed. Windows OneDrive often blocks");
+                Console.WriteLine("   external programs from writing into a redirected Documents folder.");
+                Console.WriteLine();
+                Console.WriteLine("   The non-OneDrive Documents path (your CK3 may already be using it):");
+                Console.WriteLine($"     {localFallback}");
+                Console.Write("   Use this instead? [Y/n]: ");
+                if (ReadConfirm(defaultIsYes: true) && TryAcceptModsDirectory(localFallback))
+                    return localFallback;
+            }
+        }
 
         Console.WriteLine("   Paste a different mods folder path (drag-and-drop supported):");
         while (true)
@@ -792,9 +816,9 @@ internal class Program
     }
 
     /// <summary>
-    /// Check that we can actually write to the proposed mods directory before saving it
-    /// to settings.json. Catches the OneDrive cldflt-locked-Documents case at setup time
-    /// rather than mid-conversion with a confusing FileNotFoundException.
+    /// Check that we can actually create and write to the proposed mods directory before
+    /// saving it to settings.json. Reports a short failure reason; the caller decides
+    /// what recovery to offer (OneDrive fallback, manual paste, etc.).
     /// </summary>
     private static bool TryAcceptModsDirectory(string path)
     {
@@ -808,9 +832,8 @@ internal class Program
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"   Can't write to that folder: {ex.Message}");
-            Console.WriteLine("   (If you're on OneDrive-redirected Documents, try a non-OneDrive path");
-            Console.WriteLine($"    such as {Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Documents", "Paradox Interactive", "Crusader Kings III", "mod")}.)");
+            Console.WriteLine($"   Can't write to {path}");
+            Console.WriteLine($"   ({ex.Message})");
             return false;
         }
     }
