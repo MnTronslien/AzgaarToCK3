@@ -1,3 +1,15 @@
+# 1.1.1 — 2026-05-21
+
+### Added
+- bump Ck3SupportedVersion to 1.19.*
+
+### Fixed
+- override easteregg_event.0001 to no-op on converted worlds
+- override vanilla on_game_start to suppress null-title effects
+- stub 194 vanilla titles as landless instead of nuking on_game_start
+
+---
+
 # 1.1.0 — Terra Bella — 2026-05-20
 
 Three flagship features: biome-textured maps, a rewritten heightmap pipeline, and major rivers drawn as proper provinces. Plus a regression fix to character names, the usual performance pass, and known gaps documented for the next release.
