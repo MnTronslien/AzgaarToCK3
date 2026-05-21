@@ -290,31 +290,56 @@ public static class SettingsManager
     /// </summary>
     public static List<TcsCandidate> TryFindTotalConversionSandbox()
     {
-        // Implementation lands in the next commit. For now this preserves the old
-        // hardcoded-id behaviour as a single-element list / empty list so call sites
-        // can switch to the new shape without behaviour change.
+        var results = new List<TcsCandidate>();
         try
         {
-            var folders = GetSteamLibraryPaths()
-                .Select(lib => Helper.GetPath(lib, "steamapps", "workshop", "content", "1158310", "2524797018"))
-                .Where(Directory.Exists);
-
-            var results = new List<TcsCandidate>();
-            foreach (var folder in folders)
+            foreach (var library in GetSteamLibraryPaths())
             {
-                results.Add(new TcsCandidate(
-                    Path: folder,
-                    Name: "Total Conversion Sandbox",
-                    Version: null,
-                    WorkshopId: Path.GetFileName(folder),
-                    LastModified: Directory.GetLastWriteTime(folder)));
+                var ck3WorkshopRoot = Helper.GetPath(library, "steamapps", "workshop", "content", "1158310");
+                if (!Directory.Exists(ck3WorkshopRoot)) continue;
+
+                foreach (var modFolder in Directory.EnumerateDirectories(ck3WorkshopRoot))
+                {
+                    var candidate = TryReadTcsCandidate(modFolder);
+                    if (candidate != null) results.Add(candidate);
+                }
             }
-            return results;
         }
         catch
         {
-            return new List<TcsCandidate>();
+            // Best-effort scan; any error short-circuits to whatever we've collected.
         }
+        return results;
+    }
+
+    private static readonly Regex DescriptorNameRegex = new("^\\s*name\\s*=\\s*\"(.+)\"\\s*$", RegexOptions.Multiline);
+    private static readonly Regex DescriptorVersionRegex = new("^\\s*version\\s*=\\s*\"(.+)\"\\s*$", RegexOptions.Multiline);
+
+    private static TcsCandidate? TryReadTcsCandidate(string modFolder)
+    {
+        var descriptorPath = Helper.GetPath(modFolder, "descriptor.mod");
+        if (!File.Exists(descriptorPath)) return null;
+
+        string content;
+        try { content = File.ReadAllText(descriptorPath); }
+        catch { return null; }
+
+        var nameMatch = DescriptorNameRegex.Match(content);
+        if (!nameMatch.Success) return null;
+
+        var name = nameMatch.Groups[1].Value;
+        if (name.IndexOf("Total Conversion Sandbox", StringComparison.OrdinalIgnoreCase) < 0)
+            return null;
+
+        var versionMatch = DescriptorVersionRegex.Match(content);
+        var version = versionMatch.Success ? versionMatch.Groups[1].Value : null;
+
+        return new TcsCandidate(
+            Path: modFolder,
+            Name: name,
+            Version: version,
+            WorkshopId: Path.GetFileName(modFolder),
+            LastModified: Directory.GetLastWriteTime(modFolder));
     }
 
     public static void Configure()
