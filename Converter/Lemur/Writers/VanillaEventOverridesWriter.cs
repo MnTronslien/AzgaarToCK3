@@ -3,24 +3,12 @@ using Converter.Lemur;
 namespace Converter.Lemur.Writers;
 
 /// <summary>
-/// Writes <c>&lt;mod&gt;/events/easteregg_events.txt</c> with overrides for specific
-/// vanilla events that crash on converted worlds.
-///
-/// Pattern: each problematic vanilla event is redefined with the same
-/// <c>namespace.id</c> but <c>trigger = { always = no }</c>, so the event never fires.
-/// Mod file precedence means our redefinition replaces vanilla's for that ID.
-/// Other vanilla events in the same file (e.g. follow-up events in the chain)
-/// remain at vanilla because we only redeclare the specific IDs we override.
-///
-/// Currently overrides:
-/// <list type="bullet">
-/// <item><c>easteregg_event.0001</c> — Charna &amp; Jakub duel. Vanilla immediate
-/// calls <c>set_variable</c> on <c>easteregg_charna_frostwhisper</c>; on converted
-/// worlds her scope is invalid for variables (no faith / realm anchor), and on
-/// CK3 1.19+ the script error recurses into <c>EXCEPTION_GUARD_PAGE</c>.</item>
-/// </list>
-///
-/// Extend as more event-driven crashes surface. See <c>bugs/BUG_ck3-1.19-compat.md</c>.
+/// Writes <c>events/easteregg_events.txt</c>: no-op overrides for vanilla events
+/// that crash on converted worlds. Not redundant with <see cref="LandlessTitleStubsWriter"/>
+/// — that fix targets missing-title scopes, this targets missing-character-anchor
+/// scopes (e.g. easteregg characters that exist but have no faith/realm).
+/// Each override sets <c>trigger = { always = no }</c>.
+/// See <c>bugs/BUG_ck3-1.19-compat.md</c>.
 /// </summary>
 public static class VanillaEventOverridesWriter
 {

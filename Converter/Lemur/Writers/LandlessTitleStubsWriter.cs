@@ -4,28 +4,10 @@ using Converter.Lemur;
 namespace Converter.Lemur.Writers;
 
 /// <summary>
-/// Writes <c>&lt;mod&gt;/common/landed_titles/01_vanilla_compat_landless.txt</c>.
-///
-/// The file declares a curated list of vanilla CK3 title IDs as top-level
-/// landless stubs (<c>id = { landless = yes }</c>) — empires, kingdoms,
-/// duchies, counties — with no land, no provinces, no holders. Pure
-/// identifiers that exist so script lookups succeed.
-///
-/// Why we need this: vanilla CK3 scripts (notably <c>common/on_action/game_start.txt</c>
-/// and various event chains, decisions, factions) context-switch to specific
-/// title IDs for effects like <c>set_important_location</c>, Magyar elective law,
-/// Roman restoration, etc. We replace vanilla landed_titles wholesale with our
-/// converted hierarchy, so all those vanilla IDs are otherwise missing.
-///
-/// On CK3 1.18 a missing-title lookup emitted a silent script error and the
-/// game continued. On CK3 1.19+ the resulting null <c>Landed_title - 4294967295</c>
-/// scope crashes the engine with <c>EXCEPTION_GUARD_PAGE</c> when downstream effects
-/// run on it. The landless stubs make the lookups succeed, so the effects then
-/// run on real (but empty) titles as no-ops, no crash.
-///
-/// Extend <see cref="VanillaTitlesToStub"/> as new missing-title crashes surface
-/// in other vanilla scripts. See <c>bugs/BUG_ck3-1.19-compat.md</c> for the full
-/// rationale.
+/// Writes <c>common/landed_titles/01_vanilla_compat_landless.txt</c>: landless
+/// stubs for vanilla titles that scripts assume exist. Lookups would otherwise
+/// hit a null Landed_title scope and crash the engine on CK3 1.19+.
+/// See <c>bugs/BUG_ck3-1.19-compat.md</c>.
 /// </summary>
 public static class LandlessTitleStubsWriter
 {
@@ -52,14 +34,9 @@ public static class LandlessTitleStubsWriter
     }
 
     /// <summary>
-    /// Vanilla title IDs referenced by vanilla <c>common/on_action/game_start.txt</c>
-    /// (as of CK3 1.19.0.5). Baronies (110 vanilla refs) excluded — they need parent
-    /// counties + province IDs. If a barony-level crash surfaces, wrap them in a
-    /// dummy parent county here.
-    ///
-    /// Includes <c>e_hre</c> / <c>e_byzantium</c> / <c>e_roman_empire</c> even though TCS also
-    /// declares these — we intentionally don't rely on TCS for compat stubs, so we
-    /// stay independent when (if) TCS is dropped or replaced.
+    /// Vanilla title IDs referenced by vanilla <c>on_game_start.txt</c> (CK3 1.19.0.5).
+    /// Baronies (110 refs) excluded — need parent counties + provinces.
+    /// <c>e_hre</c>/<c>e_byzantium</c>/<c>e_roman_empire</c> included so we don't depend on TCS.
     /// </summary>
     private static readonly string[] VanillaTitlesToStub = new[]
     {
