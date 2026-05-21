@@ -148,7 +148,7 @@ internal class Program
             return;
         }
 
-        Logger.Info("Start conversion?");
+        Console.Write("Start conversion? ");
         if (YesNo())
         {
             // Copy sandbox mod files.
@@ -499,33 +499,12 @@ internal class Program
     {
         if (Settings.Instance.LogLevel <= LogLevel.Debug)
         {
-            //print the response to the console
             Console.WriteLine($"{(defaultIsYes ? "- Yes" : "- No")} (auto-answer: log level <= debug)");
-
             return defaultIsYes;
         }
 
-        int maxTries = 10;
-        string response = "";
-        for (int i = 0; i < maxTries; i++)
-
-        {
-            Console.WriteLine("1. Yes.");
-            Console.WriteLine("2. No.");
-
-            response = Console.ReadLine()!;
-            if (response == "1")
-            {
-                return true;
-            }
-            else if (response == "2")
-            {
-                return false;
-            }
-        }
-        Console.WriteLine("Failed to read supported response.");
-        Exit();
-        return false;
+        Console.Write(defaultIsYes ? "[Y/n]: " : "[y/N]: ");
+        return ReadConfirm(defaultIsYes);
     }
 
     private static void WipeOutputDirectory()
@@ -563,11 +542,12 @@ internal class Program
 
         var ck3 = ResolveCk3Directory();
         var tcs = ResolveTcsDirectory();
+        var modsDir = ResolveModsDirectory();
         var modName = PromptModName();
 
         Settings.Instance = new Settings
         {
-            ModsDirectory = SettingsManager.DefaultModsDirectory,
+            ModsDirectory = modsDir,
             TotalConversionSandboxPath = tcs,
             Ck3Directory = ck3,
             ModName = modName,
@@ -583,14 +563,14 @@ internal class Program
     private static string ResolveCk3Directory()
     {
         Console.WriteLine();
-        Console.WriteLine("──[ 1/3 ]── Crusader Kings III install");
+        Console.WriteLine("──[ 1/4 ]── Crusader Kings III install");
 
         var found = SettingsManager.TryFindCk3InstallRoot();
         if (found != null)
         {
             Console.WriteLine($"   Found: {found}");
             Console.Write("   Use this? [Y/n]: ");
-            if (ReadConfirmDefaultYes())
+            if (ReadConfirm(defaultIsYes: true))
                 return found;
         }
         else
@@ -618,7 +598,7 @@ internal class Program
     private static string ResolveTcsDirectory()
     {
         Console.WriteLine();
-        Console.WriteLine("──[ 2/3 ]── Total Conversion Sandbox mod");
+        Console.WriteLine("──[ 2/4 ]── Total Conversion Sandbox mod");
 
         var candidates = SettingsManager.TryFindTotalConversionSandbox();
 
@@ -630,7 +610,7 @@ internal class Program
             Console.WriteLine($"     {c.Name}{versionSuffix}");
             Console.WriteLine($"     {c.Path}");
             Console.Write("   Use this? [Y/n]: ");
-            if (ReadConfirmDefaultYes())
+            if (ReadConfirm(defaultIsYes: true))
                 return c.Path;
             Console.WriteLine("   Paste a different TCS folder path (drag-and-drop supported):");
             Console.Write("   Path (or press Enter to exit): ");
@@ -770,7 +750,7 @@ internal class Program
             Console.WriteLine($"     Cells     : {Path.GetFileName(geojson)}");
             Console.WriteLine($"     Rivers    : {(rivers != null ? Path.GetFileName(rivers) : "(none — blank rivers.png will be written)")}");
             Console.Write("   Use these? [Y/n]: ");
-            if (!ReadConfirmDefaultYes()) continue;
+            if (!ReadConfirm(defaultIsYes: true)) continue;
 
             Settings.Instance.InputDirectory = folder;
             Settings.Instance.InputJsonPath = json;
@@ -784,21 +764,45 @@ internal class Program
         }
     }
 
+    private static string ResolveModsDirectory()
+    {
+        Console.WriteLine();
+        Console.WriteLine("──[ 3/4 ]── Where to put the converted mod");
+        Console.WriteLine($"   CK3's standard mod folder (where the launcher looks for local mods):");
+        Console.WriteLine($"     {SettingsManager.DefaultModsDirectory}");
+        Console.WriteLine("   Your mod will be created as a subfolder there.");
+        Console.Write("   Use this? [Y/n]: ");
+        if (ReadConfirm(defaultIsYes: true))
+            return SettingsManager.DefaultModsDirectory;
+
+        Console.WriteLine("   Paste a different mods folder path (drag-and-drop supported):");
+        while (true)
+        {
+            Console.Write("   Path (or press Enter to exit): ");
+            var raw = (Console.ReadLine() ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(raw)) Exit();
+            var path = StripSurroundingQuotes(raw);
+            if (Directory.Exists(path))
+                return path;
+            Console.WriteLine($"   That folder doesn't exist: {path}");
+        }
+    }
+
     private static string PromptModName()
     {
         Console.WriteLine();
-        Console.WriteLine("──[ 3/3 ]── What should we name your mod?");
+        Console.WriteLine("──[ 4/4 ]── What should we name your mod?");
         Console.Write("   ModName [MyAzgaarMod]: ");
         var raw = (Console.ReadLine() ?? "").Trim();
         return string.IsNullOrWhiteSpace(raw) ? "MyAzgaarMod" : raw;
     }
 
-    private static bool ReadConfirmDefaultYes()
+    private static bool ReadConfirm(bool defaultIsYes)
     {
         while (true)
         {
             var raw = (Console.ReadLine() ?? "").Trim();
-            if (raw.Length == 0) return true;
+            if (raw.Length == 0) return defaultIsYes;
             if (raw.Equals("y", StringComparison.OrdinalIgnoreCase) || raw.Equals("yes", StringComparison.OrdinalIgnoreCase)) return true;
             if (raw.Equals("n", StringComparison.OrdinalIgnoreCase) || raw.Equals("no", StringComparison.OrdinalIgnoreCase)) return false;
             Console.Write("   Please answer y or n: ");
@@ -824,8 +828,7 @@ internal class Program
             Console.WriteLine(Path.GetFileName(jsonName));
             Console.WriteLine(Path.GetFileName(geojsonName));
             Console.WriteLine(Path.GetFileName(riversGeojsonName));
-            Console.WriteLine("Use them as inputs?");
-
+            Console.Write("Use them as inputs? ");
             if (YesNo())
             {
                 Settings.Instance.InputJsonPath = jsonName;
