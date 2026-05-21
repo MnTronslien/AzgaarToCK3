@@ -223,9 +223,10 @@ public static class SettingsManager
     public const string Ck3SupportedVersion = "1.19.*";
 
     private static readonly string settingsFileName = Helper.GetPath(ExecutablePath, "settings.json");
-    private static readonly string defaultModsDirectory = Helper.GetPath(MyDocuments, "Paradox Interactive", "Crusader Kings III", "mod");
+    public static readonly string DefaultModsDirectory = Helper.GetPath(MyDocuments, "Paradox Interactive", "Crusader Kings III", "mod");
     private static string MyDocuments => Helper.GetPath(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
     public static string ExecutablePath => Helper.GetPath(Directory.GetParent(Environment.ProcessPath!)!.FullName);
+    public static string SettingsFilePath => settingsFileName;
 
     private static string GetSteamLibraryFoldersPath()
     {
@@ -369,23 +370,6 @@ public static class SettingsManager
             return false;
         }
     }
-    public static void CreateDefault()
-    {
-        var ck3 = TryFindCk3InstallRoot()
-            ?? throw new Exception("Could not locate Crusader Kings III. Edit settings.json to set Ck3Directory manually.");
-        var tcs = TryFindTotalConversionSandbox().FirstOrDefault()
-            ?? throw new Exception("Could not locate Total Conversion Sandbox in your Steam workshop folder. Subscribe to it on the Steam Workshop, then re-run. Or set TotalConversionSandboxPath in settings.json manually.");
-
-        Settings.Instance = new Settings
-        {
-            ModsDirectory = defaultModsDirectory,
-            TotalConversionSandboxPath = tcs.Path,
-            Ck3Directory = ck3,
-        };
-
-        Save();
-    }
-
     public static void Save()
     {
         File.WriteAllText(settingsFileName, JsonSerializer.Serialize(Settings.Instance, SettingsJsonContext.Default.Settings));
