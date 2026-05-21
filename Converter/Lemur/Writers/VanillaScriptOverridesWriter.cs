@@ -15,7 +15,9 @@ public static class VanillaScriptOverridesWriter
         using var _ = OperationTimer.Start("Writing vanilla script overrides");
 
         var eventsDir = Helper.GetPath(outputDirectory, "events");
+        var onActionDir = Helper.GetPath(outputDirectory, "common", "on_action");
         Directory.CreateDirectory(eventsDir);
+        Directory.CreateDirectory(onActionDir);
 
         // easteregg_event.0001 — Charna & Jakub duel.
         // On CK3 1.19+ the vanilla immediate block runs set_variable on
@@ -38,6 +40,29 @@ public static class VanillaScriptOverridesWriter
             "}\n",
             Helper.Utf8Bom);
 
-        Logger.Info("Wrote vanilla script overrides (events/easteregg_events.txt)");
+        // common/on_action/game_start.txt — replace vanilla entirely.
+        // Vanilla on_game_start references many specific titles (c_chandax,
+        // c_byzantion, c_tourraine, e_byzantium, h_roman_empire,
+        // h_eastern_roman_empire, k_magyar, ...) which TCS removes via
+        // replace_path="common/landed_titles" + history/titles. Looking up a
+        // non-existent title in 1.19 yields a null Landed_title scope; the
+        // subsequent set_important_location / context-switch effects crash
+        // the engine (was silent script error on 1.18). Empty override skips
+        // the entire vanilla on_game_start; converted-world-specific effects
+        // can be added back as needs surface.
+        await File.WriteAllTextAsync(
+            Helper.GetPath(onActionDir, "game_start.txt"),
+            "# Override: vanilla on_game_start references titles that don't exist\n" +
+            "# in converted worlds (TCS removes vanilla titles). On CK3 1.19+ the\n" +
+            "# null-scope effects crash; on 1.18 they were silent script errors.\n" +
+            "# Empty for now — add converted-world setup here as needs surface.\n" +
+            "# See bugs/BUG_ck3-1.19-compat.md.\n" +
+            "on_game_start = {\n" +
+            "\teffect = {\n" +
+            "\t}\n" +
+            "}\n",
+            Helper.Utf8Bom);
+
+        Logger.Info("Wrote vanilla script overrides (events/easteregg_events.txt, common/on_action/game_start.txt)");
     }
 }
