@@ -772,7 +772,7 @@ internal class Program
         Console.WriteLine($"     {SettingsManager.DefaultModsDirectory}");
         Console.WriteLine("   Your mod will be created as a subfolder there.");
         Console.Write("   Use this? [Y/n]: ");
-        if (ReadConfirm(defaultIsYes: true))
+        if (ReadConfirm(defaultIsYes: true) && TryAcceptModsDirectory(SettingsManager.DefaultModsDirectory))
             return SettingsManager.DefaultModsDirectory;
 
         Console.WriteLine("   Paste a different mods folder path (drag-and-drop supported):");
@@ -782,9 +782,32 @@ internal class Program
             var raw = (Console.ReadLine() ?? "").Trim();
             if (string.IsNullOrWhiteSpace(raw)) Exit();
             var path = StripSurroundingQuotes(raw);
-            if (Directory.Exists(path))
+            if (TryAcceptModsDirectory(path))
                 return path;
-            Console.WriteLine($"   That folder doesn't exist: {path}");
+        }
+    }
+
+    /// <summary>
+    /// Check that we can actually write to the proposed mods directory before saving it
+    /// to settings.json. Catches the OneDrive cldflt-locked-Documents case at setup time
+    /// rather than mid-conversion with a confusing FileNotFoundException.
+    /// </summary>
+    private static bool TryAcceptModsDirectory(string path)
+    {
+        try
+        {
+            Directory.CreateDirectory(path);
+            var testFile = Path.Combine(path, $".azgaartock3-writetest-{Guid.NewGuid():N}");
+            File.WriteAllText(testFile, "");
+            File.Delete(testFile);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"   Can't write to that folder: {ex.Message}");
+            Console.WriteLine("   (If you're on OneDrive-redirected Documents, try a non-OneDrive path");
+            Console.WriteLine($"    such as {Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Documents", "Paradox Interactive", "Crusader Kings III", "mod")}.)");
+            return false;
         }
     }
 

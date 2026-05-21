@@ -6,6 +6,11 @@ public static class ModManager
 {
     public static async Task CreateMod()
     {
+        // CK3's mod folder may not exist yet on a fresh CK3 install (or if the user
+        // pointed ModsDirectory at a custom location). File.WriteAllTextAsync won't
+        // create missing parents, so we make sure the directory exists first.
+        Directory.CreateDirectory(Settings.Instance.ModsDirectory);
+
         var outsideDescriptor = $@"version=""1.0""
 tags={{
 	""Total Conversion""
