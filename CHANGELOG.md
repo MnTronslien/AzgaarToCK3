@@ -1,3 +1,19 @@
+# 1.1.2 — 2026-05-21
+
+### Added
+- auto-sync release PR body + nudge stale reviews
+- scan workshop for TCS by descriptor.mod
+- FirstTimeSetup replaces CreateDefault with guided setup
+- pause on unhandled exception so console window doesn't vanish
+
+### Fixed
+- null-guard Save when Settings.Instance not yet populated
+
+### Changed
+- make CK3/TCS lookups return nullable
+
+---
+
 # 1.1.1 — 2026-05-21
 
 Compatibility patch for CK3 1.19+. Mod now boots and runs cleanly on 1.19.0.5 (and later 1.19.x patches per `supported_version = "1.19.*"`). No converter feature changes — straight compat fix on top of 1.1.0 Terra Bella.
