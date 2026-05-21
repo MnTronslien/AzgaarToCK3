@@ -203,6 +203,8 @@ namespace Converter.Lemur
                     LandedTitlesWriter.Write(map, Settings.OutputDirectory),
                     TitleLocalizationWriter.Write(map, Settings.OutputDirectory));
             using (var _ = OperationTimer.Start("Writing mod descriptor")) await ModDescriptorWriter.Write(Settings.Instance.ModName, Settings.Instance.ModsDirectory, Settings.OutputDirectory);
+            await LandlessTitleStubsWriter.Write(Settings.OutputDirectory);
+            await VanillaEventOverridesWriter.Write(Settings.OutputDirectory);
             if (w.MapDefines)
             {
                 using var _ = OperationTimer.Start("Writing map defines");

@@ -209,7 +209,7 @@ public static class SettingsManager
     /// The CK3 game version this converter targets. Update this when a new major CK3 release drops.
     /// Written into every generated descriptor.mod / LemurTest.mod as supported_version.
     /// </summary>
-    public const string Ck3SupportedVersion = "1.18.*";
+    public const string Ck3SupportedVersion = "1.19.*";
 
     private static readonly string settingsFileName = Helper.GetPath(ExecutablePath, "settings.json");
     private static readonly string defaultModsDirectory = Helper.GetPath(MyDocuments, "Paradox Interactive", "Crusader Kings III", "mod");
