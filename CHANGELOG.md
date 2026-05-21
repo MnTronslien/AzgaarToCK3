@@ -1,3 +1,24 @@
+# 1.1.1 — 2026-05-21
+
+Compatibility patch for CK3 1.19+. Mod now boots and runs cleanly on 1.19.0.5 (and later 1.19.x patches per `supported_version = "1.19.*"`). No converter feature changes — straight compat fix on top of 1.1.0 Terra Bella.
+
+### Changed
+- `supported_version` bumped to `1.19.*`. CK3 1.19+ launcher accepts the mod.
+
+### Fixed
+- **`EXCEPTION_GUARD_PAGE` crash at `on_game_start` on CK3 1.19+.** Two root causes addressed, both via a new `VanillaScriptOverridesWriter`:
+  - Vanilla `easteregg_event.0001` (Charna & Jakub duel) runs at `on_game_start` and calls `set_variable` on a vanilla-history character whose scope is invalid on converted worlds (no faith / realm anchor). On 1.19 the scope rejection recurses into a stack-overflow crash; on 1.18 it was a silent script error. Now overridden to `trigger = { always = no }` — suppresses the entire duel chain.
+  - Vanilla `common/on_action/game_start.txt` context-switches to ~200 vanilla titles (`c_chandax`, `c_byzantion`, `k_magyar`, `e_byzantium`, `h_roman_empire`, ...) for `set_important_location` effects, Magyar elective law, and similar. TCS removes all vanilla titles via `replace_path`. On 1.19 the null `Landed_title - 4294967295` scope crashes the engine; on 1.18 it was a silent warning. New `common/landed_titles/01_vanilla_compat_landless.txt` declares 194 landless stubs so the lookups succeed and effects run as no-ops.
+
+Vanilla `on_game_start` now runs unmodified — vanilla initialization logic is preserved.
+
+### Known limitations
+- `error.log` retains ~52k lines of non-fatal vanilla-script noise (missing characters in script links, dynasty CoA fallbacks, locator transforms, faction triggers, etc.). None affect gameplay. These will be addressed incrementally as we extend the stub list and surface converter-side improvements.
+- `lemur_faith_N is not a valid faith` warnings (~1,600 entries in province + character history) — pre-existing converter-side issue, **not** 1.19-specific. Tracked for a follow-up release.
+- See `bugs/BUG_ck3-1.19-compat.md` for the full diagnosis, iteration log, and what this fix does NOT cover.
+
+---
+
 # 1.1.0 — Terra Bella — 2026-05-20
 
 Three flagship features: biome-textured maps, a rewritten heightmap pipeline, and major rivers drawn as proper provinces. Plus a regression fix to character names, the usual performance pass, and known gaps documented for the next release.

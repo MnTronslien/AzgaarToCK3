@@ -4,62 +4,24 @@ using Converter.Lemur;
 namespace Converter.Lemur.Writers;
 
 /// <summary>
-/// Overrides / stubs specific vanilla CK3 scripts and titles that crash or
-/// emit errors on converted worlds. Each entry is targeted by namespace.id
-/// (events) or title key (landed_titles) so we replace only the offending
-/// entry, not the whole vanilla file. See bugs/BUG_ck3-1.19-compat.md for
-/// the per-override rationale.
+/// Writes <c>common/landed_titles/01_vanilla_compat_landless.txt</c>: landless
+/// stubs for vanilla titles that scripts assume exist. Lookups would otherwise
+/// hit a null Landed_title scope and crash the engine on CK3 1.19+.
+/// See <c>bugs/BUG_ck3-1.19-compat.md</c>.
 /// </summary>
-public static class VanillaScriptOverridesWriter
+public static class LandlessTitleStubsWriter
 {
     public static async Task Write(string outputDirectory)
     {
-        using var _ = OperationTimer.Start("Writing vanilla script overrides");
+        using var _ = OperationTimer.Start("Writing landless title stubs");
 
-        var eventsDir = Helper.GetPath(outputDirectory, "events");
         var ltDir = Helper.GetPath(outputDirectory, "common", "landed_titles");
-        Directory.CreateDirectory(eventsDir);
         Directory.CreateDirectory(ltDir);
 
-        // easteregg_event.0001 — Charna & Jakub duel.
-        // On CK3 1.19+ the vanilla immediate block runs set_variable on
-        // easteregg_charna_frostwhisper, but on converted worlds her scope is
-        // not valid for variables (no faith / realm anchoring). The script
-        // error recurses into EXCEPTION_GUARD_PAGE at on_game_start.
-        // Override with always-false trigger to skip the chain entirely.
-        await File.WriteAllTextAsync(
-            Helper.GetPath(eventsDir, "easteregg_events.txt"),
-            "namespace = easteregg_event\n" +
-            "\n" +
-            "# Override: vanilla immediate crashes on converted worlds because\n" +
-            "# easteregg_charna_frostwhisper has no faith/realm anchor. See\n" +
-            "# bugs/BUG_ck3-1.19-compat.md.\n" +
-            "easteregg_event.0001 = {\n" +
-            "\thidden = yes\n" +
-            "\tscope = none\n" +
-            "\ttrigger = { always = no }\n" +
-            "\timmediate = { }\n" +
-            "}\n",
-            Helper.Utf8Bom);
-
-        // Landless stubs for vanilla titles referenced by vanilla on_game_start.
-        // TCS replaces common/landed_titles, removing all vanilla titles. Vanilla
-        // on_game_start then context-switches to titles like title:c_chandax for
-        // set_important_location effects; on 1.19+ a missing title resolves to a
-        // null Landed_title (4294967295) scope and the effect crashes the engine.
-        // Declaring each referenced title as a top-level landless stub makes the
-        // lookups succeed; the effects then run on real-but-empty titles (no-op).
-        // TCS already declares e_hre / e_byzantium / e_roman_empire so we skip
-        // those three. Baronies (110 vanilla refs) are skipped because they need
-        // parent counties + provinces; if a barony-level crash surfaces, revisit.
-        // List is built from vanilla game/common/on_action/game_start.txt as of
-        // CK3 1.19.0.5. Extend as needed when other vanilla scripts crash on
-        // missing titles.
         var sb = new StringBuilder();
         sb.Append("# Landless stubs for vanilla titles referenced by vanilla on_game_start\n");
-        sb.Append("# (and friends). Without these, CK3 1.19+ crashes when scripts\n");
-        sb.Append("# context-switch to missing titles. See bugs/BUG_ck3-1.19-compat.md.\n");
-        sb.Append("\n");
+        sb.Append("# and other vanilla scripts. Without these, CK3 1.19+ crashes when scripts\n");
+        sb.Append("# context-switch to missing titles. See bugs/BUG_ck3-1.19-compat.md.\n\n");
         foreach (var id in VanillaTitlesToStub)
             sb.Append(id).Append(" = { landless = yes }\n");
 
@@ -68,20 +30,19 @@ public static class VanillaScriptOverridesWriter
             sb.ToString(),
             Helper.Utf8Bom);
 
-        Logger.Info($"Wrote vanilla script overrides (1 event + {VanillaTitlesToStub.Length} landless title stubs)");
+        Logger.Info($"Wrote {VanillaTitlesToStub.Length} landless title stubs to common/landed_titles/01_vanilla_compat_landless.txt");
     }
 
     /// <summary>
-    /// Vanilla title IDs referenced by vanilla common/on_action/game_start.txt
-    /// (1.19.0.5). Each is declared as landless so the lookups succeed.
-    /// TCS-declared titles (e_hre, e_byzantium, e_roman_empire) excluded.
-    /// Baronies (110 refs) excluded — need parents; revisit if needed.
+    /// Vanilla title IDs referenced by vanilla <c>on_game_start.txt</c> (CK3 1.19.0.5).
+    /// Baronies (110 refs) excluded — need parent counties + provinces.
+    /// <c>e_hre</c>/<c>e_byzantium</c>/<c>e_roman_empire</c> included so we don't depend on TCS.
     /// </summary>
     private static readonly string[] VanillaTitlesToStub = new[]
     {
-        // Empires (7 — minus e_hre, e_byzantium handled by TCS)
-        "e_andong", "e_arabia", "e_caspian", "e_goryeo",
-        "e_japan", "e_minister_of_rites", "e_scandinavia",
+        // Empires (10)
+        "e_andong", "e_arabia", "e_byzantium", "e_caspian", "e_goryeo",
+        "e_hre", "e_japan", "e_minister_of_rites", "e_roman_empire", "e_scandinavia",
 
         // Historical empires (3)
         "h_china", "h_eastern_roman_empire", "h_roman_empire",
