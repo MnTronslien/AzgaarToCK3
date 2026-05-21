@@ -1,6 +1,5 @@
 ﻿using System.Text.Json;
 using Microsoft.Win32;
-using System.Diagnostics;
 using System.Text.RegularExpressions;
 using System.Text.Json.Serialization;
 
@@ -197,6 +196,18 @@ public class WriterFlags
     public bool Heightmap { get; set; } = true;
 }
 
+/// <summary>
+/// One candidate Total Conversion Sandbox install discovered in the Steam workshop folder.
+/// Workshop IDs change when the mod is re-uploaded, so we identify TCS by reading each
+/// <c>descriptor.mod</c>'s <c>name</c> field rather than trusting a hardcoded ID.
+/// </summary>
+public record TcsCandidate(
+    string Path,
+    string Name,
+    string? Version,
+    string WorkshopId,
+    DateTime LastModified);
+
 [JsonSerializable(typeof(Settings))]
 [JsonSerializable(typeof(WriterFlags))]
 [JsonSourceGenerationOptions(WriteIndented = true, AllowTrailingCommas = true,
@@ -243,45 +254,67 @@ public static class SettingsManager
         }
     }
 
-    private static string GetGameDirectory()
+    private static IEnumerable<string> GetSteamLibraryPaths()
     {
         var libraries = File.ReadAllText(GetSteamLibraryFoldersPath());
         var pathRegex = new Regex("\"path\"\\s*\"(.+)\"");
-        var paths = pathRegex.Matches(libraries).Select(n => n.Groups[1].Value);
-
-        var ck3Directories = paths.Select(n => Helper.GetPath(n, "steamapps", "common", "Crusader Kings III", "game")).Where(Directory.Exists).ToArray();
-        if (ck3Directories.Length > 1)
-        {
-            Debugger.Break();
-            throw new Exception("Multiple game directories found.");
-        }
-        else if (ck3Directories.Length == 0)
-        {
-            Debugger.Break();
-            throw new Exception("No game directories found.");
-        }
-
-        return ck3Directories[0];
+        return pathRegex.Matches(libraries).Select(n => n.Groups[1].Value);
     }
-    private static string GetTotalConversionSandboxDirectory()
+
+    /// <summary>
+    /// Scan Steam libraries for a CK3 install. Returns the install root (the folder
+    /// containing <c>game/</c>), or <c>null</c> if not found. Never throws.
+    /// </summary>
+    public static string? TryFindCk3InstallRoot()
     {
-        var libraries = File.ReadAllText(GetSteamLibraryFoldersPath());
-        var pathRegex = new Regex("\"path\"\\s*\"(.+)\"");
-        var paths = pathRegex.Matches(libraries).Select(n => n.Groups[1].Value);
-
-        var ck3Directories = paths.Select(n => Helper.GetPath(n, "steamapps", "workshop", "content", "1158310", "2524797018")).Where(Directory.Exists).ToArray();
-        if (ck3Directories.Length > 1)
+        try
         {
-            Debugger.Break();
-            throw new Exception("Multiple mod directories found.");
+            var roots = GetSteamLibraryPaths()
+                .Select(lib => Helper.GetPath(lib, "steamapps", "common", "Crusader Kings III"))
+                .Where(root => Directory.Exists(Helper.GetPath(root, "game")))
+                .ToArray();
+            return roots.FirstOrDefault();
         }
-        else if (ck3Directories.Length == 0)
+        catch
         {
-            Debugger.Break();
-            throw new Exception("No mod directories found.");
+            return null;
         }
+    }
 
-        return ck3Directories[0];
+    /// <summary>
+    /// Scan Steam workshop folders for Total Conversion Sandbox by reading each
+    /// <c>descriptor.mod</c> and matching <c>name="Total Conversion Sandbox"</c>
+    /// (case-insensitive substring). Returns all matches so callers can disambiguate
+    /// when forks or stale subscriptions are present. Workshop IDs are intentionally
+    /// not hardcoded — they change on re-upload. Never throws.
+    /// </summary>
+    public static List<TcsCandidate> TryFindTotalConversionSandbox()
+    {
+        // Implementation lands in the next commit. For now this preserves the old
+        // hardcoded-id behaviour as a single-element list / empty list so call sites
+        // can switch to the new shape without behaviour change.
+        try
+        {
+            var folders = GetSteamLibraryPaths()
+                .Select(lib => Helper.GetPath(lib, "steamapps", "workshop", "content", "1158310", "2524797018"))
+                .Where(Directory.Exists);
+
+            var results = new List<TcsCandidate>();
+            foreach (var folder in folders)
+            {
+                results.Add(new TcsCandidate(
+                    Path: folder,
+                    Name: "Total Conversion Sandbox",
+                    Version: null,
+                    WorkshopId: Path.GetFileName(folder),
+                    LastModified: Directory.GetLastWriteTime(folder)));
+            }
+            return results;
+        }
+        catch
+        {
+            return new List<TcsCandidate>();
+        }
     }
 
     public static void Configure()
@@ -313,11 +346,16 @@ public static class SettingsManager
     }
     public static void CreateDefault()
     {
+        var ck3 = TryFindCk3InstallRoot()
+            ?? throw new Exception("Could not locate Crusader Kings III. Edit settings.json to set Ck3Directory manually.");
+        var tcs = TryFindTotalConversionSandbox().FirstOrDefault()
+            ?? throw new Exception("Could not locate Total Conversion Sandbox in your Steam workshop folder. Subscribe to it on the Steam Workshop, then re-run. Or set TotalConversionSandboxPath in settings.json manually.");
+
         Settings.Instance = new Settings
         {
             ModsDirectory = defaultModsDirectory,
-            TotalConversionSandboxPath = GetTotalConversionSandboxDirectory(),
-            Ck3Directory = GetGameDirectory(),
+            TotalConversionSandboxPath = tcs.Path,
+            Ck3Directory = ck3,
         };
 
         Save();
