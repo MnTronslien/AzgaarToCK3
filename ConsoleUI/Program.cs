@@ -560,7 +560,6 @@ internal class Program
         Console.WriteLine("═════════════════════════════════════════════════════════════");
         Console.WriteLine();
         Console.WriteLine("Welcome! I need a few things before I can convert your map.");
-        Console.WriteLine("Press Enter to accept the [default in brackets].");
 
         var ck3 = ResolveCk3Directory();
         var tcs = ResolveTcsDirectory();
@@ -627,13 +626,16 @@ internal class Program
         {
             var c = candidates[0];
             var versionSuffix = c.Version != null ? $"  (v{c.Version})" : "";
-            Console.WriteLine($"   Found 1 candidate in your Steam workshop:");
-            Console.WriteLine($"     [1] {c.Name}{versionSuffix}");
-            Console.WriteLine($"         {c.Path}");
-            Console.Write("   Use [1], or paste a different path: ");
-            var raw = (Console.ReadLine() ?? "").Trim();
-            if (string.IsNullOrWhiteSpace(raw) || raw == "1")
+            Console.WriteLine($"   Found:");
+            Console.WriteLine($"     {c.Name}{versionSuffix}");
+            Console.WriteLine($"     {c.Path}");
+            Console.Write("   Use this? [Y/n]: ");
+            if (ReadConfirmDefaultYes())
                 return c.Path;
+            Console.WriteLine("   Paste a different TCS folder path (drag-and-drop supported):");
+            Console.Write("   Path (or press Enter to exit): ");
+            var raw = (Console.ReadLine() ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(raw)) Exit();
             return PromptForValidTcsPath(StripSurroundingQuotes(raw));
         }
 
@@ -647,7 +649,7 @@ internal class Program
                 Console.WriteLine($"     [{i + 1}] {c.Name}{versionSuffix}");
                 Console.WriteLine($"         {c.Path}");
             }
-            Console.Write($"   Pick [1-{candidates.Count}], or paste a different path: ");
+            Console.Write($"   Pick [1-{candidates.Count}], paste a different path, or press Enter to exit: ");
             var raw = (Console.ReadLine() ?? "").Trim();
             if (int.TryParse(raw, out var idx) && idx >= 1 && idx <= candidates.Count)
                 return candidates[idx - 1].Path;
@@ -663,7 +665,7 @@ internal class Program
         Console.WriteLine("   I couldn't find TCS in your Steam workshop folder.");
         Console.WriteLine();
         Console.WriteLine("   TCS is a required dependency. To install it:");
-        Console.WriteLine("     1. Open Steam → Crusader Kings III → Workshop tab");
+        Console.WriteLine("     1. Open Steam -> Crusader Kings III -> Workshop tab");
         Console.WriteLine("     2. Search \"Total Conversion Sandbox\" and subscribe");
         Console.WriteLine("     3. Let Steam download it (~50 MB)");
         Console.WriteLine("     4. Re-run me");
@@ -729,13 +731,13 @@ internal class Program
         Console.WriteLine("  Point me at your Azgaar exports");
         Console.WriteLine("─────────────────────────────────────────────────────────────");
         Console.WriteLine();
-        Console.WriteLine("I need the folder containing your map's exported files:");
+        Console.WriteLine("I need a folder containing your map's exported files:");
         Console.WriteLine("  - The 'Full data' .json file");
         Console.WriteLine("  - The 'Cells' .geojson file");
         Console.WriteLine("  - (Optional) The 'Rivers' .geojson file");
         Console.WriteLine();
-        Console.WriteLine("In Azgaar's Fantasy Map Generator, use Save → Save full,");
-        Console.WriteLine("then Export → Cells data and Export → Rivers data.");
+        Console.WriteLine("In Azgaar's Fantasy Map Generator, use Save -> Save full,");
+        Console.WriteLine("then Export -> Cells data and Export -> Rivers data.");
         Console.WriteLine();
         Console.WriteLine("You can drag the folder from Explorer into this window.");
         Console.WriteLine();
