@@ -1,16 +1,20 @@
 # 1.1.2 — 2026-05-21
 
-### Added
-- auto-sync release PR body + nudge stale reviews
-- scan workshop for TCS by descriptor.mod
-- FirstTimeSetup replaces CreateDefault with guided setup
-- pause on unhandled exception so console window doesn't vanish
+First-run UX overhaul. A freshly downloaded converter used to crash silently when launched from Explorer — the console window flashed and closed before the user could read anything. Both the underlying bug and the fragile auto-detection that surfaced it are fixed here. Reported by a downstream user as "I double-clicked ConsoleUI and nothing happened."
 
 ### Fixed
-- null-guard Save when Settings.Instance not yet populated
+- **Silent first-run crash on fresh installs.** Total Conversion Sandbox's Steam Workshop ID was hardcoded to `2524797018`. TCS has since been re-uploaded under a new ID, so `SettingsManager.CreateDefault()` threw "No mod directories found" on every fresh first-run. The unhandled exception escaped Main's catch handler unread because nothing held the console window open.
+- Latent bug while we were here: `Settings.Ck3Directory` is supposed to hold the CK3 install root (writers append `"game"` themselves), but the previous lookup populated it with `…/Crusader Kings III/game`. Never fired in practice because the TCS lookup crashed first.
+
+### Added
+- **Guided first-time setup.** Replaces the silent auto-detect-or-crash flow. A single contiguous welcome screen walks the user through three steps — CK3 install, Total Conversion Sandbox, ModName — confirming each auto-detected value with `[Y/n]`, prompting for a paste (drag-and-drop supported) when nothing is found, and offering a numbered picker when multiple TCS candidates exist.
+- **Content-based TCS detection.** Instead of trusting a hardcoded workshop ID, the converter now walks every subfolder of `steamapps/workshop/content/1158310`, reads each `descriptor.mod`, and matches "Total Conversion Sandbox" against the `name` field. Workshop IDs can change again at any time without breaking the converter.
+- **Pause-on-error.** Any unhandled exception goes through `HandleFatal` + `PauseOnExit`: framed friendly message, full stack trace, link to the issue tracker, then `Press any key to exit…`. Console window stays open until the user has read it. No-op when stdin is redirected so CI and piped runs don't hang.
+- **README in the release zip.** Five-line quickstart (subscribe to TCS, generate map, run exe, point at exports, activate in launcher). The 1.1.1 zip shipped six loose files and zero documentation.
 
 ### Changed
-- make CK3/TCS lookups return nullable
+- CI: release PR body now auto-syncs from `CHANGELOG.md` on every push to a `release/*` branch, and a one-shot nudge comment posts when a `CHANGES_REQUESTED` review goes stale. Cuts the manual `gh pr edit --body` step and the manual reviewer follow-up that used to be required on every release.
+- Internal: `SettingsManager.GetGameDirectory` / `GetTotalConversionSandboxDirectory` replaced by `TryFindCk3InstallRoot` (returns `string?`) and `TryFindTotalConversionSandbox` (returns `List<TcsCandidate>`). Auto-detection no longer throws; callers decide whether to prompt, exit, or default.
 
 ---
 
