@@ -1,6 +1,5 @@
 ﻿using System.Text.Json;
 using Microsoft.Win32;
-using System.Diagnostics;
 using System.Text.RegularExpressions;
 using System.Text.Json.Serialization;
 
@@ -197,6 +196,18 @@ public class WriterFlags
     public bool Heightmap { get; set; } = true;
 }
 
+/// <summary>
+/// One candidate Total Conversion Sandbox install discovered in the Steam workshop folder.
+/// Workshop IDs change when the mod is re-uploaded, so we identify TCS by reading each
+/// <c>descriptor.mod</c>'s <c>name</c> field rather than trusting a hardcoded ID.
+/// </summary>
+public record TcsCandidate(
+    string Path,
+    string Name,
+    string? Version,
+    string WorkshopId,
+    DateTime LastModified);
+
 [JsonSerializable(typeof(Settings))]
 [JsonSerializable(typeof(WriterFlags))]
 [JsonSourceGenerationOptions(WriteIndented = true, AllowTrailingCommas = true,
@@ -212,9 +223,10 @@ public static class SettingsManager
     public const string Ck3SupportedVersion = "1.19.*";
 
     private static readonly string settingsFileName = Helper.GetPath(ExecutablePath, "settings.json");
-    private static readonly string defaultModsDirectory = Helper.GetPath(MyDocuments, "Paradox Interactive", "Crusader Kings III", "mod");
+    public static readonly string DefaultModsDirectory = Helper.GetPath(MyDocuments, "Paradox Interactive", "Crusader Kings III", "mod");
     private static string MyDocuments => Helper.GetPath(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
     public static string ExecutablePath => Helper.GetPath(Directory.GetParent(Environment.ProcessPath!)!.FullName);
+    public static string SettingsFilePath => settingsFileName;
 
     private static string GetSteamLibraryFoldersPath()
     {
@@ -243,45 +255,92 @@ public static class SettingsManager
         }
     }
 
-    private static string GetGameDirectory()
+    private static IEnumerable<string> GetSteamLibraryPaths()
     {
         var libraries = File.ReadAllText(GetSteamLibraryFoldersPath());
         var pathRegex = new Regex("\"path\"\\s*\"(.+)\"");
-        var paths = pathRegex.Matches(libraries).Select(n => n.Groups[1].Value);
-
-        var ck3Directories = paths.Select(n => Helper.GetPath(n, "steamapps", "common", "Crusader Kings III", "game")).Where(Directory.Exists).ToArray();
-        if (ck3Directories.Length > 1)
-        {
-            Debugger.Break();
-            throw new Exception("Multiple game directories found.");
-        }
-        else if (ck3Directories.Length == 0)
-        {
-            Debugger.Break();
-            throw new Exception("No game directories found.");
-        }
-
-        return ck3Directories[0];
+        return pathRegex.Matches(libraries).Select(n => n.Groups[1].Value);
     }
-    private static string GetTotalConversionSandboxDirectory()
+
+    /// <summary>
+    /// Scan Steam libraries for a CK3 install. Returns the install root (the folder
+    /// containing <c>game/</c>), or <c>null</c> if not found. Never throws.
+    /// </summary>
+    public static string? TryFindCk3InstallRoot()
     {
-        var libraries = File.ReadAllText(GetSteamLibraryFoldersPath());
-        var pathRegex = new Regex("\"path\"\\s*\"(.+)\"");
-        var paths = pathRegex.Matches(libraries).Select(n => n.Groups[1].Value);
-
-        var ck3Directories = paths.Select(n => Helper.GetPath(n, "steamapps", "workshop", "content", "1158310", "2524797018")).Where(Directory.Exists).ToArray();
-        if (ck3Directories.Length > 1)
+        try
         {
-            Debugger.Break();
-            throw new Exception("Multiple mod directories found.");
+            var roots = GetSteamLibraryPaths()
+                .Select(lib => Helper.GetPath(lib, "steamapps", "common", "Crusader Kings III"))
+                .Where(root => Directory.Exists(Helper.GetPath(root, "game")))
+                .ToArray();
+            return roots.FirstOrDefault();
         }
-        else if (ck3Directories.Length == 0)
+        catch
         {
-            Debugger.Break();
-            throw new Exception("No mod directories found.");
+            return null;
         }
+    }
 
-        return ck3Directories[0];
+    /// <summary>
+    /// Scan Steam workshop folders for Total Conversion Sandbox by reading each
+    /// <c>descriptor.mod</c> and matching <c>name="Total Conversion Sandbox"</c>
+    /// (case-insensitive substring). Returns all matches so callers can disambiguate
+    /// when forks or stale subscriptions are present. Workshop IDs are intentionally
+    /// not hardcoded — they change on re-upload. Never throws.
+    /// </summary>
+    public static List<TcsCandidate> TryFindTotalConversionSandbox()
+    {
+        var results = new List<TcsCandidate>();
+        try
+        {
+            foreach (var library in GetSteamLibraryPaths())
+            {
+                var ck3WorkshopRoot = Helper.GetPath(library, "steamapps", "workshop", "content", "1158310");
+                if (!Directory.Exists(ck3WorkshopRoot)) continue;
+
+                foreach (var modFolder in Directory.EnumerateDirectories(ck3WorkshopRoot))
+                {
+                    var candidate = TryReadTcsCandidate(modFolder);
+                    if (candidate != null) results.Add(candidate);
+                }
+            }
+        }
+        catch
+        {
+            // Best-effort scan; any error short-circuits to whatever we've collected.
+        }
+        return results;
+    }
+
+    private static readonly Regex DescriptorNameRegex = new("^\\s*name\\s*=\\s*\"(.+)\"\\s*$", RegexOptions.Multiline);
+    private static readonly Regex DescriptorVersionRegex = new("^\\s*version\\s*=\\s*\"(.+)\"\\s*$", RegexOptions.Multiline);
+
+    private static TcsCandidate? TryReadTcsCandidate(string modFolder)
+    {
+        var descriptorPath = Helper.GetPath(modFolder, "descriptor.mod");
+        if (!File.Exists(descriptorPath)) return null;
+
+        string content;
+        try { content = File.ReadAllText(descriptorPath); }
+        catch { return null; }
+
+        var nameMatch = DescriptorNameRegex.Match(content);
+        if (!nameMatch.Success) return null;
+
+        var name = nameMatch.Groups[1].Value;
+        if (name.IndexOf("Total Conversion Sandbox", StringComparison.OrdinalIgnoreCase) < 0)
+            return null;
+
+        var versionMatch = DescriptorVersionRegex.Match(content);
+        var version = versionMatch.Success ? versionMatch.Groups[1].Value : null;
+
+        return new TcsCandidate(
+            Path: modFolder,
+            Name: name,
+            Version: version,
+            WorkshopId: Path.GetFileName(modFolder),
+            LastModified: Directory.GetLastWriteTime(modFolder));
     }
 
     public static void Configure()
@@ -311,20 +370,12 @@ public static class SettingsManager
             return false;
         }
     }
-    public static void CreateDefault()
-    {
-        Settings.Instance = new Settings
-        {
-            ModsDirectory = defaultModsDirectory,
-            TotalConversionSandboxPath = GetTotalConversionSandboxDirectory(),
-            Ck3Directory = GetGameDirectory(),
-        };
-
-        Save();
-    }
-
     public static void Save()
     {
+        // Save can be called from generic exit paths (Exit()) before Settings.Instance
+        // is populated — e.g. when the user aborts FirstTimeSetup at the first prompt.
+        // Treat that as a no-op rather than NRE-ing into the fatal handler.
+        if (Settings.Instance == null) return;
         File.WriteAllText(settingsFileName, JsonSerializer.Serialize(Settings.Instance, SettingsJsonContext.Default.Settings));
     }
 }

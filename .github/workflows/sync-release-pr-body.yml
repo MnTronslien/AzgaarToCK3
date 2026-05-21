@@ -1,0 +1,76 @@
+name: Sync Release PR Body
+
+# When CHANGELOG.md changes on a release/* branch, re-extract the matching
+# # X.Y.Z section and update the open release PR's body. Removes the manual
+# "I polished the CHANGELOG, now I have to sync the PR description too" step
+# from the release runbook.
+
+on:
+  push:
+    branches:
+      - 'release/**'
+    paths:
+      - 'CHANGELOG.md'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find open release PR for this branch
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="${GITHUB_REF##refs/heads/}"
+          PR=$(gh pr list --head "$BRANCH" --base stable --state open --json number --jq '.[0].number // empty')
+          if [ -z "$PR" ]; then
+            echo "No open PR for $BRANCH against stable — skipping sync."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Found PR #$PR for $BRANCH"
+            echo "number=$PR" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract version from branch name
+        if: steps.pr.outputs.skip != 'true'
+        id: ver
+        run: |
+          BRANCH="${GITHUB_REF##refs/heads/}"
+          VERSION="${BRANCH#release/}"
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Could not extract a semver version from branch '$BRANCH'"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Extract changelog section + update PR body
+        if: steps.pr.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+
+          # Same extractor pattern as release.yml: take the first "# X.Y.Z" heading
+          # plus everything up to the next "# <digit>" heading.
+          awk '/^# '"$VERSION"'/{found=1; print; next} found && /^# [0-9]/{exit} found{print}' \
+            CHANGELOG.md > section.md
+
+          if [ ! -s section.md ]; then
+            echo "::error::No '# $VERSION' section found in CHANGELOG.md — PR body not updated."
+            exit 1
+          fi
+
+          {
+            cat section.md
+            echo ""
+            echo "---"
+            echo "Merging this PR will tag \`$VERSION\` and trigger the release build."
+          } > body.md
+
+          gh pr edit "${{ steps.pr.outputs.number }}" --body-file body.md
+          echo "Synced PR #${{ steps.pr.outputs.number }} body from CHANGELOG.md"

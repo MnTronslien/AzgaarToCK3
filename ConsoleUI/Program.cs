@@ -18,8 +18,7 @@ internal class Program
 
         if (!SettingsManager.TryLoad())
         {
-            SettingsManager.CreateDefault();
-            Logger.Info("Default Settings file has been created.");
+            FirstTimeSetup();
         }
 
         // Override settings with command-line arguments if provided
@@ -367,10 +366,36 @@ internal class Program
         }
         catch (Exception ex)
         {
-            Console.WriteLine("An error has occurred.");
-            Console.WriteLine(ex.Message);
-            Console.WriteLine(ex.StackTrace);
+            HandleFatal(ex);
         }
+    }
+
+    private static void HandleFatal(Exception ex)
+    {
+        Console.WriteLine();
+        Console.WriteLine("─────────────────────────────────────────────────────────────");
+        Console.WriteLine("  Something went wrong and the converter has to stop.");
+        Console.WriteLine("─────────────────────────────────────────────────────────────");
+        Console.WriteLine(ex.Message);
+        Console.WriteLine();
+        Console.WriteLine("Full stack trace (please include this if you file a bug):");
+        Console.WriteLine(ex.ToString());
+        Console.WriteLine();
+        Console.WriteLine("Report issues at https://github.com/MnTronslien/AzgaarToCK3/issues");
+        PauseOnExit();
+    }
+
+    /// <summary>
+    /// Pause for a keypress so a console window launched from Explorer doesn't vanish
+    /// before the user can read what's on it. No-op when stdin is redirected (piped/CI)
+    /// so scripted runs don't hang.
+    /// </summary>
+    private static void PauseOnExit()
+    {
+        if (Console.IsInputRedirected) return;
+        Console.WriteLine("Press any key to exit...");
+        try { Console.ReadKey(intercept: true); }
+        catch { /* no console attached — nothing to wait on */ }
     }
 
     private static void RunManifest(string dir)
@@ -511,10 +536,208 @@ internal class Program
 
     private static void Exit()
     {
-        Console.WriteLine("Press any key to exit.");
-        Console.ReadKey();
+        PauseOnExit();
         SettingsManager.Save();
         Environment.Exit(0);
+    }
+
+    private static void FirstTimeSetup()
+    {
+        Console.WriteLine();
+        Console.WriteLine("═════════════════════════════════════════════════════════════");
+        Console.WriteLine("  AzgaarToCK3 — First-Time Setup");
+        Console.WriteLine("═════════════════════════════════════════════════════════════");
+        Console.WriteLine();
+        Console.WriteLine("Welcome! I need a few things before I can convert your map.");
+        Console.WriteLine("Press Enter to accept the [default in brackets].");
+
+        var ck3 = ResolveCk3Directory();
+        var tcs = ResolveTcsDirectory();
+        var modName = PromptModName();
+
+        Settings.Instance = new Settings
+        {
+            ModsDirectory = SettingsManager.DefaultModsDirectory,
+            TotalConversionSandboxPath = tcs,
+            Ck3Directory = ck3,
+            ModName = modName,
+        };
+        SettingsManager.Save();
+
+        Console.WriteLine();
+        Console.WriteLine($"   Saved {SettingsManager.SettingsFilePath}. You won't see this screen again.");
+        Console.WriteLine("   Edit that file later if you need to change anything.");
+        Console.WriteLine();
+    }
+
+    private static string ResolveCk3Directory()
+    {
+        Console.WriteLine();
+        Console.WriteLine("──[ 1/3 ]── Crusader Kings III install");
+
+        var found = SettingsManager.TryFindCk3InstallRoot();
+        if (found != null)
+        {
+            Console.WriteLine($"   Found: {found}");
+            Console.Write("   Use this? [Y/n]: ");
+            if (ReadConfirmDefaultYes())
+                return found;
+        }
+        else
+        {
+            Console.WriteLine("   I couldn't auto-detect your CK3 install.");
+            Console.WriteLine("   Paste the install root (the folder containing 'game\\'):");
+        }
+
+        while (true)
+        {
+            Console.Write("   CK3 install path (or press Enter to exit): ");
+            var raw = (Console.ReadLine() ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                Console.WriteLine("   Exiting setup.");
+                Exit();
+            }
+            var path = StripSurroundingQuotes(raw);
+            if (Directory.Exists(Converter.Helper.GetPath(path, "game")))
+                return path;
+            Console.WriteLine("   That folder doesn't contain a 'game' subdirectory. Try again.");
+        }
+    }
+
+    private static string ResolveTcsDirectory()
+    {
+        Console.WriteLine();
+        Console.WriteLine("──[ 2/3 ]── Total Conversion Sandbox mod");
+
+        var candidates = SettingsManager.TryFindTotalConversionSandbox();
+
+        if (candidates.Count == 1)
+        {
+            var c = candidates[0];
+            var versionSuffix = c.Version != null ? $"  (v{c.Version})" : "";
+            Console.WriteLine($"   Found 1 candidate in your Steam workshop:");
+            Console.WriteLine($"     [1] {c.Name}{versionSuffix}");
+            Console.WriteLine($"         {c.Path}");
+            Console.Write("   Use [1], or paste a different path: ");
+            var raw = (Console.ReadLine() ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(raw) || raw == "1")
+                return c.Path;
+            return PromptForValidTcsPath(StripSurroundingQuotes(raw));
+        }
+
+        if (candidates.Count > 1)
+        {
+            Console.WriteLine($"   Found {candidates.Count} candidates in your Steam workshop:");
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                var c = candidates[i];
+                var versionSuffix = c.Version != null ? $"  (v{c.Version})" : "";
+                Console.WriteLine($"     [{i + 1}] {c.Name}{versionSuffix}");
+                Console.WriteLine($"         {c.Path}");
+            }
+            Console.Write($"   Pick [1-{candidates.Count}], or paste a different path: ");
+            var raw = (Console.ReadLine() ?? "").Trim();
+            if (int.TryParse(raw, out var idx) && idx >= 1 && idx <= candidates.Count)
+                return candidates[idx - 1].Path;
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                Console.WriteLine("   Exiting setup.");
+                Exit();
+            }
+            return PromptForValidTcsPath(StripSurroundingQuotes(raw));
+        }
+
+        // 0 candidates — most common real failure for a brand-new user
+        Console.WriteLine("   I couldn't find TCS in your Steam workshop folder.");
+        Console.WriteLine();
+        Console.WriteLine("   TCS is a required dependency. To install it:");
+        Console.WriteLine("     1. Open Steam → Crusader Kings III → Workshop tab");
+        Console.WriteLine("     2. Search \"Total Conversion Sandbox\" and subscribe");
+        Console.WriteLine("     3. Let Steam download it (~50 MB)");
+        Console.WriteLine("     4. Re-run me");
+        Console.WriteLine();
+        Console.WriteLine("   Or paste a path here if you have a copy somewhere else");
+        Console.WriteLine("   (you can drag the folder from Explorer into this window):");
+        Console.Write("   Path (or press Enter to exit and subscribe first): ");
+        var paste = (Console.ReadLine() ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(paste))
+        {
+            Console.WriteLine("   Exiting. Re-run me after subscribing to TCS.");
+            Exit();
+        }
+        return PromptForValidTcsPath(StripSurroundingQuotes(paste));
+    }
+
+    private static string PromptForValidTcsPath(string initial)
+    {
+        var path = initial;
+        while (true)
+        {
+            if (ValidateTcsPath(path, out var reason))
+                return path;
+            Console.WriteLine($"   {reason}");
+            Console.Write("   TCS path (or press Enter to exit): ");
+            var raw = (Console.ReadLine() ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(raw))
+                Exit();
+            path = StripSurroundingQuotes(raw);
+        }
+    }
+
+    private static bool ValidateTcsPath(string path, out string reason)
+    {
+        if (!Directory.Exists(path))
+        {
+            reason = $"Folder doesn't exist: {path}";
+            return false;
+        }
+        var descriptorPath = Converter.Helper.GetPath(path, "descriptor.mod");
+        if (!File.Exists(descriptorPath))
+        {
+            reason = $"No descriptor.mod inside {path} — is this the mod's root folder?";
+            return false;
+        }
+        string content;
+        try { content = File.ReadAllText(descriptorPath); }
+        catch (Exception ex) { reason = $"Couldn't read descriptor.mod: {ex.Message}"; return false; }
+
+        if (content.IndexOf("Total Conversion Sandbox", StringComparison.OrdinalIgnoreCase) < 0)
+        {
+            reason = "descriptor.mod doesn't mention 'Total Conversion Sandbox' — wrong mod?";
+            return false;
+        }
+        reason = "";
+        return true;
+    }
+
+    private static string PromptModName()
+    {
+        Console.WriteLine();
+        Console.WriteLine("──[ 3/3 ]── What should we name your mod?");
+        Console.Write("   ModName [MyAzgaarMod]: ");
+        var raw = (Console.ReadLine() ?? "").Trim();
+        return string.IsNullOrWhiteSpace(raw) ? "MyAzgaarMod" : raw;
+    }
+
+    private static bool ReadConfirmDefaultYes()
+    {
+        while (true)
+        {
+            var raw = (Console.ReadLine() ?? "").Trim();
+            if (raw.Length == 0) return true;
+            if (raw.Equals("y", StringComparison.OrdinalIgnoreCase) || raw.Equals("yes", StringComparison.OrdinalIgnoreCase)) return true;
+            if (raw.Equals("n", StringComparison.OrdinalIgnoreCase) || raw.Equals("no", StringComparison.OrdinalIgnoreCase)) return false;
+            Console.Write("   Please answer y or n: ");
+        }
+    }
+
+    private static string StripSurroundingQuotes(string s)
+    {
+        s = s.Trim();
+        if (s.Length >= 2 && s[0] == '"' && s[^1] == '"')
+            return s[1..^1];
+        return s;
     }
 
     private static void FindInputs()
