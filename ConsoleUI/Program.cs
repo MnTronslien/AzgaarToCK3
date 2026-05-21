@@ -117,6 +117,17 @@ internal class Program
             FindInputs();
         }
 
+        // Interactive prompt for the export folder when no input paths are configured
+        // (typical right after FirstTimeSetup, or on an old settings.json with blank paths).
+        // Skipped when stdin is redirected so scripted/CI runs fall through to the
+        // explicit error below instead of hanging on ReadLine.
+        if (!Console.IsInputRedirected
+            && (string.IsNullOrWhiteSpace(Settings.Instance.InputJsonPath)
+                || string.IsNullOrWhiteSpace(Settings.Instance.InputGeojsonPath)))
+        {
+            PromptForInputDirectory();
+        }
+
         if (!File.Exists(Settings.Instance.InputJsonPath))
         {
             Logger.Error($".json file has not been found.");
@@ -709,6 +720,66 @@ internal class Program
         }
         reason = "";
         return true;
+    }
+
+    private static void PromptForInputDirectory()
+    {
+        Console.WriteLine();
+        Console.WriteLine("─────────────────────────────────────────────────────────────");
+        Console.WriteLine("  Point me at your Azgaar exports");
+        Console.WriteLine("─────────────────────────────────────────────────────────────");
+        Console.WriteLine();
+        Console.WriteLine("I need the folder containing your map's exported files:");
+        Console.WriteLine("  - The 'Full data' .json file");
+        Console.WriteLine("  - The 'Cells' .geojson file");
+        Console.WriteLine("  - (Optional) The 'Rivers' .geojson file");
+        Console.WriteLine();
+        Console.WriteLine("In Azgaar's Fantasy Map Generator, use Save → Save full,");
+        Console.WriteLine("then Export → Cells data and Export → Rivers data.");
+        Console.WriteLine();
+        Console.WriteLine("You can drag the folder from Explorer into this window.");
+        Console.WriteLine();
+
+        while (true)
+        {
+            Console.Write("Folder path (or press Enter to exit): ");
+            var raw = (Console.ReadLine() ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                Console.WriteLine("Exiting.");
+                Exit();
+            }
+            var folder = StripSurroundingQuotes(raw);
+            if (!Directory.Exists(folder))
+            {
+                Console.WriteLine($"   That folder doesn't exist: {folder}");
+                continue;
+            }
+            var (json, geojson, rivers) = ModManager.FindLatestInputs(folder);
+            if (json == null || geojson == null)
+            {
+                Console.WriteLine("   Couldn't find both a .json and a .geojson in that folder.");
+                Console.WriteLine($"   Found: json={(json == null ? "no" : Path.GetFileName(json))}, geojson={(geojson == null ? "no" : Path.GetFileName(geojson))}");
+                continue;
+            }
+            Console.WriteLine();
+            Console.WriteLine("   Found:");
+            Console.WriteLine($"     Full data : {Path.GetFileName(json)}");
+            Console.WriteLine($"     Cells     : {Path.GetFileName(geojson)}");
+            Console.WriteLine($"     Rivers    : {(rivers != null ? Path.GetFileName(rivers) : "(none — blank rivers.png will be written)")}");
+            Console.Write("   Use these? [Y/n]: ");
+            if (!ReadConfirmDefaultYes()) continue;
+
+            Settings.Instance.InputDirectory = folder;
+            Settings.Instance.InputJsonPath = json;
+            Settings.Instance.InputGeojsonPath = geojson;
+            if (rivers != null) Settings.Instance.InputRiversGeojsonPath = rivers;
+            SettingsManager.Save();
+            Console.WriteLine();
+            Console.WriteLine("   Saved to settings.json.");
+            Console.WriteLine();
+            return;
+        }
     }
 
     private static string PromptModName()
