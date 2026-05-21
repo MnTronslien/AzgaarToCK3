@@ -1,0 +1,65 @@
+name: Nudge Stale Review
+
+# When new commits land on a release/* branch that has an outstanding
+# CHANGES_REQUESTED review, post one comment asking the reviewer to take
+# another look. Idempotent per stale state — if a bot comment already
+# exists after the review, do nothing (so we don't spam on every push).
+
+on:
+  push:
+    branches:
+      - 'release/**'
+
+jobs:
+  nudge:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Find open release PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="${GITHUB_REF##refs/heads/}"
+          PR=$(gh pr list --head "$BRANCH" --base stable --state open --json number --jq '.[0].number // empty')
+          if [ -z "$PR" ]; then
+            echo "No open PR for $BRANCH against stable — nothing to nudge."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "number=$PR" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check for stale CHANGES_REQUESTED + post nudge once
+        if: steps.pr.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR="${{ steps.pr.outputs.number }}"
+
+          # Latest CHANGES_REQUESTED review (any reviewer)
+          LATEST_REVIEW=$(gh api "repos/${{ github.repository }}/pulls/$PR/reviews" \
+            --jq '[.[] | select(.state == "CHANGES_REQUESTED")] | sort_by(.submitted_at) | last')
+
+          if [ -z "$LATEST_REVIEW" ] || [ "$LATEST_REVIEW" = "null" ]; then
+            echo "No outstanding CHANGES_REQUESTED review — nothing to nudge."
+            exit 0
+          fi
+
+          REVIEW_TIME=$(echo "$LATEST_REVIEW" | jq -r '.submitted_at')
+          REVIEWER=$(echo "$LATEST_REVIEW" | jq -r '.user.login')
+
+          # Latest bot issue-comment (idempotency check)
+          LATEST_BOT=$(gh api "repos/${{ github.repository }}/issues/$PR/comments" \
+            --jq '[.[] | select(.user.login == "github-actions[bot]")] | sort_by(.created_at) | last')
+          BOT_TIME=$(echo "$LATEST_BOT" | jq -r '.created_at // "1970-01-01T00:00:00Z"')
+
+          # If the bot already commented after the review, the previous push already
+          # nudged. Skip to avoid spamming on every subsequent push.
+          if [ "$BOT_TIME" \> "$REVIEW_TIME" ]; then
+            echo "Already nudged (bot comment $BOT_TIME after review $REVIEW_TIME) — skipping."
+            exit 0
+          fi
+
+          gh pr comment "$PR" --body "🔄 New commits pushed (\`${GITHUB_SHA::7}\`). @$REVIEWER — please re-review when convenient."
+          echo "Posted re-review nudge to PR #$PR"
