@@ -12,6 +12,12 @@
     <ProjectReference Include="..\Converter\Converter.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="release-README.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
   <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(Configuration)'=='Publish' And '$(BuildingInsideVisualStudio)' == 'true'">
     <Exec Command="powershell -ExecutionPolicy Unrestricted $(ProjectDir)afterPublishBuild.ps1 -ProjectDir $(ProjectDir) -OutDir $(OutDir)" />
   </Target>
