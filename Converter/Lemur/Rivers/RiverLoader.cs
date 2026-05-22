@@ -1,9 +1,18 @@
 using Converter.Lemur.Deserialization;
 using Converter.Lemur.Entities;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Converter.Lemur.Rivers
 {
+    // Source-generated JsonSerializerContext for RiverGeoJson so the rivers
+    // .geojson can be deserialized under Native AOT (where reflection-based
+    // JsonSerializer is disabled by default). Without this, JsonSerializer
+    // throws InvalidOperationException on first use. See bugs/BUG_aot-reflection-json-rivers.md.
+    [JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true)]
+    [JsonSerializable(typeof(RiverGeoJson))]
+    internal partial class RiverGeoJsonContext : JsonSerializerContext { }
+
     public static class RiverLoader
     {
         public static List<River> LoadRivers(AzgaarJsonMap jsonMap, float majorThreshold)
@@ -59,10 +68,7 @@ namespace Converter.Lemur.Rivers
             Logger.Info($"Loading river control points from: {Path.GetFileName(riverGeoJsonPath)}");
 
             var json = File.ReadAllText(riverGeoJsonPath);
-            var riverGeoJson = JsonSerializer.Deserialize<RiverGeoJson>(json, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
+            var riverGeoJson = JsonSerializer.Deserialize(json, RiverGeoJsonContext.Default.RiverGeoJson);
 
             if (riverGeoJson == null || riverGeoJson.features == null)
             {
