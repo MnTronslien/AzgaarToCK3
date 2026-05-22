@@ -31,7 +31,10 @@ public static class TerrainDebugImage
         [Ck3Terrain.TerracedHills]    = MagickColor.FromRgb(0xE0, 0x40, 0x40),   // coral
     };
 
-    private static readonly MagickColor SeaColor       = MagickColor.FromRgb(0x44, 0x6B, 0xA3);
+    // Bright saturated blue — must read as clearly "ocean" against the near-black DesertMountains
+    // and WastelandColor swatches. The CK3 in-game ocean blue (#446BA3) is too muted; at a glance
+    // it merges with dark land. This is a debug image, not the production splatmap — readability beats fidelity.
+    private static readonly MagickColor SeaColor       = MagickColor.FromRgb(0x30, 0x60, 0xE0);
     private static readonly MagickColor WastelandColor = MagickColor.FromRgb(0x10, 0x10, 0x10);   // black-ish; matches "wasteland" mountain convention
 
     public static async Task Write(Map map)
