@@ -1,3 +1,16 @@
+# 1.2.0 — 2026-05-22
+
+### Added
+- prompt for export folder instead of erroring out
+- add ModsDirectory step + unified y/n syntax everywhere
+- mirror Logger output to a per-run .log file next to the exe
+
+### Fixed
+- catch unwritable mods directory at setup, not mid-conversion
+- use source-generated JsonSerializerContext for AOT
+
+---
+
 # 1.1.3 — 2026-05-22
 
 Hotfix for the AOT release builds. Any conversion run with rivers enabled (the default) on 1.1.1 or 1.1.2 crashed mid-pipeline with `Reflection-based serialization has been disabled for this application`. Reported by a downstream user testing a custom map.
