@@ -1,3 +1,25 @@
+# 1.2.0 — 2026-05-22
+
+The first-run experience gets a real onboarding flow and every run writes a .log file you can attach to a bug report. Builds on the foundation laid by 1.1.2 ("Saved settings.json. You won't see this screen again.") — that screen now actually walks the user all the way to a running conversion instead of dropping them at a `.json file has not been found` error.
+
+### Added
+- **Guided setup, now 5 steps end-to-end.** FirstTimeSetup gained `3/5 Where to put the converted mod` and `5/5 Point me at your Azgaar exports` — by the time the welcome screen closes, every path the converter needs is resolved and written to settings.json. No more "saved settings, now go fix it manually" cliff right after onboarding.
+- **OneDrive-managed Documents one-tap fallback.** On machines where Windows redirected `Documents/` into OneDrive and the cldflt driver blocks external writes, the mods-directory step's write-test fails fast and offers the local `%USERPROFILE%\Documents\Paradox Interactive\Crusader Kings III\mod` path with a single `[Y/n]`. Users hit this in the wild on 1.1.2; now it's a single keystroke instead of a confusing FileNotFoundException mid-conversion.
+- **Unified `[Y/n]` prompts.** The existing `1. Yes / 2. No` numeric prompts (`Start conversion?`, `Use them as inputs?`) now match the FirstTimeSetup style with `[Y/n]:` and accept y/yes/n/no/Enter.
+- **Per-run `.log` file alongside the exe.** Every run writes `./logs/AzgaarToCK3_<timestamp>.log` with the banner, settings dump, every Logger call, and any crash stack trace. Crash-flushed via `AppDomain.UnhandledException` + `ProcessExit` hooks plus `Logger.Flush()` from `HandleFatal`. Old logs (>10) auto-cleaned at startup. On crash, the friendly error block now points the user at the exact file to attach when filing a bug. Controlled by `--no-log-file` / `--log-file <path>`.
+
+### Fixed
+- **Mid-conversion `FileNotFoundException` writing the `.mod` descriptor on fresh installs.** `ModManager.CreateMod` now `Directory.CreateDirectory` the mods folder before writing — `File.WriteAllTextAsync` doesn't create parent directories.
+- **Empty section banners at default log level.** `TitleTreeDebugger` printed `DE FACTO TITLE TREE`, `CHARACTER DOMAINS`, `DE JURE TITLE TREE` headers via `Logger.Section` (visible at Info) but the bodies via `Logger.Debug` (hidden at Info). Gated each method on `LogLevel <= Debug` so headers and bodies share visibility.
+- **Rivers loader crash under Native AOT.** (Already shipped in 1.1.3 hotfix; included here because it's in this release's commit range.) RiverLoader and CellDump now use source-generated JsonSerializerContexts.
+
+### Changed
+- ASCII `->` replaces Unicode `→` in user-facing setup instructions — the rightward arrow rendered as garbage in default Windows console fonts.
+- Welcome banner no longer promises "Press Enter to accept the [default in brackets]" since most prompts now Enter-to-exit rather than Enter-to-accept-default. Each prompt's parenthetical speaks for itself.
+- Stale `2524797018` hardcoded TCS workshop ID is gone for good — content-based detection introduced in 1.1.2 is the only path now.
+
+---
+
 # 1.1.3 — 2026-05-22
 
 Hotfix for the AOT release builds. Any conversion run with rivers enabled (the default) on 1.1.1 or 1.1.2 crashed mid-pipeline with `Reflection-based serialization has been disabled for this application`. Reported by a downstream user testing a custom map.
