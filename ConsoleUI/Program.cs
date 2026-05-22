@@ -117,6 +117,17 @@ internal class Program
             FindInputs();
         }
 
+        // Interactive prompt for the export folder when no input paths are configured
+        // (typical right after FirstTimeSetup, or on an old settings.json with blank paths).
+        // Skipped when stdin is redirected so scripted/CI runs fall through to the
+        // explicit error below instead of hanging on ReadLine.
+        if (!Console.IsInputRedirected
+            && (string.IsNullOrWhiteSpace(Settings.Instance.InputJsonPath)
+                || string.IsNullOrWhiteSpace(Settings.Instance.InputGeojsonPath)))
+        {
+            PromptForInputDirectory();
+        }
+
         if (!File.Exists(Settings.Instance.InputJsonPath))
         {
             Logger.Error($".json file has not been found.");
@@ -137,7 +148,7 @@ internal class Program
             return;
         }
 
-        Logger.Info("Start conversion?");
+        Console.Write("Start conversion? ");
         if (YesNo())
         {
             // Copy sandbox mod files.
@@ -195,6 +206,8 @@ internal class Program
             int? seed = null;
             int? tenetCount = null;
             float? doctrineMutationRate = null;
+            bool noLogFile = false;
+            string? logFilePath = null;
 
             // Parse command-line arguments
             for (int i = 0; i < args.Length; i++)
@@ -299,6 +312,14 @@ internal class Program
                 {
                     manifestDir = args[++i];
                 }
+                else if (args[i] == "--no-log-file")
+                {
+                    noLogFile = true;
+                }
+                else if (args[i] == "--log-file" && i + 1 < args.Length)
+                {
+                    logFilePath = args[++i];
+                }
                 else if (args[i] == "--help" || args[i] == "-h")
                 {
                     PrintUsage();
@@ -320,6 +341,20 @@ internal class Program
                         riversGeojsonPath = args[i];
                     }
                 }
+            }
+
+            // Open the log file before any other work so the banner and the entire
+            // run land in the file. Disabled by --no-log-file. Path resolution order:
+            //   1. --log-file <path>  (explicit override)
+            //   2. <exe folder>/logs/AzgaarToCK3_<yyyy-MM-ddTHH-mm-ss>.log  (default)
+            if (!noLogFile)
+            {
+                var resolvedLogPath = logFilePath ?? Path.Combine(
+                    Converter.SettingsManager.ExecutablePath,
+                    "logs",
+                    $"AzgaarToCK3_{DateTime.Now:yyyy-MM-ddTHH-mm-ss}.log");
+                CleanupOldLogs(Path.GetDirectoryName(resolvedLogPath)!, keep: 10);
+                Logger.EnableFileLogging(resolvedLogPath);
             }
 
             // --manifest: hash all files in <dir> and print a sorted SHA256 manifest
@@ -381,8 +416,38 @@ internal class Program
         Console.WriteLine("Full stack trace (please include this if you file a bug):");
         Console.WriteLine(ex.ToString());
         Console.WriteLine();
+        if (Logger.LogFilePath != null)
+        {
+            Console.WriteLine($"Full log saved to: {Logger.LogFilePath}");
+            Console.WriteLine("Attach that file when filing a bug — it contains the complete run history.");
+            Console.WriteLine();
+        }
         Console.WriteLine("Report issues at https://github.com/MnTronslien/AzgaarToCK3/issues");
+        Logger.Flush();
         PauseOnExit();
+    }
+
+    /// <summary>
+    /// Keep the logs/ folder from growing forever. Deletes any AzgaarToCK3_*.log file
+    /// beyond the <paramref name="keep"/> most recent (by mtime). Silently ignores
+    /// errors — log housekeeping should never block a run.
+    /// </summary>
+    private static void CleanupOldLogs(string dir, int keep)
+    {
+        try
+        {
+            if (!Directory.Exists(dir)) return;
+            var files = new DirectoryInfo(dir)
+                .EnumerateFiles("AzgaarToCK3_*.log")
+                .OrderByDescending(f => f.LastWriteTime)
+                .Skip(keep)
+                .ToArray();
+            foreach (var f in files)
+            {
+                try { f.Delete(); } catch { /* best effort */ }
+            }
+        }
+        catch { /* best effort */ }
     }
 
     /// <summary>
@@ -456,6 +521,8 @@ internal class Program
         Console.WriteLine("  --log-level <verbose|debug|info|warning|error>  Set log verbosity (default: info)");
         Console.WriteLine("  --no-images                      Suppress debug image generation (provinces.png and rivers.png still written)");
         Console.WriteLine("  --no-wipe                        Skip auto-wipe of mod output directory before conversion (default: wipe enabled)");
+        Console.WriteLine("  --no-log-file                    Disable writing a .log file alongside the exe (default: write to ./logs/)");
+        Console.WriteLine("  --log-file <path>                Override the log file path (default: ./logs/AzgaarToCK3_<timestamp>.log)");
         Console.WriteLine("  --empire-from-culture <bool>     Form empires by culture instead of religion");
         Console.WriteLine("  --min-duchies-per-kingdom <int>  Minimum duchies per kingdom (default: 4)");
         Console.WriteLine("  --min-kingdoms-per-empire <int>  Minimum kingdoms per empire (default: 3)");
@@ -488,33 +555,12 @@ internal class Program
     {
         if (Settings.Instance.LogLevel <= LogLevel.Debug)
         {
-            //print the response to the console
             Console.WriteLine($"{(defaultIsYes ? "- Yes" : "- No")} (auto-answer: log level <= debug)");
-
             return defaultIsYes;
         }
 
-        int maxTries = 10;
-        string response = "";
-        for (int i = 0; i < maxTries; i++)
-
-        {
-            Console.WriteLine("1. Yes.");
-            Console.WriteLine("2. No.");
-
-            response = Console.ReadLine()!;
-            if (response == "1")
-            {
-                return true;
-            }
-            else if (response == "2")
-            {
-                return false;
-            }
-        }
-        Console.WriteLine("Failed to read supported response.");
-        Exit();
-        return false;
+        Console.Write(defaultIsYes ? "[Y/n]: " : "[y/N]: ");
+        return ReadConfirm(defaultIsYes);
     }
 
     private static void WipeOutputDirectory()
@@ -549,20 +595,24 @@ internal class Program
         Console.WriteLine("═════════════════════════════════════════════════════════════");
         Console.WriteLine();
         Console.WriteLine("Welcome! I need a few things before I can convert your map.");
-        Console.WriteLine("Press Enter to accept the [default in brackets].");
 
         var ck3 = ResolveCk3Directory();
         var tcs = ResolveTcsDirectory();
+        var modsDir = ResolveModsDirectory();
         var modName = PromptModName();
 
         Settings.Instance = new Settings
         {
-            ModsDirectory = SettingsManager.DefaultModsDirectory,
+            ModsDirectory = modsDir,
             TotalConversionSandboxPath = tcs,
             Ck3Directory = ck3,
             ModName = modName,
         };
         SettingsManager.Save();
+
+        // Step 5/5 — Azgaar exports. PromptForInputDirectory writes its results
+        // into Settings.Instance and saves again.
+        PromptForInputDirectory();
 
         Console.WriteLine();
         Console.WriteLine($"   Saved {SettingsManager.SettingsFilePath}. You won't see this screen again.");
@@ -573,14 +623,14 @@ internal class Program
     private static string ResolveCk3Directory()
     {
         Console.WriteLine();
-        Console.WriteLine("──[ 1/3 ]── Crusader Kings III install");
+        Console.WriteLine("──[ 1/5 ]── Crusader Kings III install");
 
         var found = SettingsManager.TryFindCk3InstallRoot();
         if (found != null)
         {
             Console.WriteLine($"   Found: {found}");
             Console.Write("   Use this? [Y/n]: ");
-            if (ReadConfirmDefaultYes())
+            if (ReadConfirm(defaultIsYes: true))
                 return found;
         }
         else
@@ -608,7 +658,7 @@ internal class Program
     private static string ResolveTcsDirectory()
     {
         Console.WriteLine();
-        Console.WriteLine("──[ 2/3 ]── Total Conversion Sandbox mod");
+        Console.WriteLine("──[ 2/5 ]── Total Conversion Sandbox mod");
 
         var candidates = SettingsManager.TryFindTotalConversionSandbox();
 
@@ -616,13 +666,16 @@ internal class Program
         {
             var c = candidates[0];
             var versionSuffix = c.Version != null ? $"  (v{c.Version})" : "";
-            Console.WriteLine($"   Found 1 candidate in your Steam workshop:");
-            Console.WriteLine($"     [1] {c.Name}{versionSuffix}");
-            Console.WriteLine($"         {c.Path}");
-            Console.Write("   Use [1], or paste a different path: ");
-            var raw = (Console.ReadLine() ?? "").Trim();
-            if (string.IsNullOrWhiteSpace(raw) || raw == "1")
+            Console.WriteLine($"   Found:");
+            Console.WriteLine($"     {c.Name}{versionSuffix}");
+            Console.WriteLine($"     {c.Path}");
+            Console.Write("   Use this? [Y/n]: ");
+            if (ReadConfirm(defaultIsYes: true))
                 return c.Path;
+            Console.WriteLine("   Paste a different TCS folder path (drag-and-drop supported):");
+            Console.Write("   Path (or press Enter to exit): ");
+            var raw = (Console.ReadLine() ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(raw)) Exit();
             return PromptForValidTcsPath(StripSurroundingQuotes(raw));
         }
 
@@ -636,7 +689,7 @@ internal class Program
                 Console.WriteLine($"     [{i + 1}] {c.Name}{versionSuffix}");
                 Console.WriteLine($"         {c.Path}");
             }
-            Console.Write($"   Pick [1-{candidates.Count}], or paste a different path: ");
+            Console.Write($"   Pick [1-{candidates.Count}], paste a different path, or press Enter to exit: ");
             var raw = (Console.ReadLine() ?? "").Trim();
             if (int.TryParse(raw, out var idx) && idx >= 1 && idx <= candidates.Count)
                 return candidates[idx - 1].Path;
@@ -652,7 +705,7 @@ internal class Program
         Console.WriteLine("   I couldn't find TCS in your Steam workshop folder.");
         Console.WriteLine();
         Console.WriteLine("   TCS is a required dependency. To install it:");
-        Console.WriteLine("     1. Open Steam → Crusader Kings III → Workshop tab");
+        Console.WriteLine("     1. Open Steam -> Crusader Kings III -> Workshop tab");
         Console.WriteLine("     2. Search \"Total Conversion Sandbox\" and subscribe");
         Console.WriteLine("     3. Let Steam download it (~50 MB)");
         Console.WriteLine("     4. Re-run me");
@@ -711,21 +764,151 @@ internal class Program
         return true;
     }
 
+    private static void PromptForInputDirectory()
+    {
+        Console.WriteLine();
+        Console.WriteLine("─────────────────────────────────────────────────────────────");
+        Console.WriteLine("  Point me at your Azgaar exports");
+        Console.WriteLine("─────────────────────────────────────────────────────────────");
+        Console.WriteLine();
+        Console.WriteLine("I need a folder containing your map's exported files:");
+        Console.WriteLine("  - The 'Full data' .json file");
+        Console.WriteLine("  - The 'Cells' .geojson file");
+        Console.WriteLine("  - (Optional) The 'Rivers' .geojson file");
+        Console.WriteLine();
+        Console.WriteLine("In Azgaar's Fantasy Map Generator, use Save -> Save full,");
+        Console.WriteLine("then Export -> Cells data and Export -> Rivers data.");
+        Console.WriteLine();
+        Console.WriteLine("You can drag the folder from Explorer into this window.");
+        Console.WriteLine();
+
+        while (true)
+        {
+            Console.Write("Folder path (or press Enter to exit): ");
+            var raw = (Console.ReadLine() ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                Console.WriteLine("Exiting.");
+                Exit();
+            }
+            var folder = StripSurroundingQuotes(raw);
+            if (!Directory.Exists(folder))
+            {
+                Console.WriteLine($"   That folder doesn't exist: {folder}");
+                continue;
+            }
+            var (json, geojson, rivers) = ModManager.FindLatestInputs(folder);
+            if (json == null || geojson == null)
+            {
+                Console.WriteLine("   Couldn't find both a .json and a .geojson in that folder.");
+                Console.WriteLine($"   Found: json={(json == null ? "no" : Path.GetFileName(json))}, geojson={(geojson == null ? "no" : Path.GetFileName(geojson))}");
+                continue;
+            }
+            Console.WriteLine();
+            Console.WriteLine("   Found:");
+            Console.WriteLine($"     Full data : {Path.GetFileName(json)}");
+            Console.WriteLine($"     Cells     : {Path.GetFileName(geojson)}");
+            Console.WriteLine($"     Rivers    : {(rivers != null ? Path.GetFileName(rivers) : "(none — blank rivers.png will be written)")}");
+            Console.Write("   Use these? [Y/n]: ");
+            if (!ReadConfirm(defaultIsYes: true)) continue;
+
+            Settings.Instance.InputDirectory = folder;
+            Settings.Instance.InputJsonPath = json;
+            Settings.Instance.InputGeojsonPath = geojson;
+            if (rivers != null) Settings.Instance.InputRiversGeojsonPath = rivers;
+            SettingsManager.Save();
+            Console.WriteLine();
+            Console.WriteLine("   Saved to settings.json.");
+            Console.WriteLine();
+            return;
+        }
+    }
+
+    private static string ResolveModsDirectory()
+    {
+        Console.WriteLine();
+        Console.WriteLine("──[ 3/5 ]── Where to put the converted mod");
+        Console.WriteLine($"   CK3's standard mod folder (where the launcher looks for local mods):");
+        Console.WriteLine($"     {SettingsManager.DefaultModsDirectory}");
+        Console.WriteLine("   Your mod will be created as a subfolder there.");
+        Console.Write("   Use this? [Y/n]: ");
+        if (ReadConfirm(defaultIsYes: true))
+        {
+            if (TryAcceptModsDirectory(SettingsManager.DefaultModsDirectory))
+                return SettingsManager.DefaultModsDirectory;
+
+            // Default failed write test. If the default was OneDrive-managed,
+            // offer the local-profile Documents path as a one-tap fix — this
+            // is by far the most common reason the write test fails (Windows
+            // OneDrive locks the Documents folder against external writers).
+            if (SettingsManager.DefaultModsDirectory.Contains("OneDrive", StringComparison.OrdinalIgnoreCase))
+            {
+                var localFallback = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    "Documents", "Paradox Interactive", "Crusader Kings III", "mod");
+
+                Console.WriteLine();
+                Console.WriteLine("   That path is OneDrive-managed. Windows OneDrive often blocks");
+                Console.WriteLine("   external programs from writing into a redirected Documents folder.");
+                Console.WriteLine();
+                Console.WriteLine("   The non-OneDrive Documents path (your CK3 may already be using it):");
+                Console.WriteLine($"     {localFallback}");
+                Console.Write("   Use this instead? [Y/n]: ");
+                if (ReadConfirm(defaultIsYes: true) && TryAcceptModsDirectory(localFallback))
+                    return localFallback;
+            }
+        }
+
+        Console.WriteLine("   Paste a different mods folder path (drag-and-drop supported):");
+        while (true)
+        {
+            Console.Write("   Path (or press Enter to exit): ");
+            var raw = (Console.ReadLine() ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(raw)) Exit();
+            var path = StripSurroundingQuotes(raw);
+            if (TryAcceptModsDirectory(path))
+                return path;
+        }
+    }
+
+    /// <summary>
+    /// Check that we can actually create and write to the proposed mods directory before
+    /// saving it to settings.json. Reports a short failure reason; the caller decides
+    /// what recovery to offer (OneDrive fallback, manual paste, etc.).
+    /// </summary>
+    private static bool TryAcceptModsDirectory(string path)
+    {
+        try
+        {
+            Directory.CreateDirectory(path);
+            var testFile = Path.Combine(path, $".azgaartock3-writetest-{Guid.NewGuid():N}");
+            File.WriteAllText(testFile, "");
+            File.Delete(testFile);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"   Can't write to {path}");
+            Console.WriteLine($"   ({ex.Message})");
+            return false;
+        }
+    }
+
     private static string PromptModName()
     {
         Console.WriteLine();
-        Console.WriteLine("──[ 3/3 ]── What should we name your mod?");
+        Console.WriteLine("──[ 4/5 ]── What should we name your mod?");
         Console.Write("   ModName [MyAzgaarMod]: ");
         var raw = (Console.ReadLine() ?? "").Trim();
         return string.IsNullOrWhiteSpace(raw) ? "MyAzgaarMod" : raw;
     }
 
-    private static bool ReadConfirmDefaultYes()
+    private static bool ReadConfirm(bool defaultIsYes)
     {
         while (true)
         {
             var raw = (Console.ReadLine() ?? "").Trim();
-            if (raw.Length == 0) return true;
+            if (raw.Length == 0) return defaultIsYes;
             if (raw.Equals("y", StringComparison.OrdinalIgnoreCase) || raw.Equals("yes", StringComparison.OrdinalIgnoreCase)) return true;
             if (raw.Equals("n", StringComparison.OrdinalIgnoreCase) || raw.Equals("no", StringComparison.OrdinalIgnoreCase)) return false;
             Console.Write("   Please answer y or n: ");
@@ -751,8 +934,7 @@ internal class Program
             Console.WriteLine(Path.GetFileName(jsonName));
             Console.WriteLine(Path.GetFileName(geojsonName));
             Console.WriteLine(Path.GetFileName(riversGeojsonName));
-            Console.WriteLine("Use them as inputs?");
-
+            Console.Write("Use them as inputs? ");
             if (YesNo())
             {
                 Settings.Instance.InputJsonPath = jsonName;
