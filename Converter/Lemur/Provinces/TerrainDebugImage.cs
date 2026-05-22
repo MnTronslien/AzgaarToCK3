@@ -35,7 +35,12 @@ public static class TerrainDebugImage
     // and WastelandColor swatches. The CK3 in-game ocean blue (#446BA3) is too muted; at a glance
     // it merges with dark land. This is a debug image, not the production splatmap — readability beats fidelity.
     private static readonly MagickColor SeaColor       = MagickColor.FromRgb(0x30, 0x60, 0xE0);
-    private static readonly MagickColor WastelandColor = MagickColor.FromRgb(0x10, 0x10, 0x10);   // black-ish; matches "wasteland" mountain convention
+    // Wastelands need a colour distinct from every entry in the Palette AND from SeaColor.
+    // Near-black (the previous choice) was indistinguishable from DesertMountains. Off-white
+    // is the only remaining hue space that doesn't collide with any terrain (Mountains is medium
+    // grey; Oasis is lavender; Plains is tan). Reads as "uninhabited" in the same way road maps
+    // shade unsettled regions pale.
+    private static readonly MagickColor WastelandColor = MagickColor.FromRgb(0xE6, 0xE6, 0xE6);
 
     public static async Task Write(Map map)
     {
@@ -86,11 +91,18 @@ public static class TerrainDebugImage
 
     // Legend layout — sized for the full 8192×4096 canvas so it is readable when the image
     // is opened at any reasonable zoom. Two columns to mirror the reference screenshot.
+    // Sentinel — wastelands aren't a CK3 terrain enum value but get their own legend row
+    // so the viewer knows what the pale-grey swatch on the map means.
+    private const Ck3Terrain WastelandSentinel = (Ck3Terrain)999;
+
     private static void DrawLegend(MagickImage canvas)
     {
-        var entries = Palette.Keys.OrderBy(k => k.ToCk3String()).ToList();
+        var entries = Palette.Keys
+            .OrderBy(k => k.ToCk3String())
+            .Append(WastelandSentinel)                     // appears last in the legend
+            .ToList();
 
-        const int rowsPerColumn = 8;                       // 15 entries → 8 + 7
+        const int rowsPerColumn = 8;                       // 16 entries → 8 + 8
         const int columns       = 2;
         const int swatchW       = 90;
         const int swatchH       = 60;
@@ -135,7 +147,9 @@ public static class TerrainDebugImage
             int rowY = y0 + panelPad + titleH + titlePad + row * (swatchH + rowGap);
 
             var terrain = entries[i];
-            var swatchColor = Palette[terrain];
+            var swatchColor = terrain == WastelandSentinel
+                ? WastelandColor
+                : Palette[terrain];
 
             d = d.FillColor(swatchColor)
                  .StrokeColor(MagickColors.Black)
@@ -155,6 +169,7 @@ public static class TerrainDebugImage
     {
         Ck3Terrain.DesertMountains => "Desert Mountains",
         Ck3Terrain.TerracedHills   => "Terraced Hills",
+        WastelandSentinel          => "Wasteland",
         _                           => Char.ToUpper(t.ToCk3String()[0]) + t.ToCk3String().Substring(1),
     };
 
