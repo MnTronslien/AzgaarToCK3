@@ -206,6 +206,8 @@ internal class Program
             int? seed = null;
             int? tenetCount = null;
             float? doctrineMutationRate = null;
+            bool noLogFile = false;
+            string? logFilePath = null;
 
             // Parse command-line arguments
             for (int i = 0; i < args.Length; i++)
@@ -310,6 +312,14 @@ internal class Program
                 {
                     manifestDir = args[++i];
                 }
+                else if (args[i] == "--no-log-file")
+                {
+                    noLogFile = true;
+                }
+                else if (args[i] == "--log-file" && i + 1 < args.Length)
+                {
+                    logFilePath = args[++i];
+                }
                 else if (args[i] == "--help" || args[i] == "-h")
                 {
                     PrintUsage();
@@ -331,6 +341,20 @@ internal class Program
                         riversGeojsonPath = args[i];
                     }
                 }
+            }
+
+            // Open the log file before any other work so the banner and the entire
+            // run land in the file. Disabled by --no-log-file. Path resolution order:
+            //   1. --log-file <path>  (explicit override)
+            //   2. <exe folder>/logs/AzgaarToCK3_<yyyy-MM-ddTHH-mm-ss>.log  (default)
+            if (!noLogFile)
+            {
+                var resolvedLogPath = logFilePath ?? Path.Combine(
+                    Converter.SettingsManager.ExecutablePath,
+                    "logs",
+                    $"AzgaarToCK3_{DateTime.Now:yyyy-MM-ddTHH-mm-ss}.log");
+                CleanupOldLogs(Path.GetDirectoryName(resolvedLogPath)!, keep: 10);
+                Logger.EnableFileLogging(resolvedLogPath);
             }
 
             // --manifest: hash all files in <dir> and print a sorted SHA256 manifest
@@ -392,8 +416,38 @@ internal class Program
         Console.WriteLine("Full stack trace (please include this if you file a bug):");
         Console.WriteLine(ex.ToString());
         Console.WriteLine();
+        if (Logger.LogFilePath != null)
+        {
+            Console.WriteLine($"Full log saved to: {Logger.LogFilePath}");
+            Console.WriteLine("Attach that file when filing a bug — it contains the complete run history.");
+            Console.WriteLine();
+        }
         Console.WriteLine("Report issues at https://github.com/MnTronslien/AzgaarToCK3/issues");
+        Logger.Flush();
         PauseOnExit();
+    }
+
+    /// <summary>
+    /// Keep the logs/ folder from growing forever. Deletes any AzgaarToCK3_*.log file
+    /// beyond the <paramref name="keep"/> most recent (by mtime). Silently ignores
+    /// errors — log housekeeping should never block a run.
+    /// </summary>
+    private static void CleanupOldLogs(string dir, int keep)
+    {
+        try
+        {
+            if (!Directory.Exists(dir)) return;
+            var files = new DirectoryInfo(dir)
+                .EnumerateFiles("AzgaarToCK3_*.log")
+                .OrderByDescending(f => f.LastWriteTime)
+                .Skip(keep)
+                .ToArray();
+            foreach (var f in files)
+            {
+                try { f.Delete(); } catch { /* best effort */ }
+            }
+        }
+        catch { /* best effort */ }
     }
 
     /// <summary>
@@ -467,6 +521,8 @@ internal class Program
         Console.WriteLine("  --log-level <verbose|debug|info|warning|error>  Set log verbosity (default: info)");
         Console.WriteLine("  --no-images                      Suppress debug image generation (provinces.png and rivers.png still written)");
         Console.WriteLine("  --no-wipe                        Skip auto-wipe of mod output directory before conversion (default: wipe enabled)");
+        Console.WriteLine("  --no-log-file                    Disable writing a .log file alongside the exe (default: write to ./logs/)");
+        Console.WriteLine("  --log-file <path>                Override the log file path (default: ./logs/AzgaarToCK3_<timestamp>.log)");
         Console.WriteLine("  --empire-from-culture <bool>     Form empires by culture instead of religion");
         Console.WriteLine("  --min-duchies-per-kingdom <int>  Minimum duchies per kingdom (default: 4)");
         Console.WriteLine("  --min-kingdoms-per-empire <int>  Minimum kingdoms per empire (default: 3)");
