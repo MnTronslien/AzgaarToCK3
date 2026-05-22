@@ -1,3 +1,10 @@
+# 1.1.3 — 2026-05-22
+
+### Fixed
+- use source-generated JsonSerializerContext for AOT
+
+---
+
 # 1.1.2 — 2026-05-21
 
 First-run UX overhaul. A freshly downloaded converter used to crash silently when launched from Explorer — the console window flashed and closed before the user could read anything. Both the underlying bug and the fragile auto-detection that surfaced it are fixed here. Reported by a downstream user as "I double-clicked ConsoleUI and nothing happened."
