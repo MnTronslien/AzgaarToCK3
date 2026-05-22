@@ -203,6 +203,7 @@ namespace Converter.Lemur
             }
             using (var _ = OperationTimer.Start("Assigning province terrain"))
                 BaronyTerrainAssigner.Assign(map);
+            await TerrainDebugImage.Write(map);
 
             Logger.Section("Writing CK3 mod files");
 
