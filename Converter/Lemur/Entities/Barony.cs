@@ -1,6 +1,7 @@
 using ImageMagick;
 using Converter.Lemur;
 using Converter.Lemur.Deserialization;
+using Converter.Lemur.Provinces;
 
 namespace Converter.Lemur.Entities
 {
@@ -30,6 +31,14 @@ namespace Converter.Lemur.Entities
         public ITitle? DeFactoLiege { get; set; }
         public Character? Holder { get; set; }
         public Barony? Capital { get; set; }
+
+        /// <summary>
+        /// CK3 gameplay terrain type for this barony's province. Set by
+        /// <c>BaronyTerrainAssigner</c> before writers run; consumed by
+        /// <c>ProvinceTerrainWriter</c>. Defaults to <see cref="Ck3Terrain.Plains"/>
+        /// so a missing assigner step yields the same output as the pre-feature behaviour.
+        /// </summary>
+        public Ck3Terrain Ck3Terrain { get; set; } = Ck3Terrain.Plains;
 
         public string Ck3_Id() => Helper.ToCk3Id("b", Name, Id);
 
