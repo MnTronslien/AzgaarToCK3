@@ -73,6 +73,28 @@ public static class TerrainDebugImage
             drawablesList.Add(ImageUtility.GenerateCellPolygons(cells, WastelandColor, map));
         }
 
+        // Repaint sea/major-river/far-sea polygons LAST so they reclaim any pixels that
+        // coastal land-cell Voronoi polygons bled into. We don't care about distinguishing
+        // individual sea bodies — every sea-side pixel just needs to read as "sea." Without
+        // this step, coastal wasteland cells (whose Voronoi polygons extend into the water)
+        // paint pale-grey "fingers" reaching into the ocean. Mirrors the pattern used by
+        // ImageUtility.DrawProvincesImage for the production provinces.png.
+        if (map.SeaZones is { Count: > 0 })
+        {
+            var cells = map.SeaZones.SelectMany(z => z.Cells);
+            drawablesList.Add(ImageUtility.GenerateCellPolygons(cells, SeaColor, map));
+        }
+        if (map.FarSeaZones is { Count: > 0 })
+        {
+            var cells = map.FarSeaZones.SelectMany(z => z.Cells);
+            drawablesList.Add(ImageUtility.GenerateCellPolygons(cells, SeaColor, map));
+        }
+        if (map.MajorRiverProvinces is { Count: > 0 })
+        {
+            var cells = map.MajorRiverProvinces.SelectMany(r => r.Cells);
+            drawablesList.Add(ImageUtility.GenerateCellPolygons(cells, SeaColor, map));
+        }
+
         canvas.Draw(drawablesList.SelectMany(d => d));
 
         DrawLegend(canvas);
