@@ -1,7 +1,11 @@
 # 1.1.3 — 2026-05-22
 
+Hotfix for the AOT release builds. Any conversion run with rivers enabled (the default) on 1.1.1 or 1.1.2 crashed mid-pipeline with `Reflection-based serialization has been disabled for this application`. Reported by a downstream user testing a custom map.
+
 ### Fixed
-- use source-generated JsonSerializerContext for AOT
+- **Rivers loader crash under Native AOT.** `RiverLoader.LoadRiverControlPoints` built a fresh `JsonSerializerOptions` with no `TypeInfoResolver`, so `JsonSerializer.Deserialize<RiverGeoJson>` fell through to the reflection path which Native AOT disables. New `RiverGeoJsonContext` source-generated `JsonSerializerContext` restores deserialization under AOT. Same treatment applied to `CellDump` (`DumpFile` via `CellDumpContext`), which was on the same broken pattern but only reachable through the `--dump-cells` debug flag.
+
+Workaround for users still on 1.1.1 / 1.1.2: pass `--no-rivers` until they update.
 
 ---
 
