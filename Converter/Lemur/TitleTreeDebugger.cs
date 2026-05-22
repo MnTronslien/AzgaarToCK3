@@ -29,6 +29,7 @@ public static class TitleTreeDebugger
     /// </summary>
     public static void PrintTrees(L.Map map)
     {
+        if (Settings.Instance.LogLevel > LogLevel.Debug) return;
         if (map.Empires is null) return;
         Logger.Section("DE FACTO TITLE TREE");
 
@@ -87,6 +88,7 @@ public static class TitleTreeDebugger
     /// </summary>
     public static void PrintCharacterDomains(L.Map map)
     {
+        if (Settings.Instance.LogLevel > LogLevel.Debug) return;
         if (map.Empires is null) return;
         Logger.Section("CHARACTER DOMAINS");
 
@@ -145,6 +147,7 @@ public static class TitleTreeDebugger
     /// </summary>
     public static void PrintDeJureTrees(L.Map map)
     {
+        if (Settings.Instance.LogLevel > LogLevel.Debug) return;
         if (map.Empires is null) return;
         Logger.Section("DE JURE TITLE TREE");
 
