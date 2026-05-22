@@ -1,7 +1,15 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Converter.Lemur.Entities;
 
 namespace Converter.Lemur.Writers;
+
+// Source-generated JsonSerializerContext so --dump-cells works under Native AOT.
+// Must be namespace-level (not nested) — JsonSourceGenerator only generates
+// for top-level partial classes. See bugs/BUG_aot-reflection-json-rivers.md.
+[JsonSourceGenerationOptions(WriteIndented = false, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(CellDump.DumpFile))]
+internal partial class CellDumpContext : JsonSerializerContext { }
 
 public static class CellDump
 {
@@ -19,12 +27,6 @@ public static class CellDump
 
     public record DumpFile(MapCoords Coords, CellRecord[] Cells);
 
-    private static readonly JsonSerializerOptions Options = new()
-    {
-        WriteIndented = false,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    };
-
     public static void Write(string path, IReadOnlyDictionary<int, Cell> cells, MapCoords coords)
     {
         var records = cells.Values
@@ -39,12 +41,12 @@ public static class CellDump
                 c.Biome))
             .ToArray();
 
-        File.WriteAllText(path, JsonSerializer.Serialize(new DumpFile(coords, records), Options));
+        File.WriteAllText(path, JsonSerializer.Serialize(new DumpFile(coords, records), CellDumpContext.Default.DumpFile));
     }
 
     public static (Dictionary<int, Cell> Cells, MapCoords Coords) Read(string path)
     {
-        var dump = JsonSerializer.Deserialize<DumpFile>(File.ReadAllText(path), Options)
+        var dump = JsonSerializer.Deserialize(File.ReadAllText(path), CellDumpContext.Default.DumpFile)
             ?? throw new InvalidDataException($"Failed to deserialize cell dump: {path}");
 
         var cells = dump.Cells.ToDictionary(
