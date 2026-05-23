@@ -95,13 +95,17 @@ public static class TerrainRegistry
 
         // ── Hot-arid trio (Oasis > Desert; both > nothing) ──────────────────────
 
-        new(Ck3Terrain.Oasis, (in BaronyContext ctx) =>
+        new(Ck3Terrain.Oasis, (in BaronyContext _) =>
         {
-            // Oasis is the river-adjacent fertile patch within the hot desert biome.
-            // Specifically scored above plain Desert so it wins when both fire.
-            return ctx.DominantBiome == AzgaarBiome.HotDesert && ctx.RiverAdjacent
-                ? HARD_WIN
-                : 0f;
+            // Parked at 0 pending a better signal. The "HotDesert + river-adjacent" rule
+            // over-fires once minor rivers are counted for adjacency: on a river-dense map,
+            // every HotDesert cell is within one neighbour-hop of a river, so Oasis swallows
+            // the entire Desert category. Real oases are tiny isolated wet spots inside large
+            // arid expanses, not "every desert near a river." Likely better signals to try
+            // next: require population presence (burgs cluster at oases), restrict to cells
+            // ON a river rather than neighbouring one, or detect freshwater-feature adjacency
+            // specifically rather than any river.
+            return 0f;
         }),
 
         new(Ck3Terrain.Desert, (in BaronyContext ctx) =>
