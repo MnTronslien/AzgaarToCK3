@@ -692,6 +692,24 @@ namespace Converter.Lemur
             Logger.Info($"Generated {baronies.Count} baronies");
         }
 
+        /// <summary>
+        /// Adds <paramref name="cells"/> to <paramref name="map"/> as a Duchy if at least one
+        /// cell has a burg; otherwise treats the cells as a Wasteland. Single source of truth
+        /// for the "valid Duchy" invariant — both code paths in <see cref="GenerateDuchies"/>
+        /// route through here so a future duchy-creating path cannot silently skip the check.
+        /// </summary>
+        private static void AddDuchyOrWasteland(
+            List<Duchy> duchies, Map map, int id, List<Cell> cells, string name)
+        {
+            if (!cells.Any(c => c.Burg != null))
+            {
+                Logger.Info($"Skipping {name} (id={id}) — no burgs in cells; treating as Wasteland.");
+                map.Wastelands?.Add(new Wasteland(id, cells, name));
+                return;
+            }
+            duchies.Add(new Duchy(id, cells, name));
+        }
+
         private static void GenerateDuchies(Map map)
         {
             //Duchies are based on Azgaar Provinces. Except in the case of the wastelands where parts of a state can be assigned to the wastelands province (0) and we must generate a new from the state.
@@ -720,18 +738,9 @@ namespace Converter.Lemur
                     continue;
                 }
 
-                //If none of the cells has a burg, skip the province
-                if (!province.Any(c => c.Value.Burg != null))
-                {
-                    //log the name of the province skipped
-                    Logger.Info($"Skipping province {provinceData.name} as it has no burgs (Wasteland)");
-
-                    //We have also dicovered a wasteland province, so we generate a wasteland province and add it to the wastelands list
-                    List<Cell> wastelandCells = province.Select(c => c.Value).ToList();
-                    map.Wastelands?.Add(new Wasteland(province.Key, wastelandCells, provinceData.name));
-
-                    continue;
-                }
+                // Burg-presence check now lives in AddDuchyOrWasteland (called below for the
+                // normal path and inside the wastelands-province state loop). A province / state
+                // with no burg-bearing cells falls back to a Wasteland with that province / state's name.
                 if (province.Key == 0)
                 {
                     // Handle the wastelands province, it might actually contain cells assigned to states
@@ -750,9 +759,8 @@ namespace Converter.Lemur
 
                         //look up the state in the json data, we will reuse the state name as the duchy name
                         var stateData = map.JsonMap.pack.states.First(s => s.i == state.Key);
-                        var d = new Duchy(i: stateData.i, cells: state.Select(c => c.Value).ToList(), stateData.name);
-                        duchies.Add(d);
-
+                        AddDuchyOrWasteland(duchies, map, stateData.i,
+                            state.Select(c => c.Value).ToList(), stateData.name);
                     }
                     Logger.Info($"Some cells in the azgaar wastelands province are assigned to states, we generated {duchies.Count} duchies from these states to preserve the state structure as much as possible. The rest of the cells are assigned to the Wastelands province.");
                     continue;
@@ -760,12 +768,7 @@ namespace Converter.Lemur
 
 
                 List<Cell> cells = province.Select(c => c.Value).ToList();
-
-                //Generate a duchy
-                var duchy = new Duchy(provinceData.i, cells, provinceData.name);
-
-                duchies.Add(duchy);
-
+                AddDuchyOrWasteland(duchies, map, provinceData.i, cells, provinceData.name);
             }
 
             map.Duchies = duchies;
