@@ -67,18 +67,21 @@ public static class TerrainRegistry
         {
             if (ctx.DominantBiome != AzgaarBiome.HotDesert
              && ctx.DominantBiome != AzgaarBiome.ColdDesert) return 0f;
-            const float bandLow = 0.65f, bandHigh = float.PositiveInfinity, max = 4.5f;
+            const float bandLow = 0.65f, bandHigh = float.PositiveInfinity, max = 6.0f;
             return BandFraction(ctx.CellRoughnesses, bandLow, bandHigh, max);
         }),
 
         new(Ck3Terrain.Mountains, (in BaronyContext ctx) =>
         {
-            // max = 4.5 sits above STRONG_MATCH (3.0) — beats Forest/Drylands/Taiga at high
-            // mountain-cell fractions — and below HARD_WIN (5.0) — Wetlands and Jungle still
-            // win their biome lock. To make Mountains overrule Jungle (Himalayan foothills),
-            // bump max above 5.0 and add an equivalent bump to Wetlands so mountain-swamp
-            // doesn't appear.
-            const float bandLow = 0.65f, bandHigh = float.PositiveInfinity, max = 4.5f;
+            // max = 6.0 sits above HARD_WIN (5.0). Crossovers:
+            //   vs STRONG_MATCH biome (Forest/Drylands/Taiga):  50 % mountain cells (3/6)
+            //   vs HARD_WIN biome     (Wetlands/Jungle):        83 % mountain cells (5/6)
+            // Below 50 % the biome rule wins (mostly-forest barony with a peak stays Forest).
+            // Above 83 % even hard-biome locks lose to Mountains — defensible because at
+            // 83 %+ mountain cells the barony is overwhelmingly relief; a "wetland" or
+            // "jungle" label in that case is just Azgaar's climate classifier disagreeing
+            // with the geometry, and CK3 vanilla calls such places mountains regardless.
+            const float bandLow = 0.65f, bandHigh = float.PositiveInfinity, max = 6.0f;
             return BandFraction(ctx.CellRoughnesses, bandLow, bandHigh, max);
         }),
 
