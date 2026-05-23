@@ -17,13 +17,6 @@ namespace Converter.Lemur.Provinces;
 // Jungle), Glacier (Mountains vs Taiga).
 public static class TerrainRegistry
 {
-    // ── Steepness thresholds — chosen to track the splatmap's visual hill/mountain ramps so
-    //    a barony that the game *paints* as mountainous is also *gameplay-tagged* as such.
-    //    See Lemur/Splats/MaterialRegistry.cs: hills_01 Tent peaks at 0.40, central_mountain
-    //    LinearRamp starts at 0.65. Tune in lockstep with those if either side moves.
-    public const float HILL_ROUGHNESS_THRESHOLD     = 0.30f;
-    public const float MOUNTAIN_ROUGHNESS_THRESHOLD = 0.65f;
-
     // ── Population thresholds — placeholders. Real values need in-game tuning against a real
     //    map. PopDensity is burg.Population / cellCount; raw Population is the unscaled burg
     //    field from Azgaar (typically 0..~100 for a large city).
@@ -32,12 +25,26 @@ public static class TerrainRegistry
 
     // ── Score weights — unbounded non-negative. "Hard wins" use ≥ 5 so biome-defining rules
     //    can't be beaten by the soft fallback. Soft fallbacks sit at ~0.1 so they win only
-    //    when nothing else fires.
+    //    when nothing else fires. Band-based steepness rules (Hills, Mountains, DesertMountains)
+    //    use their own `max` constants declared next to each lambda — see those for tuning.
     private const float HARD_WIN          = 5.0f;
     private const float STRONG_MATCH      = 3.0f;
     private const float MODERATE_MATCH    = 2.0f;
     private const float WEAK_MATCH        = 1.0f;
     private const float PLAINS_FALLBACK   = 0.1f;
+
+    // Helper for band-based scoring: fraction of cells whose roughness falls in [low, high),
+    // multiplied by `max`. 0 cells in the band → 0 score; all cells in band → `max` score.
+    // Linear in-between. Used by Hills / Mountains / DesertMountains.
+    private static float BandFraction(IReadOnlyList<float> roughnesses, float low, float high, float max)
+    {
+        int n = roughnesses.Count;
+        if (n == 0) return 0f;
+        int hits = 0;
+        for (int i = 0; i < n; i++)
+            if (roughnesses[i] >= low && roughnesses[i] < high) hits++;
+        return (hits / (float)n) * max;
+    }
 
     public static readonly IReadOnlyList<TerrainCandidate> All = new TerrainCandidate[]
     {
@@ -49,25 +56,30 @@ public static class TerrainRegistry
         new(Ck3Terrain.Jungle, (in BaronyContext ctx) =>
             ctx.DominantBiome == AzgaarBiome.TropicalRainforest ? HARD_WIN : 0f),
 
-        // ── Steepness-driven (geometry beats biome) ──────────────────────────────
-        // DesertMountains placed BEFORE Mountains so when both fire in a desert
-        // barony, DesertMountains' higher score wins.
+        // ── Steepness-driven (geometry beats most biomes) ─────────────────────
+        // Band-based: fraction of cells in [low, high) × max. So 100 % mountain-grade cells
+        // gives the full `max`; 0 % gives 0; linear in between. Same formula for Mountains
+        // and DesertMountains; the only difference is DesertMountains' biome gate. Mountains
+        // and DesertMountains use IDENTICAL band+max, so they tie when both fire; registry
+        // order places DesertMountains first so it wins in arid biomes.
 
         new(Ck3Terrain.DesertMountains, (in BaronyContext ctx) =>
         {
-            if (ctx.Roughness < MOUNTAIN_ROUGHNESS_THRESHOLD) return 0f;
-            bool isHotArid = ctx.DominantBiome == AzgaarBiome.HotDesert
-                          || ctx.DominantBiome == AzgaarBiome.ColdDesert;
-            return isHotArid ? HARD_WIN : 0f;
+            if (ctx.DominantBiome != AzgaarBiome.HotDesert
+             && ctx.DominantBiome != AzgaarBiome.ColdDesert) return 0f;
+            const float bandLow = 0.65f, bandHigh = float.PositiveInfinity, max = 4.5f;
+            return BandFraction(ctx.CellRoughnesses, bandLow, bandHigh, max);
         }),
 
         new(Ck3Terrain.Mountains, (in BaronyContext ctx) =>
         {
-            if (ctx.Roughness < MOUNTAIN_ROUGHNESS_THRESHOLD) return 0f;
-            // Wetland / Jungle already won as hard biome lock-ins; Mountains takes
-            // everything else that's vertical enough (incl. Glacier — snowy peaks
-            // read as mountains, the cleanest CK3 analogue for high-altitude ice).
-            return STRONG_MATCH;
+            // max = 4.5 sits above STRONG_MATCH (3.0) — beats Forest/Drylands/Taiga at high
+            // mountain-cell fractions — and below HARD_WIN (5.0) — Wetlands and Jungle still
+            // win their biome lock. To make Mountains overrule Jungle (Himalayan foothills),
+            // bump max above 5.0 and add an equivalent bump to Wetlands so mountain-swamp
+            // doesn't appear.
+            const float bandLow = 0.65f, bandHigh = float.PositiveInfinity, max = 4.5f;
+            return BandFraction(ctx.CellRoughnesses, bandLow, bandHigh, max);
         }),
 
         // ── Cold-biome forest catch-all (Taiga absorbs Tundra; CK3 has no "tundra") ──
@@ -76,10 +88,10 @@ public static class TerrainRegistry
         {
             var b = ctx.DominantBiome;
             if (b == AzgaarBiome.Taiga || b == AzgaarBiome.Tundra) return HARD_WIN;
-            // Glacier on flat ground — no CK3 "glacier" terrain exists. Taiga is the
-            // least-wrong fallback (cold + low-supply). Flip to a different terrain
-            // here if test maps show large flat Glacier zones reading poorly.
-            if (b == AzgaarBiome.Glacier && ctx.Roughness < MOUNTAIN_ROUGHNESS_THRESHOLD) return STRONG_MATCH;
+            // Glacier — no CK3 "glacier" terrain exists. Taiga is the least-wrong fallback
+            // (cold + low-supply). The Mountains rule will out-score this whenever the
+            // Glacier zone has enough mountain-grade cells to be properly mountainous.
+            if (b == AzgaarBiome.Glacier) return STRONG_MATCH;
             return 0f;
         }),
 
@@ -149,15 +161,18 @@ public static class TerrainRegistry
 
         new(Ck3Terrain.Hills, (in BaronyContext ctx) =>
         {
-            // Hills fires on moderately rough non-forest, non-wetland, non-jungle land.
-            // Forests in CK3 don't have a "hilly forest" terrain — biome wins there.
-            if (ctx.Roughness < HILL_ROUGHNESS_THRESHOLD) return 0f;
-            if (ctx.Roughness >= MOUNTAIN_ROUGHNESS_THRESHOLD) return 0f;  // Mountains owns this band
-            var b = ctx.DominantBiome;
-            // Restrict to "open" biomes — Grassland and similar — so Hills doesn't steal
-            // from Forest/Desert/Taiga which read better as their biome at moderate slopes.
-            if (b == AzgaarBiome.Grassland) return STRONG_MATCH;
-            return 0f;
+            // max = 1.2 — sits just above PLAINS_FALLBACK and WEAK_MATCH (1.0), below every
+            // biome rule (STRONG_MATCH 3.0 and HARD_WIN 5.0). So Hills wins over plain Plains
+            // (hilly grassland → Hills) but loses to all biome rules (hilly forest → Forest;
+            // hilly desert → Desert). Vanilla CK3 has no "hilly forest" or "hilly desert"
+            // terrain — biome wins those cases, which matches this scoring.
+            //
+            // No biome filter (intentional). The score discipline alone produces the right
+            // outcomes: only Plains baronies have nothing else firing strongly enough to
+            // beat 1.2, so Hills only takes from Plains. There is no analogous DesertHills
+            // entry because CK3 has no such terrain — hilly hot desert just stays Desert.
+            const float bandLow = 0.30f, bandHigh = 0.65f, max = 1.2f;
+            return BandFraction(ctx.CellRoughnesses, bandLow, bandHigh, max);
         }),
 
         new(Ck3Terrain.Plains, (in BaronyContext ctx) =>

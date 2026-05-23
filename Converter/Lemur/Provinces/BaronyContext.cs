@@ -17,8 +17,13 @@ public readonly struct BaronyContext
     /// </summary>
     public readonly IReadOnlyDictionary<AzgaarBiome, float> BiomeFraction;
 
-    /// <summary>p75 of <see cref="Entities.Cell.Roughness"/> across this barony's cells. [0..1].</summary>
-    public readonly float Roughness;
+    /// <summary>
+    /// Raw per-cell roughness values for this barony, in [0..1] (p95-normalised; values can
+    /// occasionally exceed 1.0). Exposed as a list so band-based rules (Hills, Mountains,
+    /// DesertMountains) can compute their own "fraction of cells in band [x, y]" → score
+    /// interpolation locally, keeping each rule's tuning knobs adjacent to its lambda.
+    /// </summary>
+    public readonly IReadOnlyList<float> CellRoughnesses;
 
     /// <summary>True if any cell in this barony touches a major-river province or a freshwater feature.</summary>
     public readonly bool RiverAdjacent;
@@ -35,7 +40,7 @@ public readonly struct BaronyContext
     public BaronyContext(
         AzgaarBiome dominantBiome,
         IReadOnlyDictionary<AzgaarBiome, float> biomeFraction,
-        float roughness,
+        IReadOnlyList<float> cellRoughnesses,
         bool riverAdjacent,
         float popDensity,
         float population,
@@ -43,7 +48,7 @@ public readonly struct BaronyContext
     {
         DominantBiome = dominantBiome;
         BiomeFraction = biomeFraction;
-        Roughness = roughness;
+        CellRoughnesses = cellRoughnesses;
         RiverAdjacent = riverAdjacent;
         PopDensity = popDensity;
         Population = population;

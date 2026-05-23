@@ -42,7 +42,7 @@ public static class BaronyTerrainAssigner
     {
         var cells = barony.Cells;
         if (cells.Count == 0)
-            return new BaronyContext(AzgaarBiome.None, new Dictionary<AzgaarBiome, float>(), 0f, false, 0f, 0f, 0);
+            return new BaronyContext(AzgaarBiome.None, new Dictionary<AzgaarBiome, float>(), Array.Empty<float>(), false, 0f, 0f, 0);
 
         // Biome fractions and dominant biome by cell count.
         var biomeCounts = new Dictionary<AzgaarBiome, int>();
@@ -56,10 +56,9 @@ public static class BaronyTerrainAssigner
             kv => (float)kv.Value / cells.Count);
         var dominantBiome = biomeCounts.OrderByDescending(kv => kv.Value).First().Key;
 
-        // p75 roughness across cells. A single rough cell in an otherwise flat barony shouldn't
-        // tip the whole barony into Hills/Mountains; using the upper-quartile lets a clear
-        // majority of rough cells drive the decision while the mean still respects outliers.
-        float roughnessP75 = Percentile(cells.Select(c => c.Roughness).ToList(), 0.75);
+        // Raw per-cell roughness, exposed unaggregated so band-based score rules (Hills,
+        // Mountains, DesertMountains) can do their own fraction-in-band calculation.
+        var cellRoughnesses = cells.Select(c => c.Roughness).ToArray();
 
         bool riverAdjacent = cells.Any(c => cellIsRiverAdjacent.GetValueOrDefault(c.Id, false));
 
@@ -67,13 +66,13 @@ public static class BaronyTerrainAssigner
         float popDensity = cells.Count > 0 ? population / cells.Count : 0f;
 
         return new BaronyContext(
-            dominantBiome:  dominantBiome,
-            biomeFraction:  biomeFraction,
-            roughness:      roughnessP75,
-            riverAdjacent:  riverAdjacent,
-            popDensity:     popDensity,
-            population:     population,
-            cellCount:      cells.Count);
+            dominantBiome:     dominantBiome,
+            biomeFraction:     biomeFraction,
+            cellRoughnesses:   cellRoughnesses,
+            riverAdjacent:     riverAdjacent,
+            popDensity:        popDensity,
+            population:        population,
+            cellCount:         cells.Count);
     }
 
     private static Ck3Terrain PickWinner(in BaronyContext ctx)
@@ -122,14 +121,6 @@ public static class BaronyTerrainAssigner
             adj[id] = any;
         }
         return adj;
-    }
-
-    private static float Percentile(List<float> values, double p)
-    {
-        if (values.Count == 0) return 0f;
-        values.Sort();
-        int idx = (int)Math.Clamp(Math.Floor(p * (values.Count - 1)), 0, values.Count - 1);
-        return values[idx];
     }
 
     private static void LogHistogram(Dictionary<Ck3Terrain, int> histogram, int total)
