@@ -35,6 +35,9 @@ public static class TerrainDebugImage
     // and WastelandColor swatches. The CK3 in-game ocean blue (#446BA3) is too muted; at a glance
     // it merges with dark land. This is a debug image, not the production splatmap — readability beats fidelity.
     private static readonly MagickColor SeaColor       = MagickColor.FromRgb(0x30, 0x60, 0xE0);
+    // Darker navy than the sea so river lines read on top of any land terrain colour AND
+    // remain visible where they cross sea-coloured pixels (deltas, mouths).
+    private static readonly MagickColor RiverColor     = MagickColor.FromRgb(0x0C, 0x20, 0x70);
     // Wastelands need a colour distinct from every entry in the Palette AND from SeaColor.
     // Near-black (the previous choice) was indistinguishable from DesertMountains. Off-white
     // is the only remaining hue space that doesn't collide with any terrain (Mountains is medium
@@ -97,6 +100,12 @@ public static class TerrainDebugImage
 
         canvas.Draw(drawablesList.SelectMany(d => d));
 
+        // Rivers go on top of every terrain layer so they remain visible regardless of
+        // what's underneath. We draw control points as polylines rather than reading
+        // map_data/rivers.png — keeps everything in vector space, no PNG composite, and
+        // gives us control over colour/stroke independent of CK3's required palette.
+        DrawRivers(canvas, map);
+
         DrawLegend(canvas);
 
         canvas.HasAlpha = false;
@@ -109,6 +118,46 @@ public static class TerrainDebugImage
         await canvas.WriteAsync(path);
         Logger.Info($"Saved terrain overview to '{path}'");
         ImageUtility.RegisterGeneratedImage(path);
+    }
+
+    private static void DrawRivers(MagickImage canvas, Map map)
+    {
+        if (map.Rivers is null || map.Rivers.Count == 0) return;
+
+        var coords = map.JsonMap.mapCoordinates;
+        float xOffset = coords.lonW;
+        float yOffset = coords.latS;
+        float xRatio  = Map.MapWidth  / coords.lonT;
+        float yRatio  = Map.MapHeight / coords.latT;
+
+        var d = new Drawables()
+            .DisableStrokeAntialias()
+            .FillColor(MagickColors.None)
+            .StrokeColor(RiverColor);
+
+        int drawn = 0;
+        foreach (var river in map.Rivers)
+        {
+            if (river.ControlPoints is null || river.ControlPoints.Count < 2) continue;
+
+            // Stroke width scales with reported river width so major rivers visually dominate
+            // tributaries. Minimum is set high enough (~16px) that lines remain visible after
+            // the typical ~10–15x downscale used when previewing this 8192×4096 image.
+            float strokeWidth = Math.Clamp(river.Width * 3f, 16f, 80f);
+
+            var points = river.ControlPoints.Select(cp => new PointD(
+                (cp[0] - xOffset) * xRatio,
+                Map.MapHeight - (cp[1] - yOffset) * yRatio));
+
+            d = d.StrokeWidth(strokeWidth).Polyline(points);
+            drawn++;
+        }
+
+        if (drawn > 0)
+        {
+            canvas.Draw(d);
+            Logger.Info($"TerrainDebugImage — drew {drawn} river polyline(s)");
+        }
     }
 
     // Legend layout — sized for the full 8192×4096 canvas so it is readable when the image
