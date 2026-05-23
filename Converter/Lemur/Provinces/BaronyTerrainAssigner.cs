@@ -18,10 +18,12 @@ public static class BaronyTerrainAssigner
 
         // Pre-compute "is this cell river-adjacent" once per cell so the per-barony pass
         // doesn't repeat the neighbour walk per barony cell. River-adjacent = at least one
-        // neighbour is a synthetic major-river cell OR a freshwater/lake feature cell. Lakes
-        // count so an Oasis-style "fertile patch near water" rule fires near inland water,
-        // not only along major rivers.
-        var cellIsRiverAdjacent = ComputeRiverAdjacency(map.Cells);
+        // neighbour is on a river path (any river, major or minor) OR is a freshwater/lake
+        // feature cell. We consult map.Rivers.CellIds directly rather than relying on the
+        // synthetic IsRiverCell flag — that flag is only set by MajorRiverInserter for rivers
+        // above MajorRiverThreshold, and with the threshold at 999999 (current default) it
+        // never fires, which would silently disable Oasis/Floodplains scoring.
+        var cellIsRiverAdjacent = ComputeRiverAdjacency(map.Cells, map.Rivers);
 
         var histogram = new Dictionary<Ck3Terrain, int>();
 
@@ -91,8 +93,19 @@ public static class BaronyTerrainAssigner
         return winner;
     }
 
-    private static Dictionary<int, bool> ComputeRiverAdjacency(IReadOnlyDictionary<int, Cell> cells)
+    private static Dictionary<int, bool> ComputeRiverAdjacency(
+        IReadOnlyDictionary<int, Cell> cells,
+        IReadOnlyList<River>? rivers)
     {
+        // Collect every cell id that appears on any river path. Minor rivers don't get
+        // IsRiverCell set on cells (only major rivers do, via MajorRiverInserter), so we
+        // build this set from the rivers list directly to catch both.
+        var onRiver = new HashSet<int>();
+        if (rivers is not null)
+            foreach (var r in rivers)
+                foreach (var cellId in r.CellIds)
+                    onRiver.Add(cellId);
+
         var adj = new Dictionary<int, bool>(cells.Count);
         foreach (var (id, cell) in cells)
         {
@@ -100,6 +113,7 @@ public static class BaronyTerrainAssigner
             bool any = false;
             foreach (var nid in cell.Neighbors)
             {
+                if (onRiver.Contains(nid)) { any = true; break; }
                 if (!cells.TryGetValue(nid, out var n) || n is null) continue;
                 if (n.IsRiverCell) { any = true; break; }
                 if (n.Type == Cell.FeatureType.freshwater) { any = true; break; }
