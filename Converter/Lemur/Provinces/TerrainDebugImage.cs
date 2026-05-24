@@ -155,16 +155,17 @@ public static class TerrainDebugImage
         }
     }
 
-    // Out-of-band value so Wastelands can share the same legend rendering path as real terrains.
-    private const Ck3Terrain WastelandSentinel = (Ck3Terrain)999;
+    private sealed record LegendEntry(string Label, MagickColor Color);
+
+    private static readonly IReadOnlyList<LegendEntry> LegendEntries =
+        Palette
+            .OrderBy(kv => kv.Key.ToCk3String())
+            .Select(kv => new LegendEntry(FormatLabel(kv.Key), kv.Value))
+            .Append(new LegendEntry("Wasteland", WastelandColor))
+            .ToList();
 
     private static void DrawLegend(MagickImage canvas)
     {
-        var entries = Palette.Keys
-            .OrderBy(k => k.ToCk3String())
-            .Append(WastelandSentinel)                     // appears last in the legend
-            .ToList();
-
         const int rowsPerColumn = 8;                       // 16 entries → 8 + 8
         const int columns       = 2;
         const int swatchW       = 90;
@@ -201,7 +202,7 @@ public static class TerrainDebugImage
 
         d = d.FontPointSize(40).TextAlignment(TextAlignment.Left);
 
-        for (int i = 0; i < entries.Count; i++)
+        for (int i = 0; i < LegendEntries.Count; i++)
         {
             int col = i / rowsPerColumn;
             int row = i % rowsPerColumn;
@@ -209,12 +210,9 @@ public static class TerrainDebugImage
             int rowX = x0 + panelPad + col * (colWidth + colGap);
             int rowY = y0 + panelPad + titleH + titlePad + row * (swatchH + rowGap);
 
-            var terrain = entries[i];
-            var swatchColor = terrain == WastelandSentinel
-                ? WastelandColor
-                : Palette[terrain];
+            var entry = LegendEntries[i];
 
-            d = d.FillColor(swatchColor)
+            d = d.FillColor(entry.Color)
                  .StrokeColor(MagickColors.Black)
                  .StrokeWidth(2)
                  .Rectangle(rowX, rowY, rowX + swatchW, rowY + swatchH);
@@ -222,7 +220,7 @@ public static class TerrainDebugImage
             d = d.FillColor(MagickColors.Black)
                  .StrokeColor(MagickColors.Black)
                  .StrokeWidth(0)
-                 .Text(rowX + swatchW + textPad, rowY + swatchH - 14, FormatLabel(terrain));
+                 .Text(rowX + swatchW + textPad, rowY + swatchH - 14, entry.Label);
         }
 
         canvas.Draw(d);
@@ -232,7 +230,6 @@ public static class TerrainDebugImage
     {
         Ck3Terrain.DesertMountains => "Desert Mountains",
         Ck3Terrain.TerracedHills   => "Terraced Hills",
-        WastelandSentinel          => "Wasteland",
         _                           => Char.ToUpper(t.ToCk3String()[0]) + t.ToCk3String().Substring(1),
     };
 
