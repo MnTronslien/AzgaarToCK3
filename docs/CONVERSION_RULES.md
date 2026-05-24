@@ -107,6 +107,8 @@ Each barony's CK3 terrain type is picked by scoring it against every candidate t
 
 ### Typical output (Showcase test map, 1094 baronies)
 
+![Terrain overview — Showcase](images/terrain_overview_showcase.png)
+
 ```
 jungle               490  ( 44.8%)
 drylands             272  ( 24.9%)
