@@ -82,34 +82,28 @@ These texture choices are a starting point — see [CONTRIBUTING.md](../CONTRIBU
 
 ## Province terrain (gameplay)
 
-Every land province (barony) in the generated mod is assigned one of CK3's gameplay terrain types — `plains`, `hills`, `mountains`, `forest`, `taiga`, `jungle`, `wetlands`, `desert`, `desert_mountains`, `drylands`, `steppe`, `floodplains`, `farmlands`. This drives combat modifiers, movement speed, supply, and holding count. Distinct from the biome **textures** above, which only control what the ground looks like.
+Each barony's CK3 terrain type is picked by scoring it against every candidate terrain and taking the highest score. Three rule shapes contribute:
 
-### How the choice is made
-
-Each barony is scored against every CK3 terrain via a small set of rules (`Converter/Lemur/Provinces/TerrainRegistry.cs`). The highest-scoring terrain wins. Scores live on a roughly 0–1 scale:
-
-- **Biome rules** sum the relevant Azgaar biome fractions across the barony's cells. A 60 % Forest / 40 % Jungle barony scores `0.6` for Forest and `0.4` for Jungle. A pure-biome barony scores `1.0` — that's the natural cap.
-- **Steepness rules** (`Hills`, `Mountains`, `DesertMountains`) score based on the fraction of cells whose surface roughness falls in a specific band. They can deliberately overshoot above 1.0 so genuinely steep relief wins over biome cover — Hills at max 1.5, Mountains/DesertMountains at max 2.0. A barony with 50 % mountain-grade cells reads as `Mountains` regardless of what's growing there.
-- **Conditional rules** (`Floodplains`, `Farmlands`) require a biome match plus secondary signals (river adjacency, population density) and emit a flat score above the biome baseline when they fire.
+- **Biome rules** sum the relevant Azgaar biome fractions across the barony's cells. A 60 % Forest / 40 % Jungle barony scores `0.6` for Forest and `0.4` for Jungle. A pure-biome barony scores `1.0`.
+- **Steepness rules** (`Hills`, `Mountains`, `DesertMountains`) score on the fraction of cells in a roughness band, and may exceed 1.0 so dominant relief overrules biome cover. Crossovers vs a pure biome: Hills at 67 % hill-grade cells, Mountains/DesertMountains at 50 % mountain-grade cells.
+- **Conditional rules** (`Floodplains`, `Farmlands`) require Grassland biome plus extra signals (river adjacency, population density) and emit a flat score above the Grassland baseline when they fire.
 
 ### Azgaar biome → CK3 terrain (default)
 
-| Azgaar biome | Default CK3 terrain |
+| Azgaar biome | CK3 terrain |
 |---|---|
 | Wetland | `wetlands` |
 | Grassland | `plains` (or `floodplains` / `farmlands` if population + river signals fire) |
 | Savanna | `drylands` |
-| Hot Desert | `desert` (or `desert_mountains` on steep relief) |
+| Hot Desert | `desert` (or `desert_mountains` on dominant relief) |
 | Cold Desert | `steppe` |
 | Tropical Seasonal Forest | `drylands` |
 | Temperate Deciduous Forest | `forest` |
 | Tropical Rainforest | `jungle` |
 | Temperate Rainforest | `forest` |
 | Taiga | `taiga` |
-| Tundra | `taiga` (no CK3 "tundra" terrain) |
-| Glacier | `taiga` (no CK3 "glacier" terrain; flips to `mountains` on steep cells) |
-
-Steepness can overrule biome on dominant relief: 50 %+ mountain-grade cells flip the barony to `mountains` regardless of biome; 67 %+ hill-grade cells flip to `hills`.
+| Tundra | `taiga` |
+| Glacier | `taiga` (flips to `mountains` on dominant relief) |
 
 ### Typical output (Showcase test map, 1094 baronies)
 
@@ -123,15 +117,7 @@ mountains             19  (  1.7%)
 desert                 4  (  0.4%)
 ```
 
-Showcase is a tropical archipelago with cold arid uplands in the north — so jungle/drylands/forest dominate, with mountain peaks and rolling hills in the northern interior. A temperate continental map would show very different proportions (more `forest`, more `plains`, a long `taiga` belt, etc.).
-
-### Inspecting the result
-
-Set `"GenerateDebugImages": true` in `settings.json` and re-run. The converter writes `9_terrain_overview.png` to `%LOCALAPPDATA%\AzgaarToCK3\debug\<run>\` — each barony shaded by its assigned terrain (per the standard CK3 community palette), with river polylines overlaid and black province outlines so you can tell clustered same-terrain baronies apart. This is the loop for calibrating terrain decisions without launching CK3.
-
-### Tuning
-
-All rules and thresholds live in `Converter/Lemur/Provinces/TerrainRegistry.cs`. Each rule is one `TerrainCandidate(Ck3Terrain.X, lambda)` entry — tweak a band, raise a max, or swap a biome → terrain mapping in a few lines and re-run. See [CONTRIBUTING.md](../CONTRIBUTING.md) for the contributor flow.
+Showcase is a tropical archipelago with cold arid uplands in the north. A temperate continental map would show different proportions (more `forest`, more `plains`, a long `taiga` belt).
 
 ---
 
