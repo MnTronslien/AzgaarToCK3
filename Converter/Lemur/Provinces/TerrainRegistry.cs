@@ -8,30 +8,22 @@ namespace Converter.Lemur.Provinces;
 //
 // All rules are pure functions of BaronyContext. No I/O, no shared state.
 //
-// Score scale: non-negative floats (matches MaterialRegistry). Higher = better match. Order
-// in the list breaks ties — hard-win rules (Wetlands, Jungle) come early so they outrank the
-// soft `plains` fallback on equal scores. Tuning by changing the numeric constants below.
+// Score scale: 0..1 is the natural range. A score of 1.0 means a "very confident match"
+// (under the current biome-fraction model that happens only when 100 % of cells belong to a
+// rule's biome set). Values above 1.0 are reserved for the steepness rules (Hills, Mountains,
+// DesertMountains) where geometry should overrule biome in genuinely obvious cases — see
+// each lambda for its `max` and the crossover that implies.
 //
-// Open design questions captured as named constants so they are easy to flip during in-game
-// tuning: see ColdDesert handling (Steppe vs Desert), TropicalSeasonalForest (Drylands vs
-// Jungle), Glacier (Mountains vs Taiga).
+// Order in the list breaks ties. With biome scores capped at 1.0, ties are rare in practice;
+// for the steepness overshoot rules ordering still matters (DesertMountains before Mountains
+// so the arid biome gate wins in deserts when both reach the same score).
 public static class TerrainRegistry
 {
-    // ── Population thresholds — placeholders. Real values need in-game tuning against a real
-    //    map. PopDensity is burg.Population / cellCount; raw Population is the unscaled burg
-    //    field from Azgaar (typically 0..~100 for a large city).
+    // Population thresholds — placeholders pending in-game tuning. PopDensity is
+    // burg.Population / cellCount; raw Population is the unscaled burg field from
+    // Azgaar (typically 0..~100 for a large city).
     public const float FLOODPLAIN_POPDENSITY_MIN = 5.0f;
     public const float FARMLAND_POPDENSITY_MIN   = 8.0f;
-
-    // ── Score weights — unbounded non-negative. "Hard wins" use ≥ 5 so biome-defining rules
-    //    can't be beaten by the soft fallback. Soft fallbacks sit at ~0.1 so they win only
-    //    when nothing else fires. Band-based steepness rules (Hills, Mountains, DesertMountains)
-    //    use their own `max` constants declared next to each lambda — see those for tuning.
-    private const float HARD_WIN          = 5.0f;
-    private const float STRONG_MATCH      = 3.0f;
-    private const float MODERATE_MATCH    = 2.0f;
-    private const float WEAK_MATCH        = 1.0f;
-    private const float PLAINS_FALLBACK   = 0.1f;
 
     // Helper for band-based scoring: fraction of cells whose roughness falls in [low, high),
     // multiplied by `max`. 0 cells in the band → 0 score; all cells in band → `max` score.
@@ -48,155 +40,128 @@ public static class TerrainRegistry
 
     public static readonly IReadOnlyList<TerrainCandidate> All = new TerrainCandidate[]
     {
-        // ── Biome-defined hard wins (geometry doesn't override these) ────────────
+        // ── Biome rules — score = sum of relevant BiomeFractions, capped naturally at 1.0 ──
+        // Each Azgaar biome is mapped to exactly one CK3 terrain to avoid double-counting.
+        // Multi-biome targets (Forest, Taiga, Drylands) sum the contributing fractions.
 
         new(Ck3Terrain.Wetlands, (in BaronyContext ctx) =>
-            ctx.DominantBiome == AzgaarBiome.Wetland ? HARD_WIN : 0f),
+            ctx.BiomeFractionOf(AzgaarBiome.Wetland)),
 
         new(Ck3Terrain.Jungle, (in BaronyContext ctx) =>
-            ctx.DominantBiome == AzgaarBiome.TropicalRainforest ? HARD_WIN : 0f),
-
-        // ── Steepness-driven (geometry beats most biomes) ─────────────────────
-        // Band-based: fraction of cells in [low, high) × max. So 100 % mountain-grade cells
-        // gives the full `max`; 0 % gives 0; linear in between. Same formula for Mountains
-        // and DesertMountains; the only difference is DesertMountains' biome gate. Mountains
-        // and DesertMountains use IDENTICAL band+max, so they tie when both fire; registry
-        // order places DesertMountains first so it wins in arid biomes.
-
-        new(Ck3Terrain.DesertMountains, (in BaronyContext ctx) =>
-        {
-            if (ctx.DominantBiome != AzgaarBiome.HotDesert
-             && ctx.DominantBiome != AzgaarBiome.ColdDesert) return 0f;
-            const float bandLow = 0.65f, bandHigh = float.PositiveInfinity, max = 6.0f;
-            return BandFraction(ctx.CellRoughnesses, bandLow, bandHigh, max);
-        }),
-
-        new(Ck3Terrain.Mountains, (in BaronyContext ctx) =>
-        {
-            // max = 6.0 sits above HARD_WIN (5.0). Crossovers:
-            //   vs STRONG_MATCH biome (Forest/Drylands/Taiga):  50 % mountain cells (3/6)
-            //   vs HARD_WIN biome     (Wetlands/Jungle):        83 % mountain cells (5/6)
-            // Below 50 % the biome rule wins (mostly-forest barony with a peak stays Forest).
-            // Above 83 % even hard-biome locks lose to Mountains — defensible because at
-            // 83 %+ mountain cells the barony is overwhelmingly relief; a "wetland" or
-            // "jungle" label in that case is just Azgaar's climate classifier disagreeing
-            // with the geometry, and CK3 vanilla calls such places mountains regardless.
-            const float bandLow = 0.65f, bandHigh = float.PositiveInfinity, max = 6.0f;
-            return BandFraction(ctx.CellRoughnesses, bandLow, bandHigh, max);
-        }),
-
-        // ── Cold-biome forest catch-all (Taiga absorbs Tundra; CK3 has no "tundra") ──
-
-        new(Ck3Terrain.Taiga, (in BaronyContext ctx) =>
-        {
-            var b = ctx.DominantBiome;
-            if (b == AzgaarBiome.Taiga || b == AzgaarBiome.Tundra) return HARD_WIN;
-            // Glacier — no CK3 "glacier" terrain exists. Taiga is the least-wrong fallback
-            // (cold + low-supply). The Mountains rule will out-score this whenever the
-            // Glacier zone has enough mountain-grade cells to be properly mountainous.
-            if (b == AzgaarBiome.Glacier) return STRONG_MATCH;
-            return 0f;
-        }),
-
-        // ── Temperate forest ─────────────────────────────────────────────────────
+            ctx.BiomeFractionOf(AzgaarBiome.TropicalRainforest)),
 
         new(Ck3Terrain.Forest, (in BaronyContext ctx) =>
-        {
-            var b = ctx.DominantBiome;
-            if (b == AzgaarBiome.TemperateDeciduousForest) return HARD_WIN;
-            if (b == AzgaarBiome.TemperateRainforest)       return HARD_WIN;
-            return 0f;
-        }),
+            // Temperate Deciduous = leaves drop seasonally (pre-clearance Europe, eastern US,
+            // East Asia). Temperate Rainforest = high-precipitation cool evergreen (Pacific
+            // Northwest, southern Chile, NZ). Both unambiguously CK3 "Forest."
+            ctx.BiomeFractionOf(AzgaarBiome.TemperateDeciduousForest)
+          + ctx.BiomeFractionOf(AzgaarBiome.TemperateRainforest)),
 
-        // ── Hot-arid trio (Oasis > Desert; both > nothing) ──────────────────────
-
-        new(Ck3Terrain.Oasis, (in BaronyContext _) =>
-        {
-            // Parked at 0 pending a better signal. The "HotDesert + river-adjacent" rule
-            // over-fires once minor rivers are counted for adjacency: on a river-dense map,
-            // every HotDesert cell is within one neighbour-hop of a river, so Oasis swallows
-            // the entire Desert category. Real oases are tiny isolated wet spots inside large
-            // arid expanses, not "every desert near a river." Likely better signals to try
-            // next: require population presence (burgs cluster at oases), restrict to cells
-            // ON a river rather than neighbouring one, or detect freshwater-feature adjacency
-            // specifically rather than any river.
-            return 0f;
-        }),
+        new(Ck3Terrain.Taiga, (in BaronyContext ctx) =>
+            // Taiga absorbs Tundra (CK3 has no "tundra" terrain) and flat Glacier (no glacier
+            // terrain either — Mountains rule overshoots whenever the Glacier zone is steep).
+            ctx.BiomeFractionOf(AzgaarBiome.Taiga)
+          + ctx.BiomeFractionOf(AzgaarBiome.Tundra)
+          + ctx.BiomeFractionOf(AzgaarBiome.Glacier)),
 
         new(Ck3Terrain.Desert, (in BaronyContext ctx) =>
-            ctx.DominantBiome == AzgaarBiome.HotDesert ? STRONG_MATCH : 0f),
-
-        // ── Cold-arid / semi-arid ───────────────────────────────────────────────
-        // ColdDesert biome covers both genuine cold deserts (Gobi) and cold steppes
-        // (Kazakhstan). We bias toward Steppe — cavalry country, horse-archer match.
-        // To flip a particular map's ColdDesert zones to Desert instead, change this
-        // rule's terrain to Ck3Terrain.Desert.
+            ctx.BiomeFractionOf(AzgaarBiome.HotDesert)),
 
         new(Ck3Terrain.Steppe, (in BaronyContext ctx) =>
-            ctx.DominantBiome == AzgaarBiome.ColdDesert ? STRONG_MATCH : 0f),
+            // ColdDesert covers both genuine cold deserts (Gobi) and cold steppes
+            // (Kazakhstan). We bias the entire biome toward Steppe — cavalry country,
+            // horse-archer cultural match. Flip to Ck3Terrain.Desert here if a map
+            // needs the Gobi-style reading instead.
+            ctx.BiomeFractionOf(AzgaarBiome.ColdDesert)),
 
         new(Ck3Terrain.Drylands, (in BaronyContext ctx) =>
-        {
-            var b = ctx.DominantBiome;
             // Savanna = warm-dry sparse vegetation; TropicalSeasonalForest = monsoon
             // dry-deciduous scrub. Both read closer to drylands than to forest or desert.
-            if (b == AzgaarBiome.Savanna)                  return STRONG_MATCH;
-            if (b == AzgaarBiome.TropicalSeasonalForest)   return STRONG_MATCH;
-            return 0f;
-        }),
+            ctx.BiomeFractionOf(AzgaarBiome.Savanna)
+          + ctx.BiomeFractionOf(AzgaarBiome.TropicalSeasonalForest)),
 
-        // ── Grassland branch — needs secondary signals to lift out of `plains` ──
+        new(Ck3Terrain.Plains, (in BaronyContext ctx) =>
+            // Plains is unified with the other biome rules — scored on Grassland fraction
+            // rather than a hardcoded fallback. Pure Grassland → 1.0, same scale as Forest /
+            // Desert / etc. Non-Grassland baronies score 0 here; the corresponding biome
+            // rule (or steepness overshoot) wins instead.
+            ctx.BiomeFractionOf(AzgaarBiome.Grassland)),
+
+        // ── Conditional gates on top of Grassland ─────────────────────────────────
+        // Both must beat the Grassland → Plains 1.0 score, so flat values above 1.0.
+        // Floodplains > Farmlands because the river-adjacency + population pair is a
+        // stronger geographic signal than population alone.
 
         new(Ck3Terrain.Floodplains, (in BaronyContext ctx) =>
         {
             if (ctx.DominantBiome != AzgaarBiome.Grassland) return 0f;
             if (!ctx.RiverAdjacent) return 0f;
             if (ctx.PopDensity < FLOODPLAIN_POPDENSITY_MIN) return 0f;
-            return STRONG_MATCH;
+            return 1.5f;
         }),
 
         new(Ck3Terrain.Farmlands, (in BaronyContext ctx) =>
         {
             if (ctx.DominantBiome != AzgaarBiome.Grassland) return 0f;
             if (ctx.PopDensity < FARMLAND_POPDENSITY_MIN) return 0f;
-            return MODERATE_MATCH;
+            return 1.2f;
+        }),
+
+        // ── Steepness rules — band × max, with deliberate overshoot above 1.0 ────
+        // Mountains/DesertMountains use IDENTICAL band+max so they tie when both fire;
+        // registry order places DesertMountains first so its biome gate wins in arid.
+
+        new(Ck3Terrain.DesertMountains, (in BaronyContext ctx) =>
+        {
+            if (ctx.DominantBiome != AzgaarBiome.HotDesert
+             && ctx.DominantBiome != AzgaarBiome.ColdDesert) return 0f;
+            const float bandLow = 0.65f, bandHigh = float.PositiveInfinity, max = 2.0f;
+            return BandFraction(ctx.CellRoughnesses, bandLow, bandHigh, max);
+        }),
+
+        new(Ck3Terrain.Mountains, (in BaronyContext ctx) =>
+        {
+            // max = 2.0. Crossover vs a pure biome (score 1.0) is 50 % mountain-grade
+            // cells — a barony with half mountain cells reads as Mountains regardless
+            // of biome cover. Strong claim; deliberately so. To reserve Mountains for
+            // even more dominant relief, drop max toward 1.5 (67 % crossover) or 1.25
+            // (80 %). To make Mountains fire more readily, push toward 3.0 (33 %).
+            const float bandLow = 0.65f, bandHigh = float.PositiveInfinity, max = 2.0f;
+            return BandFraction(ctx.CellRoughnesses, bandLow, bandHigh, max);
         }),
 
         new(Ck3Terrain.Hills, (in BaronyContext ctx) =>
         {
-            // bandLow = 0.10 (lowered from 0.30 after in-game eyeballing on Showcase).
-            //   Azgaar's p95-normalised cell roughness averages ~0.14 on real maps, so cells
-            //   in 0.10–0.30 are the typical "subtle rolling" relief — visible on the
-            //   splatmap as hill texture and should count toward the Hills signal.
+            // bandLow = 0.10 — Azgaar's p95-normalised cell roughness averages ~0.14 on
+            // real maps, so cells in 0.10–0.30 are the typical "subtle rolling" relief.
             //
-            // max = 4.0. Crossovers:
-            //   vs PLAINS_FALLBACK (0.1):  2.5 % hill cells (Hills wins on any non-flat
-            //                              Plains-fallback barony — but Azgaar always
-            //                              assigns a biome, so this case is mostly theoretical).
-            //   vs STRONG_MATCH biome:     75 % hill cells (Hills overrules Forest /
-            //                              Drylands / Taiga only when the barony is
-            //                              dominantly hill-grade, not just partially).
-            //   vs HARD_WIN biome:         >100 % impossible — Wetlands and Jungle always win.
+            // max = 1.5. Crossover vs a pure biome (score 1.0) is 67 % hill-grade cells
+            // — a barony that is two-thirds hill-grade flips to Hills regardless of
+            // biome. Less aggressive than Mountains (50 % crossover) because rolling
+            // forest still reads as forest, but rolling grassland reads as hills.
             //
-            // The 75 % threshold means "hilly forest" stays Forest at moderate relief but
-            // becomes Hills when the relief overwhelms the forest cover. Mirrors the
-            // Mountains rule's 50 % crossover (max=6.0 there), just stricter — hills are
-            // more sensitive to biome cover than mountains because rolling forest is still
-            // forest, but mountain forest reads as mountain in vanilla CK3.
-            //
-            // No DesertHills counterpart — CK3 has no such terrain. Hilly hot desert just
-            // stays Desert (Desert's STRONG_MATCH 3.0 beats Hills 4.0 × 0.75 = 3.0 at the
-            // crossover, and registry order puts Desert first on the tie).
-            const float bandLow = 0.10f, bandHigh = 0.65f, max = 4.0f;
+            // No DesertHills counterpart — CK3 has no such terrain. Hilly hot desert
+            // just stays Desert (Desert at 1.0 beats Hills at 1.5 × 0.67 = 1.0 by
+            // registry tiebreak), unless steepness pushes far enough for DesertMountains.
+            const float bandLow = 0.10f, bandHigh = 0.65f, max = 1.5f;
             return BandFraction(ctx.CellRoughnesses, bandLow, bandHigh, max);
         }),
 
-        new(Ck3Terrain.Plains, (in BaronyContext ctx) =>
-            // Always-true soft fallback. Wins only when nothing else fires.
-            PLAINS_FALLBACK),
+        // ── Parked rules ─────────────────────────────────────────────────────────
+        new(Ck3Terrain.Oasis, (in BaronyContext _) =>
+        {
+            // Parked at 0 pending a better signal. The "HotDesert + river-adjacent"
+            // rule over-fires once minor rivers count for adjacency: on a river-dense
+            // map every HotDesert cell is within one neighbour-hop of a river, so
+            // Oasis swallows the entire Desert category. Likely better signals:
+            // population presence (burgs cluster at oases), restrict to cells ON a
+            // river rather than neighbouring one, or freshwater-feature adjacency only.
+            return 0f;
+        }),
 
-        // ── Placeholder for completeness — no Azgaar signal cleanly maps to terraced_hills.
-        //    Kept here so adding a real rule later is a one-line edit, not a new file.
-        new(Ck3Terrain.TerracedHills, (in BaronyContext _) => 0f),
+        new(Ck3Terrain.TerracedHills, (in BaronyContext _) =>
+            // No Azgaar signal cleanly maps to terraced_hills. Kept here so adding a
+            // real rule later is a one-line edit, not a new file.
+            0f),
     };
 }
