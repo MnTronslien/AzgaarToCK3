@@ -8,8 +8,7 @@ public readonly struct BaronyContext
     public readonly AzgaarBiome DominantBiome;
     public readonly IReadOnlyDictionary<AzgaarBiome, float> BiomeFraction;
 
-    // p95-normalised; values can occasionally exceed 1.0 — uncapped on purpose so band rules
-    // see the actual distribution.
+    // p95-normalised, clamped to [0, 1].
     public readonly IReadOnlyList<float> CellRoughnesses;
 
     public readonly bool RiverAdjacent;
