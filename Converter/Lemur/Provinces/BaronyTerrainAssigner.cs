@@ -3,12 +3,6 @@ using Converter.Lemur.Splats;
 
 namespace Converter.Lemur.Provinces;
 
-/// <summary>
-/// Pipeline step (not a writer) — computes <see cref="Barony.Ck3Terrain"/> for every barony
-/// by evaluating <see cref="TerrainRegistry.All"/> against a <see cref="BaronyContext"/>
-/// built per barony and picking the highest-scoring candidate. Runs after baronies + cells +
-/// roughness are settled, before any writer.
-/// </summary>
 public static class BaronyTerrainAssigner
 {
     public static void Assign(Map map)
@@ -16,13 +10,6 @@ public static class BaronyTerrainAssigner
         if (map.Baronies is null || map.Baronies.Count == 0) return;
         if (map.Cells is null) return;
 
-        // Pre-compute "is this cell river-adjacent" once per cell so the per-barony pass
-        // doesn't repeat the neighbour walk per barony cell. River-adjacent = at least one
-        // neighbour is on a river path (any river, major or minor) OR is a freshwater/lake
-        // feature cell. We consult map.Rivers.CellIds directly rather than relying on the
-        // synthetic IsRiverCell flag — that flag is only set by MajorRiverInserter for rivers
-        // above MajorRiverThreshold, and with the threshold at 999999 (current default) it
-        // never fires, which would silently disable Oasis/Floodplains scoring.
         var cellIsRiverAdjacent = ComputeRiverAdjacency(map.Cells, map.Rivers);
 
         var histogram = new Dictionary<Ck3Terrain, int>();
@@ -44,7 +31,6 @@ public static class BaronyTerrainAssigner
         if (cells.Count == 0)
             return new BaronyContext(AzgaarBiome.None, new Dictionary<AzgaarBiome, float>(), Array.Empty<float>(), false, 0f, 0f, 0);
 
-        // Biome fractions and dominant biome by cell count.
         var biomeCounts = new Dictionary<AzgaarBiome, int>();
         foreach (var cell in cells)
         {
@@ -56,8 +42,6 @@ public static class BaronyTerrainAssigner
             kv => (float)kv.Value / cells.Count);
         var dominantBiome = biomeCounts.OrderByDescending(kv => kv.Value).First().Key;
 
-        // Raw per-cell roughness, exposed unaggregated so band-based score rules (Hills,
-        // Mountains, DesertMountains) can do their own fraction-in-band calculation.
         var cellRoughnesses = cells.Select(c => c.Roughness).ToArray();
 
         bool riverAdjacent = cells.Any(c => cellIsRiverAdjacent.GetValueOrDefault(c.Id, false));
@@ -75,9 +59,9 @@ public static class BaronyTerrainAssigner
             cellCount:         cells.Count);
     }
 
+    // First-declared wins on equal scores (registry order breaks ties).
     private static Ck3Terrain PickWinner(in BaronyContext ctx)
     {
-        // Stable argmax — registry order breaks ties (first-declared wins on equal scores).
         Ck3Terrain winner = Ck3Terrain.Plains;
         float bestScore = float.NegativeInfinity;
         foreach (var candidate in TerrainRegistry.All)
@@ -92,13 +76,13 @@ public static class BaronyTerrainAssigner
         return winner;
     }
 
+    // Reads map.Rivers.CellIds directly rather than Cell.IsRiverCell — the latter is only
+    // set by MajorRiverInserter for rivers above MajorRiverThreshold, so on minor-rivers-only
+    // maps the flag is always false and Oasis/Floodplains would silently never see a river.
     private static Dictionary<int, bool> ComputeRiverAdjacency(
         IReadOnlyDictionary<int, Cell> cells,
         IReadOnlyList<River>? rivers)
     {
-        // Collect every cell id that appears on any river path. Minor rivers don't get
-        // IsRiverCell set on cells (only major rivers do, via MajorRiverInserter), so we
-        // build this set from the rivers list directly to catch both.
         var onRiver = new HashSet<int>();
         if (rivers is not null)
             foreach (var r in rivers)

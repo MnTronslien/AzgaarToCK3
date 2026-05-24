@@ -3,46 +3,33 @@ using ImageMagick;
 
 namespace Converter.Lemur.Provinces;
 
-/// <summary>
-/// Debug visualisation: render every barony coloured by its assigned <see cref="Ck3Terrain"/>
-/// with a legend, so the gameplay-terrain decisions are inspectable at a glance without
-/// loading the mod in CK3. Mirrors the format of vanilla terrain-overview screenshots the
-/// CK3 community publishes — standard per-terrain colour palette.
-/// </summary>
+// Debug visualisation: each barony filled with its assigned Ck3Terrain colour, river network
+// overlaid, province outlines drawn from provinces.png. Gated on Settings.GenerateDebugImages.
+// Colour palette follows the CK3 community convention used in published terrain-overview maps.
 public static class TerrainDebugImage
 {
-    // Standard CK3-community terrain palette. Tweak here if the reference convention shifts.
     public static readonly IReadOnlyDictionary<Ck3Terrain, MagickColor> Palette = new Dictionary<Ck3Terrain, MagickColor>
     {
-        [Ck3Terrain.Desert]           = MagickColor.FromRgb(0xFF, 0xFF, 0x00),   // yellow
-        [Ck3Terrain.DesertMountains]  = MagickColor.FromRgb(0x1A, 0x1A, 0x1A),   // near-black (distinct from sea blue)
-        [Ck3Terrain.Drylands]         = MagickColor.FromRgb(0xFF, 0x14, 0x93),   // deep pink / magenta
-        [Ck3Terrain.Farmlands]        = MagickColor.FromRgb(0xFF, 0x00, 0x00),   // red
-        [Ck3Terrain.Floodplains]      = MagickColor.FromRgb(0x40, 0x40, 0xC0),   // blue-violet
-        [Ck3Terrain.Forest]           = MagickColor.FromRgb(0x2E, 0xA0, 0x2E),   // medium green
-        [Ck3Terrain.Hills]            = MagickColor.FromRgb(0x80, 0x00, 0x00),   // maroon
-        [Ck3Terrain.Jungle]           = MagickColor.FromRgb(0x00, 0x64, 0x00),   // dark green
-        [Ck3Terrain.Mountains]        = MagickColor.FromRgb(0x80, 0x80, 0x80),   // grey
-        [Ck3Terrain.Oasis]            = MagickColor.FromRgb(0xD8, 0xA8, 0xE8),   // lavender
-        [Ck3Terrain.Plains]           = MagickColor.FromRgb(0xD2, 0xB4, 0x8C),   // tan / beige
-        [Ck3Terrain.Steppe]           = MagickColor.FromRgb(0xE8, 0x82, 0x1C),   // orange
-        [Ck3Terrain.Taiga]            = MagickColor.FromRgb(0x80, 0xE0, 0x60),   // lime green
-        [Ck3Terrain.Wetlands]         = MagickColor.FromRgb(0x40, 0xC0, 0xB0),   // teal
-        [Ck3Terrain.TerracedHills]    = MagickColor.FromRgb(0xE0, 0x40, 0x40),   // coral
+        [Ck3Terrain.Desert]           = MagickColor.FromRgb(0xFF, 0xFF, 0x00),
+        [Ck3Terrain.DesertMountains]  = MagickColor.FromRgb(0x1A, 0x1A, 0x1A),
+        [Ck3Terrain.Drylands]         = MagickColor.FromRgb(0xFF, 0x14, 0x93),
+        [Ck3Terrain.Farmlands]        = MagickColor.FromRgb(0xFF, 0x00, 0x00),
+        [Ck3Terrain.Floodplains]      = MagickColor.FromRgb(0x40, 0x40, 0xC0),
+        [Ck3Terrain.Forest]           = MagickColor.FromRgb(0x2E, 0xA0, 0x2E),
+        [Ck3Terrain.Hills]            = MagickColor.FromRgb(0x80, 0x00, 0x00),
+        [Ck3Terrain.Jungle]           = MagickColor.FromRgb(0x00, 0x64, 0x00),
+        [Ck3Terrain.Mountains]        = MagickColor.FromRgb(0x80, 0x80, 0x80),
+        [Ck3Terrain.Oasis]            = MagickColor.FromRgb(0xD8, 0xA8, 0xE8),
+        [Ck3Terrain.Plains]           = MagickColor.FromRgb(0xD2, 0xB4, 0x8C),
+        [Ck3Terrain.Steppe]           = MagickColor.FromRgb(0xE8, 0x82, 0x1C),
+        [Ck3Terrain.Taiga]            = MagickColor.FromRgb(0x80, 0xE0, 0x60),
+        [Ck3Terrain.Wetlands]         = MagickColor.FromRgb(0x40, 0xC0, 0xB0),
+        [Ck3Terrain.TerracedHills]    = MagickColor.FromRgb(0xE0, 0x40, 0x40),
     };
 
-    // Bright saturated blue — must read as clearly "ocean" against the near-black DesertMountains
-    // and WastelandColor swatches. The CK3 in-game ocean blue (#446BA3) is too muted; at a glance
-    // it merges with dark land. This is a debug image, not the production splatmap — readability beats fidelity.
     private static readonly MagickColor SeaColor       = MagickColor.FromRgb(0x30, 0x60, 0xE0);
-    // Darker navy than the sea so river lines read on top of any land terrain colour AND
-    // remain visible where they cross sea-coloured pixels (deltas, mouths).
     private static readonly MagickColor RiverColor     = MagickColor.FromRgb(0x0C, 0x20, 0x70);
-    // Wastelands need a colour distinct from every entry in the Palette AND from SeaColor.
-    // Near-black (the previous choice) was indistinguishable from DesertMountains. Off-white
-    // is the only remaining hue space that doesn't collide with any terrain (Mountains is medium
-    // grey; Oasis is lavender; Plains is tan). Reads as "uninhabited" in the same way road maps
-    // shade unsettled regions pale.
+    // Off-white — distinct from every Palette entry and from SeaColor at a glance.
     private static readonly MagickColor WastelandColor = MagickColor.FromRgb(0xE6, 0xE6, 0xE6);
 
     public static async Task Write(Map map)
@@ -53,10 +40,8 @@ public static class TerrainDebugImage
         Logger.Info("Drawing terrain debug overview image...");
 
         var settings = new MagickReadSettings { Width = Map.MapWidth, Height = Map.MapHeight };
-        // Use xc:#rrggbb pseudo-format the way ImageUtility does — matches existing convention.
         using var canvas = new MagickImage($"xc:#{SeaColor.R:X2}{SeaColor.G:X2}{SeaColor.B:X2}", settings);
 
-        // Group baronies by terrain so each terrain is one batched Drawables payload.
         var byTerrain = map.Baronies
             .GroupBy(b => b.Ck3Terrain)
             .ToList();
@@ -69,19 +54,14 @@ public static class TerrainDebugImage
             drawablesList.Add(ImageUtility.GenerateCellPolygons(cells, color, map));
         }
 
-        // Wastelands in their own colour so they don't blend with sea or with terrain choices.
         if (map.Wastelands is { Count: > 0 })
         {
             var cells = map.Wastelands.SelectMany(w => w.Cells);
             drawablesList.Add(ImageUtility.GenerateCellPolygons(cells, WastelandColor, map));
         }
 
-        // Repaint sea/major-river/far-sea polygons LAST so they reclaim any pixels that
-        // coastal land-cell Voronoi polygons bled into. We don't care about distinguishing
-        // individual sea bodies — every sea-side pixel just needs to read as "sea." Without
-        // this step, coastal wasteland cells (whose Voronoi polygons extend into the water)
-        // paint pale-grey "fingers" reaching into the ocean. Mirrors the pattern used by
-        // ImageUtility.DrawProvincesImage for the production provinces.png.
+        // Repaint sea bodies last so they reclaim pixels that coastal land-cell Voronoi
+        // polygons bled into — otherwise wasteland "fingers" leak into the ocean.
         if (map.SeaZones is { Count: > 0 })
         {
             var cells = map.SeaZones.SelectMany(z => z.Cells);
@@ -100,17 +80,9 @@ public static class TerrainDebugImage
 
         canvas.Draw(drawablesList.SelectMany(d => d));
 
-        // Province outlines BEFORE rivers + legend so rivers/legend draw on top and stay
-        // legible even where they cross a boundary. Source: provinces.png (already written
-        // by DrawProvincesImage in the pipeline). Edge-detected and composited as black.
+        // Outlines first so the rivers and legend draw on top of them.
         DrawProvinceOutlines(canvas);
-
-        // Rivers go on top of every terrain layer so they remain visible regardless of
-        // what's underneath. We draw control points as polylines rather than reading
-        // map_data/rivers.png — keeps everything in vector space, no PNG composite, and
-        // gives us control over colour/stroke independent of CK3's required palette.
         DrawRivers(canvas, map);
-
         DrawLegend(canvas);
 
         canvas.HasAlpha = false;
@@ -125,11 +97,9 @@ public static class TerrainDebugImage
         ImageUtility.RegisterGeneratedImage(path);
     }
 
-    // Reads the production provinces.png (each province in a unique RGB colour),
-    // runs edge detection to find pixels where the colour transitions (= province
-    // boundary), and composites those edges onto the canvas as black lines. Lets
-    // the viewer tell whether a same-terrain blob is one big barony or several
-    // clustered baronies of the same type.
+    // Edge-detect provinces.png (each province has a unique RGB), then composite the
+    // resulting mask via Multiply so boundary pixels go black on the canvas. Radius 3 ⇒
+    // ~5-px lines, visible after the ~13x downscale typical for thumbnail preview.
     private static void DrawProvinceOutlines(MagickImage canvas)
     {
         var provincesPath = Helper.GetPath(Settings.OutputDirectory, "map_data", "provinces.png");
@@ -140,28 +110,11 @@ public static class TerrainDebugImage
         }
 
         using var outline = new MagickImage(provincesPath);
-
-        // Edge detection: any pixel adjacent to a different-colour pixel becomes white,
-        // interior pixels stay black. Radius 3 gives a ~5-pixel-thick line at full
-        // resolution, which survives the ~13x downscale typical when previewing this
-        // 8192×4096 image as a thumbnail.
         outline.Edge(3);
-
-        // Edge() may produce sub-binary intensities; threshold + grayscale to get a clean
-        // black/white mask.
         outline.ColorSpace = ColorSpace.Gray;
         outline.Threshold(new Percentage(2));
-
-        // Invert: we want boundaries to be BLACK (so Multiply composite blacks-out the canvas
-        // at those pixels) and interior to be WHITE (Multiply leaves the canvas unchanged).
         outline.Negate();
-
-        // Multiply blend: result = canvas * outline / 255.
-        //   outline pixel == 0   (boundary)  → result = 0 (paint black on canvas)
-        //   outline pixel == 255 (interior)  → result = canvas (unchanged)
         canvas.Composite(outline, CompositeOperator.Multiply);
-
-        Logger.Info("TerrainDebugImage — drew province outlines from provinces.png");
     }
 
     private static void DrawRivers(MagickImage canvas, Map map)
@@ -184,10 +137,8 @@ public static class TerrainDebugImage
         {
             if (river.ControlPoints is null || river.ControlPoints.Count < 2) continue;
 
-            // Stroke width scales with reported river width so major rivers visually dominate
-            // tributaries. Minimum is set high enough (~16px) that lines remain visible after
-            // the typical ~10–15x downscale used when previewing this 8192×4096 image.
-            float strokeWidth = Math.Clamp(river.Width * 3f, 16f, 80f);
+            // Scaled and clamped so trunks dominate tributaries without drowning the map.
+            float strokeWidth = Math.Clamp(river.Width * 0.9f, 5f, 24f);
 
             var points = river.ControlPoints.Select(cp => new PointD(
                 (cp[0] - xOffset) * xRatio,
@@ -204,10 +155,7 @@ public static class TerrainDebugImage
         }
     }
 
-    // Legend layout — sized for the full 8192×4096 canvas so it is readable when the image
-    // is opened at any reasonable zoom. Two columns to mirror the reference screenshot.
-    // Sentinel — wastelands aren't a CK3 terrain enum value but get their own legend row
-    // so the viewer knows what the pale-grey swatch on the map means.
+    // Out-of-band value so Wastelands can share the same legend rendering path as real terrains.
     private const Ck3Terrain WastelandSentinel = (Ck3Terrain)999;
 
     private static void DrawLegend(MagickImage canvas)
@@ -288,10 +236,8 @@ public static class TerrainDebugImage
         _                           => Char.ToUpper(t.ToCk3String()[0]) + t.ToCk3String().Substring(1),
     };
 
-    // Local copy of ImageUtility.GetDebugFolderName logic (that method is private; we keep
-    // this writer in Provinces/ to keep the namespace boundary clean rather than promote
-    // the helper). Mirrors the same map-name + timestamp pattern so artifacts cluster in
-    // the same debug folder as other run outputs.
+    // Mirrors the private folder-naming logic in ImageUtility so all run artefacts cluster
+    // under the same map-name + timestamp directory.
     private static string? _debugFolderName;
     private static string GetDebugFolderName()
     {
