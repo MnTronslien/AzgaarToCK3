@@ -100,6 +100,11 @@ public static class TerrainDebugImage
 
         canvas.Draw(drawablesList.SelectMany(d => d));
 
+        // Province outlines BEFORE rivers + legend so rivers/legend draw on top and stay
+        // legible even where they cross a boundary. Source: provinces.png (already written
+        // by DrawProvincesImage in the pipeline). Edge-detected and composited as black.
+        DrawProvinceOutlines(canvas);
+
         // Rivers go on top of every terrain layer so they remain visible regardless of
         // what's underneath. We draw control points as polylines rather than reading
         // map_data/rivers.png — keeps everything in vector space, no PNG composite, and
@@ -118,6 +123,45 @@ public static class TerrainDebugImage
         await canvas.WriteAsync(path);
         Logger.Info($"Saved terrain overview to '{path}'");
         ImageUtility.RegisterGeneratedImage(path);
+    }
+
+    // Reads the production provinces.png (each province in a unique RGB colour),
+    // runs edge detection to find pixels where the colour transitions (= province
+    // boundary), and composites those edges onto the canvas as black lines. Lets
+    // the viewer tell whether a same-terrain blob is one big barony or several
+    // clustered baronies of the same type.
+    private static void DrawProvinceOutlines(MagickImage canvas)
+    {
+        var provincesPath = Helper.GetPath(Settings.OutputDirectory, "map_data", "provinces.png");
+        if (!File.Exists(provincesPath))
+        {
+            Logger.Verbose($"TerrainDebugImage — provinces.png not found at '{provincesPath}', skipping outlines");
+            return;
+        }
+
+        using var outline = new MagickImage(provincesPath);
+
+        // Edge detection: any pixel adjacent to a different-colour pixel becomes white,
+        // interior pixels stay black. Radius 3 gives a ~5-pixel-thick line at full
+        // resolution, which survives the ~13x downscale typical when previewing this
+        // 8192×4096 image as a thumbnail.
+        outline.Edge(3);
+
+        // Edge() may produce sub-binary intensities; threshold + grayscale to get a clean
+        // black/white mask.
+        outline.ColorSpace = ColorSpace.Gray;
+        outline.Threshold(new Percentage(2));
+
+        // Invert: we want boundaries to be BLACK (so Multiply composite blacks-out the canvas
+        // at those pixels) and interior to be WHITE (Multiply leaves the canvas unchanged).
+        outline.Negate();
+
+        // Multiply blend: result = canvas * outline / 255.
+        //   outline pixel == 0   (boundary)  → result = 0 (paint black on canvas)
+        //   outline pixel == 255 (interior)  → result = canvas (unchanged)
+        canvas.Composite(outline, CompositeOperator.Multiply);
+
+        Logger.Info("TerrainDebugImage — drew province outlines from provinces.png");
     }
 
     private static void DrawRivers(MagickImage canvas, Map map)
