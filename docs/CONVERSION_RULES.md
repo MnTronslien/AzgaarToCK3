@@ -82,18 +82,17 @@ These texture choices are a starting point — see [CONTRIBUTING.md](../CONTRIBU
 
 ## Province terrain (gameplay)
 
-Each barony's CK3 terrain type is picked by scoring it against every candidate terrain and taking the highest score. Three rule shapes contribute:
+Each barony's CK3 terrain type is picked by scoring it against every candidate terrain and taking the highest score. Two rule shapes contribute:
 
 - **Biome rules** sum the relevant Azgaar biome fractions across the barony's cells. A 60 % Forest / 40 % Jungle barony scores `0.6` for Forest and `0.4` for Jungle. A pure-biome barony scores `1.0`.
 - **Steepness rules** (`Hills`, `Mountains`, `DesertMountains`) score on the fraction of cells in a roughness band, and may exceed 1.0 so dominant relief overrules biome cover. Crossovers vs a pure biome: Hills at 67 % hill-grade cells, Mountains/DesertMountains at 50 % mountain-grade cells.
-- **Conditional rules** (`Floodplains`, `Farmlands`) require Grassland biome plus extra signals (river adjacency, population density) and emit a flat score above the Grassland baseline when they fire.
 
 ### Azgaar biome → CK3 terrain (default)
 
 | Azgaar biome | CK3 terrain |
 |---|---|
 | Wetland | `wetlands` |
-| Grassland | `plains` (or `floodplains` / `farmlands` if population + river signals fire) |
+| Grassland | `plains` |
 | Savanna | `drylands` |
 | Hot Desert | `desert` (or `desert_mountains` on dominant relief) |
 | Cold Desert | `steppe` |
