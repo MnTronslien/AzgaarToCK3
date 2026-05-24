@@ -1,11 +1,14 @@
 using Converter.Lemur.Entities;
 using ImageMagick;
+using NetTopologySuite.Geometries;
+using NetTopologySuite.Operation.Union;
 
 namespace Converter.Lemur.Provinces;
 
-// Debug visualisation: each barony filled with its assigned Ck3Terrain colour, river network
-// overlaid, province outlines drawn from provinces.png. Gated on Settings.GenerateDebugImages.
-// Colour palette follows the CK3 community convention used in published terrain-overview maps.
+// Debug visualisation: each barony rendered as a unioned-cell polygon filled with its assigned
+// Ck3Terrain colour and stroked with a uniform black border. River network overlaid. Gated on
+// Settings.GenerateDebugImages. Colour palette follows the CK3 community convention used in
+// published terrain-overview maps.
 public static class TerrainDebugImage
 {
     public static readonly IReadOnlyDictionary<Ck3Terrain, MagickColor> Palette = new Dictionary<Ck3Terrain, MagickColor>
@@ -32,6 +35,8 @@ public static class TerrainDebugImage
     // Off-white — distinct from every Palette entry and from SeaColor at a glance.
     private static readonly MagickColor WastelandColor = MagickColor.FromRgb(0xE6, 0xE6, 0xE6);
 
+    private const int ProvinceBorderWidth = 4;
+
     public static async Task Write(Map map)
     {
         if (!Settings.Instance.GenerateDebugImages) return;
@@ -57,26 +62,25 @@ public static class TerrainDebugImage
         var settings = new MagickReadSettings { Width = Map.MapWidth, Height = Map.MapHeight };
         var canvas = new MagickImage($"xc:#{SeaColor.R:X2}{SeaColor.G:X2}{SeaColor.B:X2}", settings);
 
-        var byTerrain = map.Baronies!
-            .GroupBy(b => b.Ck3Terrain)
-            .ToList();
+        var coords = map.JsonMap.mapCoordinates;
+        var gf = new GeometryFactory();
 
         var drawablesList = new List<Drawables>();
-        foreach (var group in byTerrain)
+
+        foreach (var barony in map.Baronies!)
         {
-            var color = Palette.TryGetValue(group.Key, out var c) ? c : MagickColors.Magenta;
-            var cells = group.SelectMany(b => b.Cells);
-            drawablesList.Add(ImageUtility.GenerateCellPolygons(cells, color, map));
+            var color = Palette.TryGetValue(barony.Ck3Terrain, out var c) ? c : MagickColors.Magenta;
+            drawablesList.Add(BuildBorderedProvinceDrawable(barony.Cells, color, coords, gf));
         }
 
         if (map.Wastelands is { Count: > 0 })
         {
-            var cells = map.Wastelands.SelectMany(w => w.Cells);
-            drawablesList.Add(ImageUtility.GenerateCellPolygons(cells, WastelandColor, map));
+            foreach (var wasteland in map.Wastelands)
+                drawablesList.Add(BuildBorderedProvinceDrawable(wasteland.Cells, WastelandColor, coords, gf));
         }
 
-        // Repaint sea bodies last so they reclaim pixels that coastal land-cell Voronoi
-        // polygons bled into — otherwise wasteland "fingers" leak into the ocean.
+        // Sea zones repainted last (no border) — reclaim pixels that coastal land polygons
+        // bled into, so wasteland/barony "fingers" don't leak into the ocean.
         if (map.SeaZones is { Count: > 0 })
         {
             var cells = map.SeaZones.SelectMany(z => z.Cells);
@@ -95,8 +99,6 @@ public static class TerrainDebugImage
 
         canvas.Draw(drawablesList.SelectMany(d => d));
 
-        // Outlines first so the rivers and legend draw on top of them.
-        DrawProvinceOutlines(canvas);
         DrawRivers(canvas, map);
         DrawLegend(canvas);
 
@@ -104,24 +106,66 @@ public static class TerrainDebugImage
         return canvas;
     }
 
-    // Edge-detect provinces.png (each province has a unique RGB), then composite the
-    // resulting mask via Multiply so boundary pixels go black on the canvas. Radius 3 ⇒
-    // ~5-px lines, visible after the ~13x downscale typical for thumbnail preview.
-    private static void DrawProvinceOutlines(MagickImage canvas)
+    // Union the province's cells into one (or more) polygons, then add a Drawables that paints
+    // each piece's exterior ring with the given fill + a uniform black stroke. Interior holes
+    // (rare; lake-in-barony) are not cut from the fill — acceptable v1 limitation.
+    private static Drawables BuildBorderedProvinceDrawable(
+        IEnumerable<Cell> cells,
+        MagickColor fillColor,
+        Deserialization.AzgaarMapCoordinates coords,
+        GeometryFactory gf)
     {
-        var provincesPath = Helper.GetPath(Settings.OutputDirectory, "map_data", "provinces.png");
-        if (!File.Exists(provincesPath))
+        float xOffset = coords.lonW, yOffset = coords.latS;
+        float xRatio  = Map.MapWidth  / coords.lonT;
+        float yRatio  = Map.MapHeight / coords.latT;
+
+        var polys = new List<Polygon>();
+        foreach (var cell in cells)
         {
-            Logger.Verbose($"TerrainDebugImage — provinces.png not found at '{provincesPath}', skipping outlines");
-            return;
+            var raw = cell.GeoDataCoordinates;
+            if (raw is null || raw.Length < 4) continue;
+            var ring = raw
+                .Select(pt => new Coordinate(
+                    (pt[0] - xOffset) * xRatio,
+                    Map.MapHeight - (pt[1] - yOffset) * yRatio))
+                .ToArray();
+            if (!ring[0].Equals2D(ring[^1]))
+                ring = [.. ring, ring[0]];
+            try { polys.Add(gf.CreatePolygon(ring)); }
+            catch { /* degenerate cell polygon — skip */ }
         }
 
-        using var outline = new MagickImage(provincesPath);
-        outline.Edge(3);
-        outline.ColorSpace = ColorSpace.Gray;
-        outline.Threshold(new Percentage(2));
-        outline.Negate();
-        canvas.Composite(outline, CompositeOperator.Multiply);
+        var drawables = new Drawables();
+        if (polys.Count == 0) return drawables;
+
+        Geometry unioned;
+        try { unioned = UnaryUnionOp.Union(polys); }
+        catch { return drawables; }
+
+        foreach (var ring in ExteriorRingsOf(unioned))
+        {
+            drawables
+                .DisableStrokeAntialias()
+                .FillColor(fillColor)
+                .StrokeColor(MagickColors.Black)
+                .StrokeWidth(ProvinceBorderWidth)
+                .Polygon(ring);
+        }
+        return drawables;
+    }
+
+    private static IEnumerable<IEnumerable<PointD>> ExteriorRingsOf(Geometry geom)
+    {
+        switch (geom)
+        {
+            case Polygon p:
+                yield return p.ExteriorRing.Coordinates.Select(c => new PointD(c.X, c.Y));
+                break;
+            case MultiPolygon mp:
+                foreach (var part in mp.Geometries.OfType<Polygon>())
+                    yield return part.ExteriorRing.Coordinates.Select(c => new PointD(c.X, c.Y));
+                break;
+        }
     }
 
     private static void DrawRivers(MagickImage canvas, Map map)
