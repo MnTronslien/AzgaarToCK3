@@ -164,17 +164,30 @@ public static class TerrainRegistry
 
         new(Ck3Terrain.Hills, (in BaronyContext ctx) =>
         {
-            // max = 1.2 — sits just above PLAINS_FALLBACK and WEAK_MATCH (1.0), below every
-            // biome rule (STRONG_MATCH 3.0 and HARD_WIN 5.0). So Hills wins over plain Plains
-            // (hilly grassland → Hills) but loses to all biome rules (hilly forest → Forest;
-            // hilly desert → Desert). Vanilla CK3 has no "hilly forest" or "hilly desert"
-            // terrain — biome wins those cases, which matches this scoring.
+            // bandLow = 0.10 (lowered from 0.30 after in-game eyeballing on Showcase).
+            //   Azgaar's p95-normalised cell roughness averages ~0.14 on real maps, so cells
+            //   in 0.10–0.30 are the typical "subtle rolling" relief — visible on the
+            //   splatmap as hill texture and should count toward the Hills signal.
             //
-            // No biome filter (intentional). The score discipline alone produces the right
-            // outcomes: only Plains baronies have nothing else firing strongly enough to
-            // beat 1.2, so Hills only takes from Plains. There is no analogous DesertHills
-            // entry because CK3 has no such terrain — hilly hot desert just stays Desert.
-            const float bandLow = 0.30f, bandHigh = 0.65f, max = 1.2f;
+            // max = 4.0. Crossovers:
+            //   vs PLAINS_FALLBACK (0.1):  2.5 % hill cells (Hills wins on any non-flat
+            //                              Plains-fallback barony — but Azgaar always
+            //                              assigns a biome, so this case is mostly theoretical).
+            //   vs STRONG_MATCH biome:     75 % hill cells (Hills overrules Forest /
+            //                              Drylands / Taiga only when the barony is
+            //                              dominantly hill-grade, not just partially).
+            //   vs HARD_WIN biome:         >100 % impossible — Wetlands and Jungle always win.
+            //
+            // The 75 % threshold means "hilly forest" stays Forest at moderate relief but
+            // becomes Hills when the relief overwhelms the forest cover. Mirrors the
+            // Mountains rule's 50 % crossover (max=6.0 there), just stricter — hills are
+            // more sensitive to biome cover than mountains because rolling forest is still
+            // forest, but mountain forest reads as mountain in vanilla CK3.
+            //
+            // No DesertHills counterpart — CK3 has no such terrain. Hilly hot desert just
+            // stays Desert (Desert's STRONG_MATCH 3.0 beats Hills 4.0 × 0.75 = 3.0 at the
+            // crossover, and registry order puts Desert first on the tie).
+            const float bandLow = 0.10f, bandHigh = 0.65f, max = 4.0f;
             return BandFraction(ctx.CellRoughnesses, bandLow, bandHigh, max);
         }),
 
