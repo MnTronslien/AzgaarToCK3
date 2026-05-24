@@ -38,11 +38,26 @@ public static class TerrainDebugImage
         if (map.Baronies is null || map.Baronies.Count == 0) return;
 
         Logger.Info("Drawing terrain debug overview image...");
+        using var canvas = Render(map);
 
+        var debugRoot = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "AzgaarToCK3", "debug");
+        var path = Helper.GetPath(debugRoot, GetDebugFolderName(), "9_terrain_overview.png");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        await canvas.WriteAsync(path);
+        Logger.Info($"Saved terrain overview to '{path}'");
+        ImageUtility.RegisterGeneratedImage(path);
+    }
+
+    // Synchronous — builds the rendered canvas in memory. All the CPU-heavy work lives here
+    // so the public Write method's `async` is genuine (only the final disk write awaits).
+    private static MagickImage Render(Map map)
+    {
         var settings = new MagickReadSettings { Width = Map.MapWidth, Height = Map.MapHeight };
-        using var canvas = new MagickImage($"xc:#{SeaColor.R:X2}{SeaColor.G:X2}{SeaColor.B:X2}", settings);
+        var canvas = new MagickImage($"xc:#{SeaColor.R:X2}{SeaColor.G:X2}{SeaColor.B:X2}", settings);
 
-        var byTerrain = map.Baronies
+        var byTerrain = map.Baronies!
             .GroupBy(b => b.Ck3Terrain)
             .ToList();
 
@@ -86,15 +101,7 @@ public static class TerrainDebugImage
         DrawLegend(canvas);
 
         canvas.HasAlpha = false;
-
-        var debugRoot = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "AzgaarToCK3", "debug");
-        var path = Helper.GetPath(debugRoot, GetDebugFolderName(), "9_terrain_overview.png");
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        await canvas.WriteAsync(path);
-        Logger.Info($"Saved terrain overview to '{path}'");
-        ImageUtility.RegisterGeneratedImage(path);
+        return canvas;
     }
 
     // Edge-detect provinces.png (each province has a unique RGB), then composite the
