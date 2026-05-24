@@ -200,6 +200,8 @@ namespace Converter.Lemur
                 var roughness = CellRoughnessField.Compute(map.Cells!);
                 foreach (var (cellId, value) in roughness)
                     if (map.Cells!.TryGetValue(cellId, out var c)) c.Roughness = value;
+                if (roughness.Count > 0)
+                    Logger.Info($"Cell roughness — avg={roughness.Values.Average():F3} over {roughness.Count} land cells");
             }
             using (var _ = OperationTimer.Start("Assigning province terrain"))
                 BaronyTerrainAssigner.Assign(map);

@@ -28,9 +28,6 @@ public static class CellRoughnessField
         float autoNorm = (p95val > 0f ? p95val : 1f) * roughnessNorm;
         var roughness = rawDiffs.ToDictionary(kv => kv.Key, kv => Math.Clamp(kv.Value / autoNorm, 0f, 1f));
 
-        if (roughness.Count > 0)
-            Logger.Info($"CellRoughnessField — p95raw={p95val:F1} autoNorm={autoNorm:F1} avg={roughness.Values.Average():F3}");
-
         return roughness;
     }
 }
