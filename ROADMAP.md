@@ -14,6 +14,7 @@ For bug reports and feature requests, see the [Issues tab](https://github.com/Mn
     - But looks ugly
 - Minor rivers drawn via A\* pathfinding with correct tributary connections
 - Major navigable rivers carved into the cell map as river provinces — barony borders
+- Province terrain (gameplay) mapped per barony from Azgaar biome + cell roughness — drives CK3 combat, movement and supply modifiers
 - Map object locators (buildings, sieges, combat, unit stacks) placed at Azgaar burg positions, nudged inland from coastlines
 
 ### Cultures
@@ -46,9 +47,6 @@ See the [Issues tab](https://github.com/MnTronslien/AzgaarToCK3/issues).
 
 ## Known gaps
 
-**Province terrain — all provinces are plains.**
-Azgaar has rich biome data. None of it maps to CK3 terrain types yet. Every province renders as plains regardless of geography.
-
 **Sea crossing adjacencies not generated.**
 `adjacencies.csv` is empty. Explicit strait and river crossing connections are absent; naval movement works through sea zone pixels only. More important now that major rivers are implemented.
 
@@ -71,7 +69,6 @@ CK3 has regional textures (Mediterranean, Steppe, MENA, etc.). Every province cu
 
 ## Planned
 
-- Terrain types from Azgaar biome data
 - `adjacencies.csv` — sea and strait crossing connections
 - Per-region graphical regions from biome/climate data
 - GFX bundle selection from Azgaar `nameBase`

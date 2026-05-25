@@ -1,3 +1,14 @@
+# Unreleased
+
+### Added
+- **Province terrain (gameplay) from Azgaar biomes.** Every barony's CK3 terrain — `plains`, `hills`, `mountains`, `forest`, `desert`, `desert_mountains`, `drylands`, `jungle`, `taiga`, `wetlands`, `steppe`, etc. — is now picked from the cells' AzgaarBiome distribution plus a cell-level roughness signal. Closes the "all provinces are plains" gap that's been open since 0.1.0. Rules live in `Converter/Lemur/Provinces/TerrainRegistry.cs` as score lambdas; biome rules sum biome fractions, steepness rules (Hills, Mountains, DesertMountains) score on roughness-band cell fractions and may overshoot 1.0 to overrule biome cover at dominant relief. See `docs/CONVERSION_RULES.md` for the full mapping table and Showcase histogram.
+- **Terrain debug overview image.** Under `GenerateDebugImages`, a `9_terrain_overview.png` lands next to the other debug images. Each barony filled with its assigned terrain colour (CK3-community palette), wastelands distinct, river polylines overlaid, 4-px black borders from geometric union of cell polygons. Designed for tuning `TerrainRegistry.cs` without launching CK3.
+
+### Changed
+- **All debug images now land in the same per-run folder.** `ImageUtility.GetDebugFolderName` is now the single source of truth (was duplicated across `ImageUtility`, `RiverImageGenerator`, and the new terrain image writer with three independent minute-resolution caches, so runs crossing a minute boundary scattered artefacts across two or three folders).
+
+---
+
 # 1.2.0 — 2026-05-22
 
 The first-run experience gets a real onboarding flow and every run writes a .log file you can attach to a bug report. Builds on the foundation laid by 1.1.2 ("Saved settings.json. You won't see this screen again.") — that screen now actually walks the user all the way to a running conversion instead of dropping them at a `.json file has not been found` error.
