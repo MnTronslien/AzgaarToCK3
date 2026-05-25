@@ -75,7 +75,14 @@ public static class TerrainDebugImage
         {
             var color = FillColorFor(province);
             if (color is null) continue;
-            drawablesList.Add(BuildBorderedProvinceDrawable(province.Cells, color, coords, gf));
+            // Wastelands skip the union: Lemur lumps every wasteland cell into a single
+            // "Wastelands" object (e.g. 13,930 cells on Showcase) which is both slow to
+            // union and prone to NTS topology exceptions. Borderless cell-by-cell fill
+            // gets the area onto the image in the right colour without the geometry risk.
+            if (province is Wasteland)
+                drawablesList.Add(ImageUtility.GenerateCellPolygons(province.Cells, color, coords));
+            else
+                drawablesList.Add(BuildBorderedProvinceDrawable(province, color, coords, gf));
         }
 
         canvas.Draw(drawablesList.SelectMany(d => d));
@@ -106,7 +113,7 @@ public static class TerrainDebugImage
     // each piece's exterior ring with the given fill + a uniform black stroke. Interior holes
     // (rare; lake-in-barony) are not cut from the fill — acceptable v1 limitation.
     private static Drawables BuildBorderedProvinceDrawable(
-        IEnumerable<Cell> cells,
+        IProvince province,
         MagickColor fillColor,
         Deserialization.AzgaarMapCoordinates coords,
         GeometryFactory gf)
@@ -115,11 +122,13 @@ public static class TerrainDebugImage
         float xRatio  = Map.MapWidth  / coords.lonT;
         float yRatio  = Map.MapHeight / coords.latT;
 
+        var cells = province.Cells;
         var polys = new List<Polygon>();
+        int degenerate = 0;
         foreach (var cell in cells)
         {
             var raw = cell.GeoDataCoordinates;
-            if (raw is null || raw.Length < 4) continue;
+            if (raw is null || raw.Length < 4) { degenerate++; continue; }
             var ring = raw
                 .Select(pt => new Coordinate(
                     (pt[0] - xOffset) * xRatio,
@@ -128,25 +137,46 @@ public static class TerrainDebugImage
             if (!ring[0].Equals2D(ring[^1]))
                 ring = [.. ring, ring[0]];
             try { polys.Add(gf.CreatePolygon(ring)); }
-            catch { /* degenerate cell polygon — skip */ }
+            catch { degenerate++; }
         }
 
         var drawables = new Drawables();
-        if (polys.Count == 0) return drawables;
-
-        Geometry unioned;
-        try { unioned = UnaryUnionOp.Union(polys); }
-        catch { return drawables; }
-
-        foreach (var ring in ExteriorRingsOf(unioned))
+        if (polys.Count == 0)
         {
-            drawables
-                .DisableStrokeAntialias()
-                .FillColor(fillColor)
-                .StrokeColor(MagickColors.Black)
-                .StrokeWidth(ProvinceBorderWidth)
-                .Polygon(ring);
+            Logger.Warning($"TerrainDebugImage: {province.GetType().Name} #{province.Id} '{province.Name}' produced 0 valid cell polygons ({degenerate} degenerate, {cells.Count} total) — will read as sea on the debug image");
+            return drawables;
         }
+
+        Geometry? unioned = null;
+        try { unioned = UnaryUnionOp.Union(polys); }
+        catch (Exception ex)
+        {
+            Logger.Warning($"TerrainDebugImage: UnaryUnion failed on {province.GetType().Name} #{province.Id} '{province.Name}' ({polys.Count} cell polygons): {ex.GetType().Name}: {ex.Message} — falling back to cell-by-cell fill (no border)");
+        }
+
+        int ringsDrawn = 0;
+        if (unioned != null)
+        {
+            foreach (var ring in ExteriorRingsOf(unioned))
+            {
+                drawables
+                    .DisableStrokeAntialias()
+                    .FillColor(fillColor)
+                    .StrokeColor(MagickColors.Black)
+                    .StrokeWidth(ProvinceBorderWidth)
+                    .Polygon(ring);
+                ringsDrawn++;
+            }
+            if (ringsDrawn == 0)
+                Logger.Warning($"TerrainDebugImage: union of {province.GetType().Name} #{province.Id} '{province.Name}' ({polys.Count} cell polygons) produced {unioned.GeometryType} with no exterior rings — falling back to cell-by-cell fill (no border)");
+        }
+
+        // Fallback path: union failed OR produced no rings. Paint each cell individually so
+        // the area at least shows up in the right colour. We sacrifice the clean province
+        // border but never silently lose the province.
+        if (ringsDrawn == 0)
+            return ImageUtility.GenerateCellPolygons(cells, fillColor, coords);
+
         return drawables;
     }
 
@@ -160,6 +190,13 @@ public static class TerrainDebugImage
             case MultiPolygon mp:
                 foreach (var part in mp.Geometries.OfType<Polygon>())
                     yield return part.ExteriorRing.Coordinates.Select(c => new PointD(c.X, c.Y));
+                break;
+            case GeometryCollection gc:
+                foreach (var part in gc.Geometries.OfType<Polygon>())
+                    yield return part.ExteriorRing.Coordinates.Select(c => new PointD(c.X, c.Y));
+                foreach (var nested in gc.Geometries.OfType<MultiPolygon>())
+                    foreach (var part in nested.Geometries.OfType<Polygon>())
+                        yield return part.ExteriorRing.Coordinates.Select(c => new PointD(c.X, c.Y));
                 break;
         }
     }
