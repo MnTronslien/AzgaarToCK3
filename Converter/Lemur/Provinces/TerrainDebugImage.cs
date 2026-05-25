@@ -14,7 +14,7 @@ public static class TerrainDebugImage
     public static readonly IReadOnlyDictionary<Ck3Terrain, MagickColor> Palette = new Dictionary<Ck3Terrain, MagickColor>
     {
         [Ck3Terrain.Desert]           = MagickColor.FromRgb(0xFF, 0xFF, 0x00),
-        [Ck3Terrain.DesertMountains]  = MagickColor.FromRgb(0x1A, 0x1A, 0x1A),
+        [Ck3Terrain.DesertMountains]  = MagickColor.FromRgb(0xE6, 0xE6, 0xE6),
         [Ck3Terrain.Drylands]         = MagickColor.FromRgb(0xFF, 0x14, 0x93),
         [Ck3Terrain.Farmlands]        = MagickColor.FromRgb(0xFF, 0x00, 0x00),
         [Ck3Terrain.Floodplains]      = MagickColor.FromRgb(0x40, 0x40, 0xC0),
@@ -32,8 +32,8 @@ public static class TerrainDebugImage
 
     private static readonly MagickColor SeaColor       = MagickColor.FromRgb(0x30, 0x60, 0xE0);
     private static readonly MagickColor RiverColor     = MagickColor.FromRgb(0x0C, 0x20, 0x70);
-    // Off-white — distinct from every Palette entry and from SeaColor at a glance.
-    private static readonly MagickColor WastelandColor = MagickColor.FromRgb(0xE6, 0xE6, 0xE6);
+    // Near-black — CK3 community convention treats impassable terrain as black on overview maps.
+    private static readonly MagickColor WastelandColor = MagickColor.FromRgb(0x1A, 0x1A, 0x1A);
 
     private const int ProvinceBorderWidth = 4;
 
@@ -77,10 +77,14 @@ public static class TerrainDebugImage
             if (color is null) continue;
             // Wastelands skip the union: Lemur lumps every wasteland cell into a single
             // "Wastelands" object (e.g. 13,930 cells on Showcase) which is both slow to
-            // union and prone to NTS topology exceptions. Borderless cell-by-cell fill
-            // gets the area onto the image in the right colour without the geometry risk.
+            // union and prone to NTS topology exceptions. That single object also includes
+            // navigable sea cells; filtering by IsDryLand keeps the wasteland fill on
+            // genuine land and lets the canvas's sea colour show through the sea cells.
             if (province is Wasteland)
-                drawablesList.Add(ImageUtility.GenerateCellPolygons(province.Cells, color, coords));
+            {
+                var dryLandCells = province.Cells.Where(c => Cell.IsDryLand(c.Type));
+                drawablesList.Add(ImageUtility.GenerateCellPolygons(dryLandCells, color, coords));
+            }
             else
                 drawablesList.Add(BuildBorderedProvinceDrawable(province, color, coords, gf));
         }
