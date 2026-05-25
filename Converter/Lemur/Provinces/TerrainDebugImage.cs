@@ -65,36 +65,17 @@ public static class TerrainDebugImage
         var coords = map.JsonMap.mapCoordinates;
         var gf = new GeometryFactory();
 
+        // Canvas starts sea-coloured. Land provinces (baronies + wastelands) paint over the
+        // top with their fill + border. Anything we don't paint stays sea, so sea zones,
+        // far-sea zones, and major-river provinces need no explicit drawing — and painting
+        // them would risk overpainting coastal land where sea-cell Voronoi polygons extend
+        // inland (caused a phantom lake on the previous render).
         var drawablesList = new List<Drawables>();
-
-        foreach (var barony in map.Baronies!)
+        foreach (var province in EnumerateLandProvinces(map))
         {
-            var color = Palette.TryGetValue(barony.Ck3Terrain, out var c) ? c : MagickColors.Magenta;
-            drawablesList.Add(BuildBorderedProvinceDrawable(barony.Cells, color, coords, gf));
-        }
-
-        if (map.Wastelands is { Count: > 0 })
-        {
-            foreach (var wasteland in map.Wastelands)
-                drawablesList.Add(BuildBorderedProvinceDrawable(wasteland.Cells, WastelandColor, coords, gf));
-        }
-
-        // Sea zones repainted last (no border) — reclaim pixels that coastal land polygons
-        // bled into, so wasteland/barony "fingers" don't leak into the ocean.
-        if (map.SeaZones is { Count: > 0 })
-        {
-            var cells = map.SeaZones.SelectMany(z => z.Cells);
-            drawablesList.Add(ImageUtility.GenerateCellPolygons(cells, SeaColor, map));
-        }
-        if (map.FarSeaZones is { Count: > 0 })
-        {
-            var cells = map.FarSeaZones.SelectMany(z => z.Cells);
-            drawablesList.Add(ImageUtility.GenerateCellPolygons(cells, SeaColor, map));
-        }
-        if (map.MajorRiverProvinces is { Count: > 0 })
-        {
-            var cells = map.MajorRiverProvinces.SelectMany(r => r.Cells);
-            drawablesList.Add(ImageUtility.GenerateCellPolygons(cells, SeaColor, map));
+            var color = FillColorFor(province);
+            if (color is null) continue;
+            drawablesList.Add(BuildBorderedProvinceDrawable(province.Cells, color, coords, gf));
         }
 
         canvas.Draw(drawablesList.SelectMany(d => d));
@@ -105,6 +86,21 @@ public static class TerrainDebugImage
         canvas.HasAlpha = false;
         return canvas;
     }
+
+    private static IEnumerable<IProvince> EnumerateLandProvinces(Map map)
+    {
+        if (map.Baronies != null)
+            foreach (var b in map.Baronies) yield return b;
+        if (map.Wastelands != null)
+            foreach (var w in map.Wastelands) yield return w;
+    }
+
+    private static MagickColor? FillColorFor(IProvince province) => province switch
+    {
+        Barony b    => Palette.TryGetValue(b.Ck3Terrain, out var c) ? c : MagickColors.Magenta,
+        Wasteland _ => WastelandColor,
+        _           => null,
+    };
 
     // Union the province's cells into one (or more) polygons, then add a Drawables that paints
     // each piece's exterior ring with the given fill + a uniform black stroke. Interior holes
