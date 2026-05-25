@@ -10,13 +10,14 @@ namespace Converter.Lemur
         private static List<string> _generatedImages = new List<string>();
         private static string? _debugFolderName = null;
 
-        private static string GetDebugFolderName()
+        // Internal so debug-image writers across the codebase (e.g. TerrainDebugImage in
+        // Lemur.Provinces) land in the same per-run folder. Minute-resolution timestamp
+        // means subsequent callers must reuse the cached value, not recompute their own.
+        internal static string GetDebugFolderName()
         {
             if (_debugFolderName == null)
             {
-                // Extract map name from input path (e.g., "Touria.json" -> "Touria")
                 var mapName = Path.GetFileNameWithoutExtension(Settings.Instance.InputJsonPath);
-                // Generate timestamp in YYYY.MM.DD_HH.MM format
                 var timestamp = DateTime.Now.ToString("yyyy.MM.dd_HH.mm");
                 _debugFolderName = $"{mapName}_{timestamp}";
             }

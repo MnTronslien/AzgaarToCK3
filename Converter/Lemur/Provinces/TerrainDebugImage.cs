@@ -48,7 +48,7 @@ public static class TerrainDebugImage
         var debugRoot = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "AzgaarToCK3", "debug");
-        var path = Helper.GetPath(debugRoot, GetDebugFolderName(), "9_terrain_overview.png");
+        var path = Helper.GetPath(debugRoot, ImageUtility.GetDebugFolderName(), "9_terrain_overview.png");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         await canvas.WriteAsync(path);
         Logger.Info($"Saved terrain overview to '{path}'");
@@ -321,15 +321,4 @@ public static class TerrainDebugImage
         _                           => Char.ToUpper(t.ToCk3String()[0]) + t.ToCk3String().Substring(1),
     };
 
-    // Mirrors the private folder-naming logic in ImageUtility so all run artefacts cluster
-    // under the same map-name + timestamp directory.
-    private static string? _debugFolderName;
-    private static string GetDebugFolderName()
-    {
-        if (_debugFolderName != null) return _debugFolderName;
-        var mapName = Path.GetFileNameWithoutExtension(Settings.Instance.InputJsonPath);
-        var timestamp = DateTime.Now.ToString("yyyy.MM.dd_HH.mm");
-        _debugFolderName = $"{mapName}_{timestamp}";
-        return _debugFolderName;
-    }
 }
