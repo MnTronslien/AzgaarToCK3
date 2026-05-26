@@ -363,3 +363,8 @@ MigrationBackup/
 FodyWeavers.xsd
 *.zip
 .idea/.idea.AzgaarToCK3/.idea
+
+# User-submitted Azgaar exports (bug-repro maps, etc.) — local only.
+# See TestData/_user-submitted/README.md for the convention.
+TestData/_user-submitted/*
+!TestData/_user-submitted/README.md
