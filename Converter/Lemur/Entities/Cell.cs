@@ -17,6 +17,15 @@ namespace Converter.Lemur.Entities
         public int Area { get; set; }
         public int DistanceToCoast { get; set; }  // 0 = uncomputed/land; ≥1 = sea cell distance
 
+        /// <summary>
+        /// p95-normalised cell-level surface roughness in [0..1]. 0 for sea cells and for any
+        /// run where <see cref="Fields.CellRoughnessField.Compute"/> has not been called.
+        /// Populated by ConversionManager early in the pipeline so downstream steps
+        /// (heightmap displacement, province-terrain assignment, ...) can read a single
+        /// shared value. See Lemur/Fields/CellRoughnessField.cs for the math.
+        /// </summary>
+        public float Roughness { get; set; }
+
         public FeatureType Type { get; set; }
 
         /// <summary>

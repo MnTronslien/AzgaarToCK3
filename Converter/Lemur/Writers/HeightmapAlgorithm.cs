@@ -1,5 +1,6 @@
 using Converter.Lemur;
 using Converter.Lemur.Entities;
+using Converter.Lemur.Fields;
 using NetTopologySuite.Geometries;
 using NetTopologySuite.Triangulate;
 
@@ -97,23 +98,7 @@ public static class HeightmapAlgorithm
         if (landCells.Count == 0)
             return new GenerateResult(new byte[p.Width * p.Height], new float[p.Width * p.Height], [], [], [], 0, [], [], new GeometryCollection([], new GeometryFactory()));
 
-        var rawDiffs = new Dictionary<int, float>(cells.Count);
-        foreach (var cell in cells.Values)
-        {
-            if (!Cell.IsDryLand(cell.Type)) continue;
-            var nh = cell.Neighbors
-                .Select(id => cells.TryGetValue(id, out var n) ? n : null)
-                .Where(n => n != null && Cell.IsDryLand(n!.Type))
-                .Select(n => n!.GeoHeight).ToList();
-            rawDiffs[cell.Id] = nh.Count > 0
-                ? (float)nh.Average(h => Math.Abs(cell.GeoHeight - h))
-                : 0f;
-        }
-        var sortedDiffs = rawDiffs.Values.OrderBy(x => x).ToList();
-        float p95val  = sortedDiffs.Count > 0 ? sortedDiffs[(int)(sortedDiffs.Count * 0.95f)] : 1f;
-        float autoNorm = (p95val > 0f ? p95val : 1f) * p.RoughnessNorm;
-        var roughness = rawDiffs.ToDictionary(kv => kv.Key, kv => Math.Clamp(kv.Value / autoNorm, 0f, 1f));
-        Logger.Info($"Heightmap roughness — p95raw={p95val:F1} autoNorm={autoNorm:F1} avg={roughness.Values.Average():F3}");
+        var roughness = CellRoughnessField.Compute(cells, p.RoughnessNorm);
 
         int minH = landCells.Min(c => c.GeoHeight);
         int maxH = landCells.Max(c => c.GeoHeight);

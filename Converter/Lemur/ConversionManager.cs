@@ -3,6 +3,7 @@ namespace Converter.Lemur
     using System.Diagnostics;
     using Converter.Lemur.Entities;
     using Converter.Lemur.Deserialization;
+    using Converter.Lemur.Fields;
     using Converter.Lemur.Graphs;
     using Converter.Lemur.Rivers;
     using Converter.Lemur.Provinces;
@@ -190,6 +191,21 @@ namespace Converter.Lemur
             TitleTreeDebugger.PrintTrees(map);
             TitleTreeDebugger.PrintDeJureTrees(map);
             TitleTreeDebugger.PrintCharacterDomains(map);
+
+            // Pre-writer derived-data pass. Both steps populate fields on existing entities
+            // (Cell.Roughness, Barony.Ck3Terrain) so downstream writers can read them without
+            // depending on each other's run order or computing the same signal twice.
+            using (var _ = OperationTimer.Start("Computing cell roughness"))
+            {
+                var roughness = CellRoughnessField.Compute(map.Cells!);
+                foreach (var (cellId, value) in roughness)
+                    if (map.Cells!.TryGetValue(cellId, out var c)) c.Roughness = value;
+                if (roughness.Count > 0)
+                    Logger.Info($"Cell roughness — avg={roughness.Values.Average():F3} over {roughness.Count} land cells");
+            }
+            using (var _ = OperationTimer.Start("Assigning province terrain"))
+                BaronyTerrainAssigner.Assign(map);
+            await TerrainDebugImage.Write(map);
 
             Logger.Section("Writing CK3 mod files");
 
