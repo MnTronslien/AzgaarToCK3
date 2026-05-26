@@ -5,7 +5,14 @@ namespace Converter.Lemur;
 
 public static class FaithManager
 {
-    public static Dictionary<int, Faith> Build(AzgaarReligion[] religions)
+    /// <summary>
+    /// Build the faith graph. The <paramref name="religionCellCounts"/> dict must be derived
+    /// from the GeoJSON cell graph (see <see cref="Converter.Lemur.Fields.CellDistribution"/>),
+    /// not from the Azgaar JSON <c>cells</c> field which is unreliable across export variants.
+    /// </summary>
+    public static Dictionary<int, Faith> Build(
+        AzgaarReligion[] religions,
+        IReadOnlyDictionary<int, int> religionCellCounts)
     {
         Logger.Section("Building faiths");
         var faiths = new Dictionary<int, Faith>();
@@ -23,7 +30,12 @@ public static class FaithManager
         {
             if (r.i == 0) continue;
             if (r.removed != 0) continue;
-            if (r.cells == 0 && !hasActiveChildren.Contains(r.i)) continue;
+            // Land-cell count derived from GeoJSON, NOT from r.cells. Azgaar may omit r.cells
+            // entirely on customized exports, in which case the C# DTO defaults it to 0 and we'd
+            // incorrectly prune religions that still appear on land cells — producing orphan
+            // faith references in province history (CK3 crash on unpause).
+            religionCellCounts.TryGetValue(r.i, out int landCellCount);
+            if (landCellCount == 0 && !hasActiveChildren.Contains(r.i)) continue;
 
             int rootId = FindRoot(r.i, religions);
             faiths[r.i] = new Faith

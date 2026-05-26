@@ -53,7 +53,19 @@ namespace Converter.Lemur
                 Settings.Instance.Seed = Random.Shared.Next();
             Logger.Info($"Converter seed: {Settings.Instance.Seed.Value} (use --seed to reproduce)");
 
-            map.Faiths = FaithManager.Build(map.JsonMap.pack.religions);
+            // Derive land-cell counts per religion/culture from the GeoJSON cell graph.
+            // FaithManager uses the religion counts to prune zero-cell faiths (replacing the
+            // unreliable Azgaar JSON `r.cells` field). Culture counts are logged for parity
+            // but not used as a filter — CultureManager does not currently prune zero-cell
+            // cultures (see analysis 2026-05-26: no orphan-culture symptom observed).
+            CellDistribution.Result cellDist;
+            using (var _ = OperationTimer.Start("Counting cells per religion/culture"))
+                cellDist = await CellDistribution.ComputeAsync(map.Cells!);
+            Logger.Info(
+                $"Cell distribution: {cellDist.ReligionCellCounts.Count} religions and " +
+                $"{cellDist.CultureCellCounts.Count} cultures have at least one land cell.");
+
+            map.Faiths = FaithManager.Build(map.JsonMap.pack.religions, cellDist.ReligionCellCounts);
             map.Cultures = CultureManager.Build(map.JsonMap.pack.cultures, Settings.Instance.Seed!.Value);
 
             // ✅ Visualization checkpoint 1: Raw cells
