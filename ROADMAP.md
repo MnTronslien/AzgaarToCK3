@@ -11,10 +11,11 @@ For bug reports and feature requests, see the [Issues tab](https://github.com/Mn
 - Population-balanced county grouping via graph partitioning
 - De jure capitals set at all tiers; baronies and counties ordered capital-first
 - Heightmap generated from Azgaar elevation data (all 4 CK3 files)
-    - But looks ugly
-- Minor rivers drawn via A\* pathfinding with correct tributary connections
-- Major navigable rivers carved into the cell map as river provinces — barony borders
-- Province terrain (gameplay) mapped per barony from Azgaar biome + cell roughness — drives CK3 combat, movement and supply modifiers
+    - Fast, point cloud based
+- Splatmap (terrain paint) generated from Azgaar biome data and heightmap
+- Minor rivers drawn via A\* pathfinding with correct tributary connections on a valid rivers.png
+- Major navigable rivers carved into the cell map as river provinces.
+- Province terrain (gameplay) mapped per barony from Azgaar biome + cell roughness
 - Map object locators (buildings, sieges, combat, unit stacks) placed at Azgaar burg positions, nudged inland from coastlines
 
 ### Cultures
