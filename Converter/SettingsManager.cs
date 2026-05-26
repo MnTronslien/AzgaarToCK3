@@ -90,10 +90,13 @@ public class Settings
     public bool EnableRivers { get; set; } = true;
 
     /// <summary>
-    /// Discharge threshold for major rivers. Rivers with discharge >= this value are considered major/navigable.
-    /// For testing purposes, set this very high (e.g. 999999) to treat all rivers as minor.
+    /// Discharge threshold for major rivers. Rivers with discharge >= this value are processed
+    /// as navigable river provinces (carved cells). Below this they only appear as minor river
+    /// pixels on rivers.png. 2000 is the real-world sensible default verified on Showcase +
+    /// Cerbois. Raise toward 999999 (treats all rivers as minor) if a map's mouth-width data
+    /// triggers the "major rivers swallow cells" bug.
     /// </summary>
-    public float MajorRiverThreshold { get; set; } = 999999f;  // Very high for testing - all rivers will be minor
+    public float MajorRiverThreshold { get; set; } = 2000f;
 
     /// <summary>
     /// Number of river cells per major river province segment.
