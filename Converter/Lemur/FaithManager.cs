@@ -52,9 +52,6 @@ public static class FaithManager
                 Expansionism      = r.expansionism,
                 OriginCellId      = r.center,
                 OriginalCultureId = r.culture,
-                RuralPop          = r.rural,
-                UrbanPop          = r.urban,
-                CellCount         = r.cells,
             };
         }
 
