@@ -20,9 +20,6 @@ public class Faith
     public float Expansionism { get; init; }
     public int OriginCellId { get; init; }
     public int OriginalCultureId { get; init; }
-    public float RuralPop { get; init; }
-    public float UrbanPop { get; init; }
-    public int CellCount { get; init; }
 
     // Assigned by DoctrineAssigner after faith graph is built
     public List<string> Doctrines { get; set; } = [];  // one per required doctrine group (21 entries)
