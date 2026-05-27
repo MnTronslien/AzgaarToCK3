@@ -49,6 +49,9 @@ A few areas where additional eyes / opinions are particularly welcome:
 
 - **Biome textures.** Each Azgaar biome currently maps to one CK3 ground texture — see the [Biome textures table in CONVERSION_RULES.md](docs/CONVERSION_RULES.md#biome-textures). The current choices are a reasonable first pass; better picks per biome, or refinements to the hills / mountain / beach rules, are a self-contained way to contribute. All of the mapping lives in one file: `Converter/Lemur/Splats/MaterialRegistry.cs`. Each line declares one texture + one rule, so a change is usually one or two lines.
 - **CK3 vanilla textures.** Run `./TerrainLab --gen-materials` to see the full list of available CK3 textures by name. A swap is just changing the string in `MaterialRegistry.cs`.
+- **Province terrain (gameplay).** Each barony's CK3 terrain is picked by a small registry of scoring rules in `Converter/Lemur/Provinces/TerrainRegistry.cs`. See the [Province terrain section in CONVERSION_RULES.md](docs/CONVERSION_RULES.md#province-terrain-gameplay) for what the mapping does. Each entry is a `(Ck3Terrain, score lambda)` pair — tweaking a band, raising a max, or swapping a biome → terrain pairing is usually a few lines. Current values were chosen on a single test map; better calibration on other maps is welcome.
+
+  To iterate: set `"GenerateDebugImages": true` in `settings.json`, run the converter, and inspect `%LOCALAPPDATA%\AzgaarToCK3\debug\<run>\9_terrain_overview.png` — each barony coloured by its assigned terrain with river polylines and province outlines drawn on top. Lets you compare before / after a tuning change without launching CK3.
 
 If you have a screenshot of "before / after" for a texture proposal, drop it in the PR — visual diffs are the most useful thing here.
 

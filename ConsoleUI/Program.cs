@@ -357,6 +357,19 @@ internal class Program
                 Logger.EnableFileLogging(resolvedLogPath);
             }
 
+            // Version banner — the first informational lines of every log so Discord
+            // bug reports can be attributed to a specific converter build.
+            var asmVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            var versionStr = asmVersion is null
+                ? "unknown"
+                : $"{asmVersion.Major}.{asmVersion.Minor}.{asmVersion.Build}";
+            Logger.Info($"AzgaarToCK3 v{versionStr} (target CK3 {SettingsManager.Ck3SupportedVersion})");
+            var asmLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
+            var buildDate = string.IsNullOrEmpty(asmLocation)
+                ? DateTime.Now
+                : File.GetLastWriteTime(asmLocation);
+            Logger.Info($"Built: {buildDate:yyyy-MM-dd}");
+
             // --manifest: hash all files in <dir> and print a sorted SHA256 manifest
             if (manifestDir != null)
             {

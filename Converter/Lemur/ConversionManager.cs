@@ -3,6 +3,7 @@ namespace Converter.Lemur
     using System.Diagnostics;
     using Converter.Lemur.Entities;
     using Converter.Lemur.Deserialization;
+    using Converter.Lemur.Fields;
     using Converter.Lemur.Graphs;
     using Converter.Lemur.Rivers;
     using Converter.Lemur.Provinces;
@@ -52,7 +53,19 @@ namespace Converter.Lemur
                 Settings.Instance.Seed = Random.Shared.Next();
             Logger.Info($"Converter seed: {Settings.Instance.Seed.Value} (use --seed to reproduce)");
 
-            map.Faiths = FaithManager.Build(map.JsonMap.pack.religions);
+            // Derive land-cell counts per religion/culture from the GeoJSON cell graph.
+            // FaithManager uses the religion counts to prune zero-cell faiths (replacing the
+            // unreliable Azgaar JSON `r.cells` field). Culture counts are logged for parity
+            // but not used as a filter — CultureManager does not currently prune zero-cell
+            // cultures (see analysis 2026-05-26: no orphan-culture symptom observed).
+            CellDistribution.Result cellDist;
+            using (var _ = OperationTimer.Start("Counting cells per religion/culture"))
+                cellDist = await CellDistribution.ComputeAsync(map.Cells!);
+            Logger.Info(
+                $"Cell distribution: {cellDist.ReligionCellCounts.Count} religions and " +
+                $"{cellDist.CultureCellCounts.Count} cultures have at least one land cell.");
+
+            map.Faiths = FaithManager.Build(map.JsonMap.pack.religions, cellDist.ReligionCellCounts);
             map.Cultures = CultureManager.Build(map.JsonMap.pack.cultures, Settings.Instance.Seed!.Value);
 
             // ✅ Visualization checkpoint 1: Raw cells
@@ -191,6 +204,21 @@ namespace Converter.Lemur
             TitleTreeDebugger.PrintDeJureTrees(map);
             TitleTreeDebugger.PrintCharacterDomains(map);
 
+            // Pre-writer derived-data pass. Both steps populate fields on existing entities
+            // (Cell.Roughness, Barony.Ck3Terrain) so downstream writers can read them without
+            // depending on each other's run order or computing the same signal twice.
+            using (var _ = OperationTimer.Start("Computing cell roughness"))
+            {
+                var roughness = CellRoughnessField.Compute(map.Cells!);
+                foreach (var (cellId, value) in roughness)
+                    if (map.Cells!.TryGetValue(cellId, out var c)) c.Roughness = value;
+                if (roughness.Count > 0)
+                    Logger.Info($"Cell roughness — avg={roughness.Values.Average():F3} over {roughness.Count} land cells");
+            }
+            using (var _ = OperationTimer.Start("Assigning province terrain"))
+                BaronyTerrainAssigner.Assign(map);
+            await TerrainDebugImage.Write(map);
+
             Logger.Section("Writing CK3 mod files");
 
             if (w.Adjacencies)
@@ -210,6 +238,7 @@ namespace Converter.Lemur
                 using var _ = OperationTimer.Start("Writing map defines");
                 await MapDefinesWriter.Write(Settings.OutputDirectory);
             }
+            await MapTableWriter.Write(Settings.OutputDirectory);
             if (w.ProvinceTerrain)
             {
                 using var _ = OperationTimer.Start("Writing province terrain");
@@ -692,6 +721,24 @@ namespace Converter.Lemur
             Logger.Info($"Generated {baronies.Count} baronies");
         }
 
+        /// <summary>
+        /// Adds <paramref name="cells"/> to <paramref name="map"/> as a Duchy if at least one
+        /// cell has a burg; otherwise treats the cells as a Wasteland. Single source of truth
+        /// for the "valid Duchy" invariant — both code paths in <see cref="GenerateDuchies"/>
+        /// route through here so a future duchy-creating path cannot silently skip the check.
+        /// </summary>
+        private static void AddDuchyOrWasteland(
+            List<Duchy> duchies, Map map, int id, List<Cell> cells, string name)
+        {
+            if (!cells.Any(c => c.Burg != null))
+            {
+                Logger.Info($"Skipping {name} (id={id}) — no burgs in cells; treating as Wasteland.");
+                map.Wastelands?.Add(new Wasteland(id, cells, name));
+                return;
+            }
+            duchies.Add(new Duchy(id, cells, name));
+        }
+
         private static void GenerateDuchies(Map map)
         {
             //Duchies are based on Azgaar Provinces. Except in the case of the wastelands where parts of a state can be assigned to the wastelands province (0) and we must generate a new from the state.
@@ -720,18 +767,9 @@ namespace Converter.Lemur
                     continue;
                 }
 
-                //If none of the cells has a burg, skip the province
-                if (!province.Any(c => c.Value.Burg != null))
-                {
-                    //log the name of the province skipped
-                    Logger.Info($"Skipping province {provinceData.name} as it has no burgs (Wasteland)");
-
-                    //We have also dicovered a wasteland province, so we generate a wasteland province and add it to the wastelands list
-                    List<Cell> wastelandCells = province.Select(c => c.Value).ToList();
-                    map.Wastelands?.Add(new Wasteland(province.Key, wastelandCells, provinceData.name));
-
-                    continue;
-                }
+                // Burg-presence check now lives in AddDuchyOrWasteland (called below for the
+                // normal path and inside the wastelands-province state loop). A province / state
+                // with no burg-bearing cells falls back to a Wasteland with that province / state's name.
                 if (province.Key == 0)
                 {
                     // Handle the wastelands province, it might actually contain cells assigned to states
@@ -750,9 +788,8 @@ namespace Converter.Lemur
 
                         //look up the state in the json data, we will reuse the state name as the duchy name
                         var stateData = map.JsonMap.pack.states.First(s => s.i == state.Key);
-                        var d = new Duchy(i: stateData.i, cells: state.Select(c => c.Value).ToList(), stateData.name);
-                        duchies.Add(d);
-
+                        AddDuchyOrWasteland(duchies, map, stateData.i,
+                            state.Select(c => c.Value).ToList(), stateData.name);
                     }
                     Logger.Info($"Some cells in the azgaar wastelands province are assigned to states, we generated {duchies.Count} duchies from these states to preserve the state structure as much as possible. The rest of the cells are assigned to the Wastelands province.");
                     continue;
@@ -760,12 +797,7 @@ namespace Converter.Lemur
 
 
                 List<Cell> cells = province.Select(c => c.Value).ToList();
-
-                //Generate a duchy
-                var duchy = new Duchy(provinceData.i, cells, provinceData.name);
-
-                duchies.Add(duchy);
-
+                AddDuchyOrWasteland(duchies, map, provinceData.i, cells, provinceData.name);
             }
 
             map.Duchies = duchies;

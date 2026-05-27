@@ -9,21 +9,25 @@ public static class MapDefinesWriter
         var definesDir = Helper.GetPath(outputDirectory, "common", "defines");
         Directory.CreateDirectory(definesDir);
 
-        // mapsize_defines.txt — extents are 0-based max (width-1, height-1)
+        // mapsize_defines.txt — extents are 0-based max (width-1, height-1).
         //
-        // WATERLEVEL is the world-Y coordinate that corresponds to the highest-water heightmap byte.
-        // CK3 renders any pixel whose world-Y is AT or BELOW WATERLEVEL as ocean. We derive the
-        // exact byte threshold from HeightmapAlgorithm.MaxWaterByte (canonical single source of
-        // truth — defined there with semantic notes).
+        // WATERLEVEL is the world-Y of the water rendering plane (matches vanilla's
+        // `common/defines/00_defines.txt`: vanilla ships WATERLEVEL=3 alongside
+        // WORLD_EXTENTS_Y=50). We use 3 too.
         //
-        //   WATERLEVEL = (MaxWaterByte / 255) × WORLD_EXTENTS_Y = (20 / 255) × 51 = 4.0
-        //
-        // So byte == MaxWaterByte sits exactly at WATERLEVEL → water. Byte == MaxWaterByte + 1
-        // sits one byte above → first visible land. The land/sea boundary is a clean step,
-        // matching how downstream code (SplatmapBuilder, HeightmapMasks etc.) gates with
-        // `byte > MaxWaterByte`.
+        // Note: WATERLEVEL is NOT mathematically linked to HeightmapAlgorithm.MaxWaterByte
+        // (the byte threshold we use to decide land vs sea when emitting the heightmap).
+        // An earlier comment here asserted WATERLEVEL = (MaxWaterByte/255) × WORLD_EXTENTS_Y;
+        // that was falsified during the 2026-05-27 flatmap-occlusion investigation. Changing
+        // WATERLEVEL from 4.0 → 3.0 produced zero coastline shift in-game, proving the
+        // engine doesn't derive the byte threshold from WATERLEVEL. They're paired
+        // conceptually (both relate to "where water ends") but decoupled mathematically:
+        //   - WATERLEVEL: engine-side water plane Y; rendering parameter.
+        //   - MaxWaterByte: our reverse-engineered guess at the engine's hidden land/sea
+        //     byte threshold; used by SplatmapBuilder / HeightmapMasks to gate land vs sea.
+        // See bugs/BUG_flatmap-missing-at-zoom.md for the investigation trail.
         const int maxElevation = 51;
-        var waterLevel = ((float)maxElevation / 255f) * HeightmapAlgorithm.MaxWaterByte;
+        var waterLevel = 3.0f;
         var mapContent =
             "NJominiMap = {\n" +
             $"\tWORLD_EXTENTS_X = {L.Map.MapWidth - 1}\n" +

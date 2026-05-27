@@ -39,13 +39,14 @@ public static class FaithWriter
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // File 1: common/religion/religions/lemur_religions.txt
+    // File 1: common/religion/religion_types/lemur_religions.txt
+    // (CK3 1.19 renamed religions/ to religion_types/)
     // ─────────────────────────────────────────────────────────────────────────
     private static async Task WriteReligionsFile(
         List<IGrouping<string, Faith>> byReligion,
         string outputDirectory)
     {
-        var dir = Helper.GetPath(outputDirectory, "common", "religion", "religions");
+        var dir = Helper.GetPath(outputDirectory, "common", "religion", "religion_types");
         Directory.CreateDirectory(dir);
 
         var lines = new List<string>
@@ -114,13 +115,14 @@ public static class FaithWriter
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // File 2: common/religion/holy_sites/lemur_holy_sites.txt
+    // File 2: common/religion/holy_site_types/lemur_holy_sites.txt
+    // (CK3 1.19 renamed holy_sites/ to holy_site_types/)
     // ─────────────────────────────────────────────────────────────────────────
     private static async Task WriteHolySitesFile(
         List<HolySite> sites,
         string outputDirectory)
     {
-        var dir = Helper.GetPath(outputDirectory, "common", "religion", "holy_sites");
+        var dir = Helper.GetPath(outputDirectory, "common", "religion", "holy_site_types");
         Directory.CreateDirectory(dir);
 
         var lines = new List<string>

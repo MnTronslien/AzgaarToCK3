@@ -80,6 +80,48 @@ These texture choices are a starting point — see [CONTRIBUTING.md](../CONTRIBU
 
 ---
 
+## Province terrain (gameplay)
+
+Each barony's CK3 terrain type is picked by scoring it against every candidate terrain and taking the highest score. Two rule shapes contribute:
+
+- **Biome rules** sum the relevant Azgaar biome fractions across the barony's cells. A 60 % Forest / 40 % Jungle barony scores `0.6` for Forest and `0.4` for Jungle. A pure-biome barony scores `1.0`.
+- **Steepness rules** (`Hills`, `Mountains`, `DesertMountains`) score on the fraction of cells in a roughness band, and may exceed 1.0 so dominant relief overrules biome cover. Crossovers vs a pure biome: Hills at 67 % hill-grade cells, Mountains/DesertMountains at 50 % mountain-grade cells.
+
+### Azgaar biome → CK3 terrain (default)
+
+| Azgaar biome | CK3 terrain |
+|---|---|
+| Wetland | `wetlands` |
+| Grassland | `plains` |
+| Savanna | `drylands` |
+| Hot Desert | `desert` (or `desert_mountains` on dominant relief) |
+| Cold Desert | `steppe` |
+| Tropical Seasonal Forest | `drylands` |
+| Temperate Deciduous Forest | `forest` |
+| Tropical Rainforest | `jungle` |
+| Temperate Rainforest | `forest` |
+| Taiga | `taiga` |
+| Tundra | `taiga` |
+| Glacier | `taiga` (flips to `mountains` on dominant relief) |
+
+### Typical output (Showcase test map, 1094 baronies)
+
+![Terrain overview — Showcase](images/terrain_overview_showcase.png)
+
+```
+jungle               490  ( 44.8%)
+drylands             272  ( 24.9%)
+forest               234  ( 21.4%)
+hills                 50  (  4.6%)
+wetlands              25  (  2.3%)
+mountains             19  (  1.7%)
+desert                 4  (  0.4%)
+```
+
+Showcase is a tropical archipelago with cold arid uplands in the north. A temperate continental map would show different proportions (more `forest`, more `plains`, a long `taiga` belt).
+
+---
+
 ## De Jure Consolidation
 
 Small kingdoms and empires are absorbed into larger neighbours to prevent the map fragmenting into dozens of tiny de jure realms.

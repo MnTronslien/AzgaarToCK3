@@ -1,3 +1,25 @@
+# 1.3.0 — 2026-05-27
+
+The "all provinces are plains" gap — open since 0.1.0 — is closed. Every barony's CK3 terrain is now derived from its cells' Azgaar biome distribution and a cell-level roughness signal, giving the map real combat / movement / supply variety on play. The other half of this release is stability: three independent crashes that downstream users hit on 1.1.x and 1.2.0 are all resolved.
+
+### Added
+- **Province terrain (gameplay) from Azgaar biomes.** Every barony's CK3 terrain — `plains`, `hills`, `mountains`, `forest`, `desert`, `desert_mountains`, `drylands`, `jungle`, `taiga`, `wetlands`, `steppe`, etc. — is now picked from the cells' AzgaarBiome distribution plus a cell-level roughness signal. Closes the "all provinces are plains" gap that's been open since 0.1.0. Rules live in `Converter/Lemur/Provinces/TerrainRegistry.cs` as score lambdas; biome rules sum biome fractions, steepness rules (Hills, Mountains, DesertMountains) score on roughness-band cell fractions and may overshoot 1.0 to overrule biome cover at dominant relief. See `docs/CONVERSION_RULES.md` for the full mapping table and Showcase histogram.
+- **Terrain debug overview image.** Under `GenerateDebugImages`, a `9_terrain_overview.png` lands next to the other debug images. Each barony filled with its assigned terrain colour (CK3-community palette), wastelands distinct, river polylines overlaid, 4-px black borders from geometric union of cell polygons. Designed for tuning `TerrainRegistry.cs` without launching CK3.
+- **Converter version banner.** Every run now prints the converter version as the first log line, so bug-report logs always identify which build produced them.
+
+### Fixed
+- **CK3 1.19.x boot crash on map entry.** Custom faiths and holy sites now write to the renamed `common/religion/religion_types/` and `common/religion/holy_site_types/` folders (1.19 renamed both). Writing to the old paths on 1.19.x left every `religion = lemur_faith_N` reference dangling and crashed `on_game_start` with `EXCEPTION_GUARD_PAGE`. CK3 1.18 was unaffected; the converter output itself didn't regress.
+- **Silent CK3 termination ~3 seconds after unpause.** `FaithManager` filtered religions on Azgaar's optional `cells` field, which is only present when the user has opened the Statistics pane in the editor before exporting. Maps without that field had every religion pruned except those that survived as someone's `origins[0]`, and the rest of the map fell back to a single faith via the defensive `ProvinceHistoryWriter` guard. CK3 then crashed mid-game on the resulting orphan-faith iteration storm. Now counts cells from the GeoJSON. Reported by three downstream users (Trimoyers, PlanetFambesi).
+- **Flatmap missing at maximum zoom-out.** New `MapTableWriter` overrides `gfx/map/map_object_data/map_table_western.txt` with Y values lowered and X/Z recentered to our 8192×4096 map. Vanilla's table positions were calibrated for the 9216×4608 vanilla map and the unaltered tablecloth sat in front of the flatmap plane on converted maps. Symptom: 3D map-table visible instead of the parchment flatmap at the maximum zoom step.
+- **`AssignCellsToBaronies` crash on smaller maps** (`Sequence contains no elements`). Two duchy-creating paths in `ConversionManager.GenerateDuchies` existed; only one filtered out empty-burg duchies. The state-inside-wastelands path could produce a 0-burg duchy whenever Azgaar point count was low enough that some states had cells in the wastelands province without burgs there. Latent since March 2026; surfaced when a downstream user dropped from 100k to 10k Azgaar points. Both paths now route through `AddDuchyOrWasteland`.
+
+### Changed
+- **All debug images now land in the same per-run folder.** `ImageUtility.GetDebugFolderName` is the single source of truth — previously duplicated across `ImageUtility`, `RiverImageGenerator`, and the new terrain image writer with three independent minute-resolution caches, so runs crossing a minute boundary scattered artefacts across two or three folders.
+- **`MajorRiverThreshold` default lowered to `2000`** (was an effectively-disabled `999999`). Exercises the major-river ribbon code path on typical Azgaar maps; the known cell-swallowing edge case still affects very large widths and is tracked separately.
+- **`Faith.RuralPop` / `Faith.UrbanPop` / `Faith.CellCount` removed.** Dead after the cell-count fix; no readers anywhere.
+
+---
+
 # 1.2.0 — 2026-05-22
 
 The first-run experience gets a real onboarding flow and every run writes a .log file you can attach to a bug report. Builds on the foundation laid by 1.1.2 ("Saved settings.json. You won't see this screen again.") — that screen now actually walks the user all the way to a running conversion instead of dropping them at a `.json file has not been found` error.

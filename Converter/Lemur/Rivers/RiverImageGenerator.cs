@@ -482,11 +482,6 @@ namespace Converter.Lemur.Rivers
             return null;
         }
 
-        private static string GetDebugFolderName()
-        {
-            var mapName = Path.GetFileNameWithoutExtension(Settings.Instance.InputJsonPath);
-            var timestamp = DateTime.Now.ToString("yyyy.MM.dd_HH.mm");
-            return $"{mapName}_{timestamp}";
-        }
+        private static string GetDebugFolderName() => ImageUtility.GetDebugFolderName();
     }
 }
