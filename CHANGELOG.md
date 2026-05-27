@@ -1,3 +1,45 @@
+# 1.3.0 — 2026-05-27
+
+### Added
+- add Ck3Terrain enum and per-province data shape
+- add BaronyContext and TerrainRegistry
+- wire BaronyTerrainAssigner into the conversion pipeline
+- ProvinceTerrainWriter emits per-barony Ck3Terrain
+- debug overview image of per-barony terrain assignments
+- draw river polylines on terrain debug image
+- band-based Hills/Mountains/DesertMountains scoring
+- draw province outlines on terrain debug image
+- print converter version banner before all other log lines
+- override map_table_western.txt to prevent flatmap occlusion
+
+### Fixed
+- route both duchy-creating paths through AddDuchyOrWasteland helper
+- brighter ocean in terrain debug image
+- distinguish wastelands from desert-mountains in debug image
+- repaint sea on top of land polygons in terrain debug image
+- river adjacency considers minor rivers, not just IsRiverCell
+- park Oasis scoring at 0 pending better signal
+- correct BaronyContext.CellRoughnesses range comment
+- stop emitting redundant terrain entries for wasteland provinces
+- drop sea reclaim from terrain debug image; unify land rendering
+- surface and recover from province-render failures
+- filter wasteland cells by IsDryLand; swap wasteland/desert-mountains colours
+- unify debug-folder name across image writers
+- write custom faiths + holy sites to renamed 1.19 folders
+- count religion cells from GeoJSON, not optional JSON field
+- converge WATERLEVEL to vanilla (3, was 4.0)
+
+### Changed
+- extract CellRoughnessField from HeightmapAlgorithm
+- normalise terrain score scale around 1.0; biomes interpolate
+- lift Logger.Info out of CellRoughnessField.Compute
+- drop WastelandSentinel cast; legend uses typed entries
+- separate sync Render from async Write in TerrainDebugImage
+- union province cells and draw with uniform border
+- drop dead RuralPop/UrbanPop/CellCount fields on Faith
+
+---
+
 # Unreleased
 
 ### Fixed
