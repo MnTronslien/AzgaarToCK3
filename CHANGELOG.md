@@ -1,56 +1,22 @@
 # 1.3.0 — 2026-05-27
 
-### Added
-- add Ck3Terrain enum and per-province data shape
-- add BaronyContext and TerrainRegistry
-- wire BaronyTerrainAssigner into the conversion pipeline
-- ProvinceTerrainWriter emits per-barony Ck3Terrain
-- debug overview image of per-barony terrain assignments
-- draw river polylines on terrain debug image
-- band-based Hills/Mountains/DesertMountains scoring
-- draw province outlines on terrain debug image
-- print converter version banner before all other log lines
-- override map_table_western.txt to prevent flatmap occlusion
-
-### Fixed
-- route both duchy-creating paths through AddDuchyOrWasteland helper
-- brighter ocean in terrain debug image
-- distinguish wastelands from desert-mountains in debug image
-- repaint sea on top of land polygons in terrain debug image
-- river adjacency considers minor rivers, not just IsRiverCell
-- park Oasis scoring at 0 pending better signal
-- correct BaronyContext.CellRoughnesses range comment
-- stop emitting redundant terrain entries for wasteland provinces
-- drop sea reclaim from terrain debug image; unify land rendering
-- surface and recover from province-render failures
-- filter wasteland cells by IsDryLand; swap wasteland/desert-mountains colours
-- unify debug-folder name across image writers
-- write custom faiths + holy sites to renamed 1.19 folders
-- count religion cells from GeoJSON, not optional JSON field
-- converge WATERLEVEL to vanilla (3, was 4.0)
-
-### Changed
-- extract CellRoughnessField from HeightmapAlgorithm
-- normalise terrain score scale around 1.0; biomes interpolate
-- lift Logger.Info out of CellRoughnessField.Compute
-- drop WastelandSentinel cast; legend uses typed entries
-- separate sync Render from async Write in TerrainDebugImage
-- union province cells and draw with uniform border
-- drop dead RuralPop/UrbanPop/CellCount fields on Faith
-
----
-
-# Unreleased
-
-### Fixed
-- **CK3 1.19.x boot crash.** Custom faiths and holy sites now write to the renamed `common/religion/religion_types/` and `common/religion/holy_site_types/` folders (1.19 renamed both). Writing to the old paths on 1.19.x left every `religion = lemur_faith_N` reference dangling and crashed `on_game_start` with `EXCEPTION_GUARD_PAGE`. CK3 1.18 was unaffected; the converter output itself didn't regress.
+The "all provinces are plains" gap — open since 0.1.0 — is closed. Every barony's CK3 terrain is now derived from its cells' Azgaar biome distribution and a cell-level roughness signal, giving the map real combat / movement / supply variety on play. The other half of this release is stability: three independent crashes that downstream users hit on 1.1.x and 1.2.0 are all resolved.
 
 ### Added
 - **Province terrain (gameplay) from Azgaar biomes.** Every barony's CK3 terrain — `plains`, `hills`, `mountains`, `forest`, `desert`, `desert_mountains`, `drylands`, `jungle`, `taiga`, `wetlands`, `steppe`, etc. — is now picked from the cells' AzgaarBiome distribution plus a cell-level roughness signal. Closes the "all provinces are plains" gap that's been open since 0.1.0. Rules live in `Converter/Lemur/Provinces/TerrainRegistry.cs` as score lambdas; biome rules sum biome fractions, steepness rules (Hills, Mountains, DesertMountains) score on roughness-band cell fractions and may overshoot 1.0 to overrule biome cover at dominant relief. See `docs/CONVERSION_RULES.md` for the full mapping table and Showcase histogram.
 - **Terrain debug overview image.** Under `GenerateDebugImages`, a `9_terrain_overview.png` lands next to the other debug images. Each barony filled with its assigned terrain colour (CK3-community palette), wastelands distinct, river polylines overlaid, 4-px black borders from geometric union of cell polygons. Designed for tuning `TerrainRegistry.cs` without launching CK3.
+- **Converter version banner.** Every run now prints the converter version as the first log line, so bug-report logs always identify which build produced them.
+
+### Fixed
+- **CK3 1.19.x boot crash on map entry.** Custom faiths and holy sites now write to the renamed `common/religion/religion_types/` and `common/religion/holy_site_types/` folders (1.19 renamed both). Writing to the old paths on 1.19.x left every `religion = lemur_faith_N` reference dangling and crashed `on_game_start` with `EXCEPTION_GUARD_PAGE`. CK3 1.18 was unaffected; the converter output itself didn't regress.
+- **Silent CK3 termination ~3 seconds after unpause.** `FaithManager` filtered religions on Azgaar's optional `cells` field, which is only present when the user has opened the Statistics pane in the editor before exporting. Maps without that field had every religion pruned except those that survived as someone's `origins[0]`, and the rest of the map fell back to a single faith via the defensive `ProvinceHistoryWriter` guard. CK3 then crashed mid-game on the resulting orphan-faith iteration storm. Now counts cells from the GeoJSON. Reported by three downstream users (Trimoyers, PlanetFambesi).
+- **Flatmap missing at maximum zoom-out.** New `MapTableWriter` overrides `gfx/map/map_object_data/map_table_western.txt` with Y values lowered and X/Z recentered to our 8192×4096 map. Vanilla's table positions were calibrated for the 9216×4608 vanilla map and the unaltered tablecloth sat in front of the flatmap plane on converted maps. Symptom: 3D map-table visible instead of the parchment flatmap at the maximum zoom step.
+- **`AssignCellsToBaronies` crash on smaller maps** (`Sequence contains no elements`). Two duchy-creating paths in `ConversionManager.GenerateDuchies` existed; only one filtered out empty-burg duchies. The state-inside-wastelands path could produce a 0-burg duchy whenever Azgaar point count was low enough that some states had cells in the wastelands province without burgs there. Latent since March 2026; surfaced when a downstream user dropped from 100k to 10k Azgaar points. Both paths now route through `AddDuchyOrWasteland`.
 
 ### Changed
-- **All debug images now land in the same per-run folder.** `ImageUtility.GetDebugFolderName` is now the single source of truth (was duplicated across `ImageUtility`, `RiverImageGenerator`, and the new terrain image writer with three independent minute-resolution caches, so runs crossing a minute boundary scattered artefacts across two or three folders).
+- **All debug images now land in the same per-run folder.** `ImageUtility.GetDebugFolderName` is the single source of truth — previously duplicated across `ImageUtility`, `RiverImageGenerator`, and the new terrain image writer with three independent minute-resolution caches, so runs crossing a minute boundary scattered artefacts across two or three folders.
+- **`MajorRiverThreshold` default lowered to `2000`** (was an effectively-disabled `999999`). Exercises the major-river ribbon code path on typical Azgaar maps; the known cell-swallowing edge case still affects very large widths and is tracked separately.
+- **`Faith.RuralPop` / `Faith.UrbanPop` / `Faith.CellCount` removed.** Dead after the cell-count fix; no readers anywhere.
 
 ---
 
