@@ -40,11 +40,7 @@ public static class FaithWriter
 
     // ─────────────────────────────────────────────────────────────────────────
     // File 1: common/religion/religion_types/lemur_religions.txt
-    // CK3 1.19 renamed religions/ -> religion_types/. 1.19.0.5 had a soft-compat
-    // shim that still loaded the old name; 1.19.0.6 dropped it. Writing to the
-    // old path on 1.19.x leaves our faith definitions silently unloaded — every
-    // character's religion = lemur_faith_N then resolves to null and on_game_start
-    // crashes through cascading scope:faith failures.
+    // (CK3 1.19 renamed religions/ to religion_types/)
     // ─────────────────────────────────────────────────────────────────────────
     private static async Task WriteReligionsFile(
         List<IGrouping<string, Faith>> byReligion,
@@ -120,9 +116,7 @@ public static class FaithWriter
 
     // ─────────────────────────────────────────────────────────────────────────
     // File 2: common/religion/holy_site_types/lemur_holy_sites.txt
-    // CK3 1.19 renamed holy_sites/ -> holy_site_types/. Same rationale as the
-    // religion_types/ rename above: writing to the old path on 1.19.x leaves
-    // every faith's holy_site = lemur_site_N reference dangling.
+    // (CK3 1.19 renamed holy_sites/ to holy_site_types/)
     // ─────────────────────────────────────────────────────────────────────────
     private static async Task WriteHolySitesFile(
         List<HolySite> sites,
