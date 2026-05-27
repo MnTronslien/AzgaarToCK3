@@ -1,5 +1,8 @@
 # Unreleased
 
+### Fixed
+- **CK3 1.19.x boot crash.** Custom faiths and holy sites now write to the renamed `common/religion/religion_types/` and `common/religion/holy_site_types/` folders (1.19 renamed both). Writing to the old paths on 1.19.x left every `religion = lemur_faith_N` reference dangling and crashed `on_game_start` with `EXCEPTION_GUARD_PAGE`. CK3 1.18 was unaffected; the converter output itself didn't regress.
+
 ### Added
 - **Province terrain (gameplay) from Azgaar biomes.** Every barony's CK3 terrain — `plains`, `hills`, `mountains`, `forest`, `desert`, `desert_mountains`, `drylands`, `jungle`, `taiga`, `wetlands`, `steppe`, etc. — is now picked from the cells' AzgaarBiome distribution plus a cell-level roughness signal. Closes the "all provinces are plains" gap that's been open since 0.1.0. Rules live in `Converter/Lemur/Provinces/TerrainRegistry.cs` as score lambdas; biome rules sum biome fractions, steepness rules (Hills, Mountains, DesertMountains) score on roughness-band cell fractions and may overshoot 1.0 to overrule biome cover at dominant relief. See `docs/CONVERSION_RULES.md` for the full mapping table and Showcase histogram.
 - **Terrain debug overview image.** Under `GenerateDebugImages`, a `9_terrain_overview.png` lands next to the other debug images. Each barony filled with its assigned terrain colour (CK3-community palette), wastelands distinct, river polylines overlaid, 4-px black borders from geometric union of cell polygons. Designed for tuning `TerrainRegistry.cs` without launching CK3.
