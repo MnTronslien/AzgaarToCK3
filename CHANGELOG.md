@@ -1,3 +1,10 @@
+# Unreleased
+
+### Added
+- **Per-county start-of-game development.** County title history now sets `change_development_level` at 1066.1.1 from the capital burg's Azgaar population (1 pop point ≈ 1 dev, clamped to [1, 100] — CK3's engine cap). Previously every county started at 0. Typical Azgaar maps produce a median of 7–9 with state capitals reaching 30+, leaving headroom for the in-game development loop to grow values further. Resolves issue #10. Also fixes a latent bug where `County`'s `capital` constructor parameter was accepted but never assigned to `Capital`.
+
+---
+
 # 1.3.0 — 2026-05-27
 
 The "all provinces are plains" gap — open since 0.1.0 — is closed. Every barony's CK3 terrain is now derived from its cells' Azgaar biome distribution and a cell-level roughness signal, giving the map real combat / movement / supply variety on play. The other half of this release is stability: three independent crashes that downstream users hit on 1.1.x and 1.2.0 are all resolved.

@@ -29,7 +29,11 @@ public static class TitleHistoryWriter
                     // Without this, CK3 walks the de jure chain and assigns unspecified
                     // counties to the first titled holder it finds (often the wrong king).
                     foreach (var county in duchy.Counties)
-                        sb.AppendLine(TitleEntry(county.Ck3_Id(), county.Holder?.Id, county.DeFactoLiege!.Ck3_Id()));
+                        sb.AppendLine(TitleEntry(
+                            county.Ck3_Id(),
+                            county.Holder?.Id,
+                            county.DeFactoLiege!.Ck3_Id(),
+                            development: county.GetDevelopmentLevel()));
                 }
             }
         }
@@ -40,10 +44,11 @@ public static class TitleHistoryWriter
         Logger.Info($"Wrote 00_lemur_titles.txt");
     }
 
-    private static string TitleEntry(string titleId, string? holderId, string? liege)
+    private static string TitleEntry(string titleId, string? holderId, string? liege, int? development = null)
     {
         var holderClause = holderId != null ? $" holder = {holderId}" : "";
         var liegeClause = liege != null ? $" liege = {liege}" : "";
-        return $"{titleId} = {{ {StartDate} = {{{holderClause}{liegeClause} }} }}";
+        var devClause = development.HasValue ? $" change_development_level = {development.Value}" : "";
+        return $"{titleId} = {{ {StartDate} = {{{holderClause}{liegeClause}{devClause} }} }}";
     }
 }
