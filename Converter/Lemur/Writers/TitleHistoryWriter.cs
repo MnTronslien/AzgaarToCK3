@@ -1,3 +1,4 @@
+using Converter.Lemur.Governments;
 using L = Converter.Lemur.Entities;
 
 namespace Converter.Lemur.Writers;
@@ -22,7 +23,7 @@ public static class TitleHistoryWriter
                 foreach (var duchy in kingdom.Duchies)
                 {
                     if (duchy.Holder != null)
-                        sb.AppendLine(TitleEntry(duchy.Ck3_Id(), duchy.Holder.Id, duchy.DeFactoLiege?.Ck3_Id()));
+                        sb.Append(DuchyEntry(duchy));
 
                     // Always write county liege — even without a holder.
                     // CK3 will auto-spawn a count and route them to the correct liege.
@@ -50,5 +51,48 @@ public static class TitleHistoryWriter
         var liegeClause = liege != null ? $" liege = {liege}" : "";
         var devClause = development.HasValue ? $" change_development_level = {development.Value}" : "";
         return $"{titleId} = {{ {StartDate} = {{{holderClause}{liegeClause}{devClause} }} }}";
+    }
+
+    /// <summary>
+    /// Duchy history entry. Same single-line shape as <see cref="TitleEntry"/> when the duchy
+    /// has no resolved government, or when the resolved government is a base-game one (plain
+    /// <c>government = X</c> clause). DLC-gated governments switch to a multi-line block
+    /// that emits a <c>has_dlc_feature</c> conditional so the Jomini engine picks the real
+    /// government or its fallback at game-start. Pattern modelled on vanilla character history
+    /// dispatch (e.g. <c>history/characters/cuman.txt</c>).
+    /// </summary>
+    private static string DuchyEntry(L.Duchy duchy)
+    {
+        var titleId = duchy.Ck3_Id();
+        var holderId = duchy.Holder!.Id;
+        var liege = duchy.DeFactoLiege?.Ck3_Id();
+        var liegeClause = liege != null ? $" liege = {liege}" : "";
+        var gov = duchy.Government;
+
+        if (gov is null)
+            return $"{titleId} = {{ {StartDate} = {{ holder = {holderId}{liegeClause} }} }}" + Environment.NewLine;
+
+        if (gov.DlcFeature is null)
+            return $"{titleId} = {{ {StartDate} = {{ holder = {holderId}{liegeClause} government = {gov.Key} }} }}" + Environment.NewLine;
+
+        // DLC-gated: emit a conditional so the engine picks at game-start.
+        var fallbackKey = gov.Fallback!.Key;
+        var nl = Environment.NewLine;
+        return
+            $"{titleId} = {{{nl}" +
+            $"\t{StartDate} = {{{nl}" +
+            $"\t\tholder = {holderId}{nl}" +
+            (liege != null ? $"\t\tliege = {liege}{nl}" : "") +
+            $"\t\teffect = {{{nl}" +
+            $"\t\t\tif = {{{nl}" +
+            $"\t\t\t\tlimit = {{ has_dlc_feature = {gov.DlcFeature} }}{nl}" +
+            $"\t\t\t\tholder ?= {{ change_government = {gov.Key} }}{nl}" +
+            $"\t\t\t}}{nl}" +
+            $"\t\t\telse = {{{nl}" +
+            $"\t\t\t\tholder ?= {{ change_government = {fallbackKey} }}{nl}" +
+            $"\t\t\t}}{nl}" +
+            $"\t\t}}{nl}" +
+            $"\t}}{nl}" +
+            $"}}{nl}";
     }
 }
