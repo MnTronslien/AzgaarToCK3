@@ -4,6 +4,7 @@ namespace Converter.Lemur
     using Converter.Lemur.Entities;
     using Converter.Lemur.Deserialization;
     using Converter.Lemur.Fields;
+    using Converter.Lemur.Governments;
     using Converter.Lemur.Graphs;
     using Converter.Lemur.Rivers;
     using Converter.Lemur.Provinces;
@@ -815,6 +816,8 @@ namespace Converter.Lemur
                 Logger.Verbose($"Duchy {duchy.Id} {duchy.Name} has {duchy.GetAllCells().Count} cells");
 
             Logger.Info($"Generated {duchies.Count} duchies");
+
+            GovernmentResolver.Resolve(map);
         }
 
         private static void GenerateCounties(Map map)
