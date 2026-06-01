@@ -1,5 +1,6 @@
 using ImageMagick;
 using Converter.Lemur.Deserialization;
+using Converter.Lemur.Governments;
 
 namespace Converter.Lemur.Entities
 {
@@ -45,6 +46,13 @@ namespace Converter.Lemur.Entities
         /// Set by CharacterFactory after all holders are assigned.
         /// </summary>
         public ITitle? DeFactoLiege { get; set; }
+
+        /// <summary>
+        /// CK3 government for this title. Resolved by <see cref="Converter.Lemur.Governments.GovernmentResolver"/>;
+        /// populated for Kingdom and Duchy in the MVP, null elsewhere. Read by TitleHistoryWriter when
+        /// emitting the title's 1066.1.1 history block — null means "no government clause emitted".
+        /// </summary>
+        public Ck3Government? Government { get; set; }
 
         /// <summary>
         /// A way to get all the cells in the title. 

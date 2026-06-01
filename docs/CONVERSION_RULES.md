@@ -122,6 +122,29 @@ Showcase is a tropical archipelago with cold arid uplands in the north. A temper
 
 ---
 
+## County development (start-of-game)
+
+Each county's `change_development_level` at game start is set from its **capital burg's Azgaar population points**, rounded and clamped to `[1, 100]`. One population point maps to one development level.
+
+- **Capital-only**, not summed across the county's baronies. Counties stay in the lower range so the in-game development loop has room to run.
+- **County capital**: the Azgaar province capital burg if its cell falls in this county; otherwise the most populous barony.
+- Floor `1` avoids CK3's "uninhabited" default for an inhabited county. Ceiling `100` matches the engine cap.
+
+### Typical output (Showcase test map, 796 counties)
+
+```
+min     1
+max    35
+mean    6.6
+median  6
+p90    12
+p99    21
+```
+
+Most counties sit in the single digits with a long tail at the top for big-population state capitals. A more urbanised generated map (denser burgs, larger capital populations) shifts the distribution upward without any settings change.
+
+---
+
 ## De Jure Consolidation
 
 Small kingdoms and empires are absorbed into larger neighbours to prevent the map fragmenting into dozens of tiny de jure realms.
@@ -133,6 +156,47 @@ Small kingdoms and empires are absorbed into larger neighbours to prevent the ma
 **What happens to the title:** The original kingdom or empire title is removed. Its duchies are re-parented into the merge target, becoming de jure part of that larger realm. No ruler is assigned to the merged kingdom — so the dukes of those duchies start the game as independent rulers who happen to be de jure members of a kingdom they don't recognise.
 
 This keeps the map politically fragmented in a way that reflects the Azgaar data, while giving CK3 a coherent de jure structure to build from.
+
+---
+
+## Governments
+
+Each state's Azgaar `form` and `formName` drive the CK3 government type assigned to that state's kingdom and duchies. Kingdoms and duchies resolve independently — the kingdom from its parent state, each duchy from the state its cells belong to — so an absorbed duchy in a foreign kingdom keeps its original state's government (a Republic vassal duchy under a Feudal king works the same way Venice / Genoa do in vanilla CK3 1066).
+
+**Lookup priority:**
+
+1. Exact `formName` match (granular). Most cases land here.
+2. Broad `form` fallback (coarse). Used when `formName` is missing or unrecognised.
+3. Feudal default. Used when both are missing.
+
+### Granular `formName` → CK3 government
+
+| Output government | Azgaar formNames |
+|---|---|
+| `feudal_government` | Duchy, Grand Duchy, Principality, Kingdom, Empire, Marches, Dominion, Protectorate, Tsardom, United Kingdom |
+| `clan_government` | Beylik, Emirate, Caliphate |
+| `tribal_government` | Heptarchy, Free Territory, Council, Community |
+| `republic_government` | Republic, Federation, Trade Company, Most Serene Republic, Oligarchy, Tetrarchy, Triumvirate, Diarchy, Junta, Free City, City-state, Union, League, Confederation, United Republic, United Provinces, Commonwealth, Commune |
+| `theocracy_government` | Theocracy, Brotherhood, Thearchy, See, Holy State, Divine Duchy, Divine Grand Duchy, Divine Principality, Divine Kingdom, Divine Empire, Diocese, Bishopric, Eparchy, Exarchate, Patriarchate, Imamah |
+| `nomad_government` (Khans of the Steppe) | Khanate, Khaganate, Ulus, Horde |
+| `administrative_government` (Roads to Power) | Despotate, Satrapy |
+| `japan_feudal_government` (All Under Heaven, Sōryō) | Shogunate |
+
+### Broad `form` fallback (when `formName` is unknown)
+
+| Azgaar form | CK3 government |
+|---|---|
+| Monarchy | `feudal_government` |
+| Republic | `republic_government` |
+| Union | `republic_government` |
+| Theocracy | `theocracy_government` |
+| Anarchy | `tribal_government` |
+
+### DLC-gated governments
+
+Nomad, Administrative, and Sōryō (`japan_feudal_government`) all require DLC to be playable as their true type. The converter emits the DLC-specific key directly; the CK3 engine handles missing-DLC fallback automatically at game-start (Nomad → Tribal, Administrative → Feudal, Sōryō → Feudal). No conditional script in the title-history file is needed.
+
+The full table lives in `Converter/Lemur/Governments/GovernmentMap.cs`. To extend it for a new Azgaar formName, add one line to the `FormNameMap` dictionary.
 
 ---
 

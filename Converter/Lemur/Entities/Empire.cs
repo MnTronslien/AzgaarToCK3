@@ -1,6 +1,7 @@
 using ImageMagick;
 using Converter.Lemur;
 using Converter.Lemur.Deserialization;
+using Converter.Lemur.Governments;
 
 namespace Converter.Lemur.Entities
 {
@@ -27,6 +28,7 @@ namespace Converter.Lemur.Entities
         public ITitle? DeJureParent { get; set; }
         public ITitle? DeFactoLiege { get; set; }
         public Character? Holder { get; set; }
+        public Ck3Government? Government { get; set; }
 
         public string Ck3_Id() => Helper.ToCk3Id("e", Name, Id);
 

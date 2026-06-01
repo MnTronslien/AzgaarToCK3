@@ -1,6 +1,7 @@
 using ImageMagick;
 using Converter.Lemur;
 using Converter.Lemur.Deserialization;
+using Converter.Lemur.Governments;
 
 namespace Converter.Lemur.Entities
 {
@@ -15,6 +16,7 @@ namespace Converter.Lemur.Entities
         public ITitle? DeJureParent { get; set; }
         public ITitle? DeFactoLiege { get; set; }
         public Character? Holder { get; set; }
+        public Ck3Government? Government { get; set; }
         public List<Barony>? Baronies { get; set; }
 
         public Barony? Capital { get; set; }
@@ -39,11 +41,27 @@ namespace Converter.Lemur.Entities
                 DeJureParent = duchy;
                 ((Duchy)DeJureParent).Counties.Add(this);
             }
-
+            if (capital != null)
+                Capital = capital;
         }
 
 
         public string Ck3_Id() => Helper.ToCk3Id("c", Name, Id);
+
+        /// <summary>
+        /// CK3 start-of-game development level derived from the capital burg's Azgaar
+        /// population points. One pop point ≈ 1000 people; we map 1:1 to dev so the
+        /// game's growth loop has room to play out. Clamped to [1, 100] — 1 keeps
+        /// CK3 from treating the county as uninhabited; 100 mirrors the engine cap.
+        /// Falls back to the most populous barony if Capital is unset.
+        /// </summary>
+        public int GetDevelopmentLevel()
+        {
+            var burg = Capital?.burg
+                ?? Baronies?.OrderByDescending(b => b.burg.Population).FirstOrDefault()?.burg;
+            if (burg == null) return 1;
+            return Math.Clamp((int)Math.Round(burg.Population), 1, 100);
+        }
 
         public List<Cell> GetAllCells()
         {

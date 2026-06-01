@@ -1,3 +1,13 @@
+# 1.4.0 — Governance — 2026-06-01
+
+Governments and development — finally, they're here, and they're a big deal. These are two of the last things standing between "the map looks right" and "the map plays right." Until now every realm was feudal and every county started at development 0, so the whole world played the same way. Now each realm gets a government that fits its Azgaar state, and every county starts with a development level set by how big its capital is. The world opens with real political and economic texture instead of a flat feudal sheet.
+
+### Added
+- **Governments that fit your states.** Every kingdom and duchy now gets a real CK3 government instead of everyone being feudal — `feudal`, `clan`, `tribal`, `republic`, and `theocracy`, plus the DLC forms `nomad` (Khans of the Steppe), `administrative` (Roads to Power), and `japan_feudal`/Sōryō (All Under Heaven). The converter looks at each state's Azgaar form name first (an Emirate becomes a clan, a Most Serene Republic a republic, a Shogunate a Sōryō realm), falls back to the broad form if the name is unfamiliar, and only lands on feudal as a last resort. Kingdoms and duchies are decided on their own, so a republic duchy under a feudal king keeps its republic government — just like Venice and Genoa sit under their lieges in vanilla 1066. Missing the DLC for a government? CK3 quietly falls back at game start (nomad → tribal, administrative and Sōryō → feudal), so nothing breaks. The full mapping is written up in `docs/CONVERSION_RULES.md`. Resolves issue #9.
+- **Counties that start with real development.** Each county now begins the game at a development level drawn from its capital's population, instead of everyone starting flat at 0. Big state capitals open around 30 and up, most counties settle around 7–9, and there's plenty of headroom left for development to grow in play (CK3 caps it at 100). Resolves issue #10 — and fixes a quiet bug along the way where a county wasn't actually holding on to its capital.
+
+---
+
 # 1.3.0 — 2026-05-27
 
 The "all provinces are plains" gap — open since 0.1.0 — is closed. Every barony's CK3 terrain is now derived from its cells' Azgaar biome distribution and a cell-level roughness signal, giving the map real combat / movement / supply variety on play. The other half of this release is stability: three independent crashes that downstream users hit on 1.1.x and 1.2.0 are all resolved.
