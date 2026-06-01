@@ -4,11 +4,41 @@ namespace Converter.Lemur.Writers;
 
 public static class ModDescriptorWriter
 {
+    /// <summary>
+    /// Directories CK3 must load as non-additive replacements so vanilla content there is wiped
+    /// and only our generated world remains. This is the "clean slate" the Total Conversion Sandbox
+    /// mod used to provide via its own descriptor; we now declare it ourselves so the generated mod
+    /// is self-sufficient and needs no TCS in the playset.
+    ///
+    /// Deliberately NOT replaced: gfx/map/map_object_data and .../generated. We only emit a handful
+    /// of locator/map-table files there; leaving those paths additive lets vanilla map decoration
+    /// (trees, cliffs, bridges, audio) load while our same-named files override by filename. Replacing
+    /// them would force us to ship vanilla-derived filler for everything we don't generate.
+    /// </summary>
+    private static readonly string[] ReplacePaths =
+    [
+        "common/landed_titles",
+        "common/religion/religions",
+        "common/bookmarks",
+        "common/bookmark_portraits",
+        "history/characters",
+        "history/titles",
+        "history/provinces",
+        "history/province_mappings",
+        "map_data",
+    ];
+
     public static async Task Write(string modName, string modsDirectory, string outputDirectory)
     {
         // descriptor.mod goes inside the mod folder (CK3 reads it from there at runtime).
         var descriptorPath = Helper.GetPath(outputDirectory, "descriptor.mod");
         Directory.CreateDirectory(outputDirectory);
+
+        // A replace_path over a directory that produces no files of its own (history/province_mappings)
+        // still wipes vanilla there. Create it empty so the replacement target physically exists.
+        // (common/bookmark_portraits is created — also empty — by BookmarkWriter.)
+        Directory.CreateDirectory(Helper.GetPath(outputDirectory, "history", "province_mappings"));
+
         await File.WriteAllTextAsync(descriptorPath, BuildDescriptorContent(modName, includePath: false), Helper.Utf8Bom);
 
         // The launcher .mod in the Paradox mods directory must point at the real mod folder.
@@ -64,6 +94,11 @@ public static class ModDescriptorWriter
             $"name=\"{modName}\"",
             $"supported_version=\"{SettingsManager.Ck3SupportedVersion}\"",
         };
+
+        // replace_path lines must be present in BOTH the in-mod descriptor.mod and the launcher .mod —
+        // CK3 reads the load-order replace rules from the launcher copy.
+        foreach (var path in ReplacePaths)
+            lines.Add($"replace_path=\"{path}\"");
 
         if (includePath && outputDirectory != null)
             lines.Add($"path=\"{outputDirectory.Replace('\\', '/')}\"");
