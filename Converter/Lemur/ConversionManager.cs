@@ -4,6 +4,7 @@ namespace Converter.Lemur
     using Converter.Lemur.Entities;
     using Converter.Lemur.Deserialization;
     using Converter.Lemur.Fields;
+    using Converter.Lemur.Governments;
     using Converter.Lemur.Graphs;
     using Converter.Lemur.Rivers;
     using Converter.Lemur.Provinces;
@@ -186,6 +187,11 @@ namespace Converter.Lemur
             int culledEmpires = map.Empires.RemoveAll(e => !e.Kingdoms.Any());
             if (culledEmpires > 0)
                 Logger.Info($"Culled {culledEmpires} empire(s) with 0 kingdoms after merge.");
+
+            // Resolve CK3 governments on Kingdom + Duchy in two independent passes — must run after
+            // MergeTinyKingdoms + cull so map.Kingdoms is final (don't resolve for kingdoms that
+            // will be dissolved).
+            GovernmentResolver.Resolve(map);
 
             AssignCapitals(map);
 

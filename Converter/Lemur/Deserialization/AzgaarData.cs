@@ -86,7 +86,13 @@ namespace Converter.Lemur.Deserialization
 
     public record AzgaarProvince(int i, int state, int burg, string name);
 
-    public record AzgaarState(int i, string name, int[] provinces);
+    public record AzgaarState(
+        int i,
+        string name,
+        int[] provinces,
+        string? form = null,        // broad Azgaar government category: "Monarchy", "Republic", "Theocracy", "Union", "Anarchy"
+        string? formName = null     // granular Azgaar government name: "Duchy", "Khanate", "Diocese", "Republic", "Free Territory", ...
+    );
 
     public record AzgaarCulture(
         int i,
