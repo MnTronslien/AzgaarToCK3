@@ -3,37 +3,63 @@ using Converter.Lemur.Entities;
 namespace Converter.Lemur.Governments;
 
 /// <summary>
-/// Single-pass resolver that stamps a <see cref="Ck3Government"/> onto every duchy by reading
-/// the Azgaar state's <c>form</c> / <c>formName</c> and running it through <see cref="GovernmentMap"/>.
+/// Resolves CK3 governments onto Kingdom and Duchy titles. Two independent passes:
 ///
-/// Runs after duchy generation, before <c>CharacterFactory</c>. No character traversal — the state
-/// data lives on the duchy (via cells), so resolution lives at the duchy level. <c>TitleHistoryWriter</c>
-/// later reads <see cref="Duchy.Government"/> when emitting the 1066.1.1 history block.
+///   * Kingdom pass: each kingdom looks up its Azgaar state via <see cref="Kingdom.Id"/>,
+///     which equals the state's <c>i</c> by construction (see <c>GenerateKingdoms</c>).
+///   * Duchy pass: each duchy looks up its Azgaar state via <see cref="Duchy.AzgaarStateId"/>
+///     (derived from its cells; immutable across <c>MergeTinyKingdoms</c>).
+///
+/// No propagation between tiers and no character traversal — each title resolves from data
+/// it owns directly. This sidesteps the <see cref="Duchy.IsAbsorbed"/> edge case: an absorbed
+/// duchy in a foreign kingdom still picks up *its own* original state's government, which
+/// gives the in-game ruler the right government even when his liege has a different one
+/// (vanilla Venice/Genoa pattern under feudal lieges).
+///
+/// Must run after <c>MergeTinyKingdoms</c> + the kingdom/empire cull so <c>map.Kingdoms</c>
+/// is final — otherwise we'd resolve governments for kingdoms that get dissolved.
 /// </summary>
 public static class GovernmentResolver
 {
     public static void Resolve(Map map)
     {
-        if (map.Duchies is null) return;
-
         var statesById = map.JsonMap.pack.states.ToDictionary(s => s.i);
+        var kingdomCounts = new Dictionary<string, int>();
+        var duchyCounts = new Dictionary<string, int>();
+        int stateMisses = 0;
 
-        var counts = new Dictionary<string, int>();
-        var dlcGated = 0;
-
-        foreach (var duchy in map.Duchies)
+        foreach (var kingdom in map.Kingdoms)
         {
-            statesById.TryGetValue(duchy.AzgaarStateId, out var state);
-            var gov = GovernmentMap.For(state?.form, state?.formName);
-            duchy.Government = gov;
-
-            counts[gov.Key] = counts.GetValueOrDefault(gov.Key) + 1;
-            if (gov.DlcFeature is not null) dlcGated++;
+            if (!statesById.TryGetValue(kingdom.Id, out var state))
+            {
+                Logger.Warning($"[GovernmentResolver] Kingdom {kingdom.Ck3_Id()} has no matching Azgaar state (kingdom.Id={kingdom.Id}). Falling back to Feudal.");
+                stateMisses++;
+            }
+            kingdom.Government = GovernmentMap.For(state?.form, state?.formName);
+            kingdomCounts[kingdom.Government.Key] = kingdomCounts.GetValueOrDefault(kingdom.Government.Key) + 1;
         }
 
-        var summary = string.Join(", ",
-            counts.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Value} {kv.Key}"));
-        Logger.Info($"Resolved governments for {map.Duchies.Count} duchies: {summary}"
-                    + (dlcGated > 0 ? $" ({dlcGated} DLC-gated)" : ""));
+        foreach (var duchy in map.Duchies!)
+        {
+            if (!statesById.TryGetValue(duchy.AzgaarStateId, out var state))
+            {
+                // Wasteland-derived duchies legitimately point at state 0 (which doesn't exist in
+                // the states array). Don't spam a warning for the wasteland case.
+                if (duchy.AzgaarStateId != 0)
+                {
+                    Logger.Warning($"[GovernmentResolver] Duchy {duchy.Ck3_Id()} has no matching Azgaar state (AzgaarStateId={duchy.AzgaarStateId}). Falling back to Feudal.");
+                    stateMisses++;
+                }
+            }
+            duchy.Government = GovernmentMap.For(state?.form, state?.formName);
+            duchyCounts[duchy.Government.Key] = duchyCounts.GetValueOrDefault(duchy.Government.Key) + 1;
+        }
+
+        var kingdomSummary = string.Join(", ",
+            kingdomCounts.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Value} {kv.Key}"));
+        var duchySummary = string.Join(", ",
+            duchyCounts.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Value} {kv.Key}"));
+        Logger.Info($"Resolved governments for {map.Kingdoms.Count} kingdoms: {kingdomSummary}");
+        Logger.Info($"Resolved governments for {map.Duchies.Count} duchies: {duchySummary}");
     }
 }

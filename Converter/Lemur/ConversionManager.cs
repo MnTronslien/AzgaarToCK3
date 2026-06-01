@@ -188,6 +188,11 @@ namespace Converter.Lemur
             if (culledEmpires > 0)
                 Logger.Info($"Culled {culledEmpires} empire(s) with 0 kingdoms after merge.");
 
+            // Resolve CK3 governments on Kingdom + Duchy in two independent passes — must run after
+            // MergeTinyKingdoms + cull so map.Kingdoms is final (don't resolve for kingdoms that
+            // will be dissolved).
+            GovernmentResolver.Resolve(map);
+
             AssignCapitals(map);
 
             // ✅ Visualization checkpoint 4: Final hierarchy
@@ -816,8 +821,6 @@ namespace Converter.Lemur
                 Logger.Verbose($"Duchy {duchy.Id} {duchy.Name} has {duchy.GetAllCells().Count} cells");
 
             Logger.Info($"Generated {duchies.Count} duchies");
-
-            GovernmentResolver.Resolve(map);
         }
 
         private static void GenerateCounties(Map map)
