@@ -296,6 +296,9 @@ namespace Converter.Lemur
                 using var _ = OperationTimer.Start("Writing title history");
                 await TitleHistoryWriter.Write(map, Settings.OutputDirectory);
             }
+            // After TitleHistory so kingdom.Holder assignments exist to point the bookmark at.
+            if (w.Bookmark)
+                await BookmarkWriter.Write(map, Settings.OutputDirectory);
 
             Logger.Success();
 
