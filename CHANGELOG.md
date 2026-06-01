@@ -1,3 +1,19 @@
+# 1.4.0 — 2026-06-01
+
+### Added
+- derive start-of-game development from capital burg population
+- capture state form + add Duchy.Government
+- add Ck3Government catalog + Azgaar form mapping
+- resolve duchy government from state form
+- emit government clause on duchy title history
+
+### Changed
+- move Government to ITitle
+- collapse writer to plain `government = X`
+- two-pass resolver from kingdom.Id + duchy.AzgaarStateId
+
+---
+
 # Unreleased
 
 Governments and development — finally, they're here, and they're a big deal. These are two of the last things standing between "the map looks right" and "the map plays right." Until now every realm was feudal and every county started at development 0, so the whole world played the same way. Now each realm gets a government that fits its Azgaar state, and every county starts with a development level set by how big its capital is. The world opens with real political and economic texture instead of a flat feudal sheet.
