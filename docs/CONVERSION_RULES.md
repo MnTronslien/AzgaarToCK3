@@ -122,6 +122,29 @@ Showcase is a tropical archipelago with cold arid uplands in the north. A temper
 
 ---
 
+## County development (start-of-game)
+
+Each county's `change_development_level` at game start is set from its **capital burg's Azgaar population points**, rounded and clamped to `[1, 100]`. One population point maps to one development level.
+
+- **Capital-only**, not summed across the county's baronies. Counties stay in the lower range so the in-game development loop has room to run.
+- **County capital**: the Azgaar province capital burg if its cell falls in this county; otherwise the most populous barony.
+- Floor `1` avoids CK3's "uninhabited" default for an inhabited county. Ceiling `100` matches the engine cap.
+
+### Typical output (Showcase test map, 796 counties)
+
+```
+min     1
+max    35
+mean    6.6
+median  6
+p90    12
+p99    21
+```
+
+Most counties sit in the single digits with a long tail at the top for big-population state capitals. A more urbanised generated map (denser burgs, larger capital populations) shifts the distribution upward without any settings change.
+
+---
+
 ## De Jure Consolidation
 
 Small kingdoms and empires are absorbed into larger neighbours to prevent the map fragmenting into dozens of tiny de jure realms.
