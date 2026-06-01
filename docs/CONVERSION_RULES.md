@@ -136,6 +136,47 @@ This keeps the map politically fragmented in a way that reflects the Azgaar data
 
 ---
 
+## Governments
+
+Each state's Azgaar `form` and `formName` drive the CK3 government type assigned to that state's kingdom and duchies. Kingdoms and duchies resolve independently — the kingdom from its parent state, each duchy from the state its cells belong to — so an absorbed duchy in a foreign kingdom keeps its original state's government (a Republic vassal duchy under a Feudal king works the same way Venice / Genoa do in vanilla CK3 1066).
+
+**Lookup priority:**
+
+1. Exact `formName` match (granular). Most cases land here.
+2. Broad `form` fallback (coarse). Used when `formName` is missing or unrecognised.
+3. Feudal default. Used when both are missing.
+
+### Granular `formName` → CK3 government
+
+| Output government | Azgaar formNames |
+|---|---|
+| `feudal_government` | Duchy, Grand Duchy, Principality, Kingdom, Empire, Marches, Dominion, Protectorate, Tsardom, United Kingdom |
+| `clan_government` | Beylik, Emirate, Caliphate |
+| `tribal_government` | Heptarchy, Free Territory, Council, Community |
+| `republic_government` | Republic, Federation, Trade Company, Most Serene Republic, Oligarchy, Tetrarchy, Triumvirate, Diarchy, Junta, Free City, City-state, Union, League, Confederation, United Republic, United Provinces, Commonwealth, Commune |
+| `theocracy_government` | Theocracy, Brotherhood, Thearchy, See, Holy State, Divine Duchy, Divine Grand Duchy, Divine Principality, Divine Kingdom, Divine Empire, Diocese, Bishopric, Eparchy, Exarchate, Patriarchate, Imamah |
+| `nomad_government` (Khans of the Steppe) | Khanate, Khaganate, Ulus, Horde |
+| `administrative_government` (Roads to Power) | Despotate, Satrapy |
+| `japan_feudal_government` (All Under Heaven, Sōryō) | Shogunate |
+
+### Broad `form` fallback (when `formName` is unknown)
+
+| Azgaar form | CK3 government |
+|---|---|
+| Monarchy | `feudal_government` |
+| Republic | `republic_government` |
+| Union | `republic_government` |
+| Theocracy | `theocracy_government` |
+| Anarchy | `tribal_government` |
+
+### DLC-gated governments
+
+Nomad, Administrative, and Sōryō (`japan_feudal_government`) all require DLC to be playable as their true type. The converter emits the DLC-specific key directly; the CK3 engine handles missing-DLC fallback automatically at game-start (Nomad → Tribal, Administrative → Feudal, Sōryō → Feudal). No conditional script in the title-history file is needed.
+
+The full table lives in `Converter/Lemur/Governments/GovernmentMap.cs`. To extend it for a new Azgaar formName, add one line to the `FormNameMap` dictionary.
+
+---
+
 ## Theme bundles
 
 A **theme bundle** is the converter's internal concept for a coherent cultural aesthetic package. Each culture is assigned one theme bundle, which determines the visual and naming style CK3 uses for that culture's rulers, buildings, armies, and coats of arms.
