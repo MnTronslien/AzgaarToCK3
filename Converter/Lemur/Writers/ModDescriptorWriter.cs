@@ -16,9 +16,10 @@ public static class ModDescriptorWriter
     /// huge locators; we ship our own (LocatorWriter) plus the map-independent layer/map-table
     /// definitions (MapObjectDataWriter). This is what TCS did for us.
     ///
-    /// Deliberately NOT replaced: gfx/map/map_object_data/generated. replace_path is per-directory
-    /// (not recursive — TCS listed both), so leaving /generated additive lets vanilla's tree
-    /// generators vegetate our map from our terrain masks (they key off masks, not province IDs).
+    /// gfx/map/map_object_data/generated is ALSO replaced (reversed from an earlier guess): left
+    /// additive, vanilla's vegetation generators place trees at vanilla-map positions on our map.
+    /// replace_path is per-directory (not recursive — TCS lists both), so we replace it explicitly
+    /// and ship our own generators (copied from TCS for now by MapRenderAssetsWriter).
     /// </summary>
     private static readonly string[] ReplacePaths =
     [
@@ -32,6 +33,7 @@ public static class ModDescriptorWriter
         "history/province_mappings",
         "map_data",
         "gfx/map/map_object_data",
+        "gfx/map/map_object_data/generated",
     ];
 
     public static async Task Write(string modName, string modsDirectory, string outputDirectory)

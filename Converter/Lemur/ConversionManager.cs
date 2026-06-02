@@ -251,6 +251,10 @@ namespace Converter.Lemur
             // Override the main-menu front-end to hide the bookmark-character portrait, whose render
             // crashes CK3 on a TCS-free custom map (EXCEPTION_ACCESS_VIOLATION at the main menu).
             await FrontendGuiWriter.Write(Settings.OutputDirectory);
+            // Ship surround_map / water / vegetation generators so the standalone map doesn't bleed
+            // vanilla geography around the edges, wrong sea colour, or vanilla-placed trees. Stopgap:
+            // copied from the TCS install at build time (see MapRenderAssetsWriter); Phase B synthesizes.
+            await MapRenderAssetsWriter.Write(Settings.Instance.TotalConversionSandboxPath, Settings.OutputDirectory);
             if (w.ProvinceTerrain)
             {
                 using var _ = OperationTimer.Start("Writing province terrain");
