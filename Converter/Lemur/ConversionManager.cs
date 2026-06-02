@@ -248,6 +248,9 @@ namespace Converter.Lemur
             // We replace_path gfx/map/map_object_data (masks vanilla's out-of-range locators that
             // crash load); re-supply vanilla's map-independent layer + map-table definitions.
             await MapObjectDataWriter.Write(Settings.Instance.Ck3Directory, Settings.OutputDirectory);
+            // Override the main-menu front-end to hide the bookmark-character portrait, whose render
+            // crashes CK3 on a TCS-free custom map (EXCEPTION_ACCESS_VIOLATION at the main menu).
+            await FrontendGuiWriter.Write(Settings.OutputDirectory);
             if (w.ProvinceTerrain)
             {
                 using var _ = OperationTimer.Start("Writing province terrain");

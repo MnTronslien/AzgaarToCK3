@@ -1,0 +1,34 @@
+# gui/frontend_main.gui — stripped front-end override (shipped by AzgaarToCK3)
+
+WHAT
+  A near-verbatim copy of CK3 vanilla `game/gui/frontend_main.gui` with exactly two edits:
+    1. the main-menu character-portrait `widget = { ... }` block (the one holding
+       GetMainCharacterTexture / GetSecondaryCharacterTexture / GetHeirCharacterTexture and the
+       portrait_main_menu_shadow icons) has `visible = no` added, and
+    2. the `challenge_character` window's `visible` is forced to `no`.
+  Everything else is identical to vanilla.
+
+WHY
+  CK3's main menu renders the *default bookmark character's* 3D portrait. On a fully generated,
+  TCS-free map, rendering that portrait faults with EXCEPTION_ACCESS_VIOLATION at the main menu —
+  the game crashes on load before you can start a game. Hiding those two widgets stops the
+  front-end from rendering the portrait, which avoids the crash. In-game portraits are unaffected.
+  This is the same fix the Total Conversion Sandbox mod shipped (it stripped the same widgets);
+  we replicate it minimally so the generated mod boots standalone. Full investigation:
+  bugs/BUG_tcs-breakaway-bootcrash.md.
+
+  Note: CK3 does not load `.info` files — this file is documentation only and is safe to ship.
+
+HOW TO MAINTAIN (re-sync after a CK3 front-end update)
+  This is a STATIC copy pinned to a specific CK3 version. If a CK3 patch changes
+  `gui/frontend_main.gui`, this override will mask the new version and may break or omit new
+  front-end features. To re-sync:
+    1. Copy the new vanilla `…/Crusader Kings III/game/gui/frontend_main.gui`.
+    2. Add `visible = no` as the first line inside the portrait `widget = {` block
+       (search for `portrait_main_menu_shadow` / `GetMainCharacterTexture` to find it).
+    3. Set the `challenge_character` widget's `visible = no`.
+    4. Replace Converter/Lemur/Assets/frontend_main.gui with the result and rebuild.
+    5. Boot a generated mod WITHOUT TCS and confirm it reaches the main menu without crashing.
+
+PINNED CK3 VERSION
+  Derived from CK3 1.19.0.6 vanilla frontend_main.gui.

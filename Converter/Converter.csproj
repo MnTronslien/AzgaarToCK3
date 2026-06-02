@@ -16,6 +16,18 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Stripped frontend_main.gui override + its maintenance doc, embedded so the converter stays
+         self-contained (FrontendGuiWriter extracts them). LogicalName pinned so the resource name is
+         stable regardless of root-namespace defaults. -->
+    <EmbeddedResource Include="Lemur\Assets\frontend_main.gui">
+      <LogicalName>Converter.Lemur.Assets.frontend_main.gui</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Lemur\Assets\frontend_main.info">
+      <LogicalName>Converter.Lemur.Assets.frontend_main.info</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="00_graphics.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
