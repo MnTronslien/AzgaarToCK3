@@ -62,7 +62,7 @@ public static class LocatorWriter
     private static (string fileName, string content) BuildSiegeLocators(L.Map map)
     {
         int id = 1;
-        var sb = StartLocatorFile("siege", "siege_layer");
+        var sb = StartLocatorFile("siege", "unit_layer");
         foreach (var barony in map.Baronies!)
         {
             var (x, z) = BurgNudgedTowardCentroid(barony, map);
@@ -79,7 +79,7 @@ public static class LocatorWriter
     private static (string fileName, string content) BuildCombatLocators(L.Map map)
     {
         int id = 1;
-        var sb = StartLocatorFile("combat", "combat_layer");
+        var sb = StartLocatorFile("combat", "unit_layer");
         foreach (var barony in map.Baronies!)
         {
             var (x, z) = ComputeCentroid(barony.Cells, map);
@@ -88,6 +88,13 @@ public static class LocatorWriter
         foreach (var wasteland in map.Wastelands!)
         {
             var (x, z) = ComputeCentroid(wasteland.Cells, map);
+            AppendInstance(sb, id++, x + 15, z + 10);
+        }
+        // Sea zones too — naval combat happens there, and CK3 expects a locator per province
+        // (else it logs the locator as "incomplete" and regenerates it under the user's Documents).
+        foreach (var sea in map.SeaZones!.Concat(map.FarSeaZones!))
+        {
+            var (x, z) = ComputeCentroid(sea.Cells, map);
             AppendInstance(sb, id++, x + 15, z + 10);
         }
         return ("combat_locators.txt", EndLocatorFile(sb));
@@ -107,6 +114,12 @@ public static class LocatorWriter
             var (x, z) = ComputeCentroid(wasteland.Cells, map);
             AppendInstance(sb, id++, x - 10, z + 15);
         }
+        // Sea zones too, so the locator covers every province and CK3 doesn't flag it incomplete.
+        foreach (var sea in map.SeaZones!.Concat(map.FarSeaZones!))
+        {
+            var (x, z) = ComputeCentroid(sea.Cells, map);
+            AppendInstance(sb, id++, x - 10, z + 15);
+        }
         return ("activities.txt", EndLocatorFile(sb));
     }
 
@@ -122,7 +135,7 @@ public static class LocatorWriter
     private static (string fileName, string content) BuildAllProvinceStackLocator(L.Map map, string locatorName, string fileName)
     {
         int id = 1;
-        var sb = StartLocatorFile(locatorName, "unit_stack_layer");
+        var sb = StartLocatorFile(locatorName, "unit_layer");
         foreach (var barony in map.Baronies!)
         {
             var (x, z) = ComputeCentroid(barony.Cells, map);
@@ -161,6 +174,10 @@ public static class LocatorWriter
         sb.AppendLine("\tgenerated_content=no");
         sb.AppendLine($"\tlayer=\"{layer}\"");
         sb.AppendLine("\tinstances={");
+        // CK3 expects an instance for province id 0 (the dummy province). Vanilla and TCS both emit
+        // one near the origin; without it CK3 logs "Failed to get transform ... instance id 0". Our
+        // per-province loops start at id 1, so seed id 0 here for every locator.
+        AppendInstance(sb, 0, 3, 5);
         return sb;
     }
 

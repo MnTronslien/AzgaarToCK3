@@ -10,10 +10,15 @@ public static class ModDescriptorWriter
     /// mod used to provide via its own descriptor; we now declare it ourselves so the generated mod
     /// is self-sufficient and needs no TCS in the playset.
     ///
-    /// Deliberately NOT replaced: gfx/map/map_object_data and .../generated. We only emit a handful
-    /// of locator/map-table files there; leaving those paths additive lets vanilla map decoration
-    /// (trees, cliffs, bridges, audio) load while our same-named files override by filename. Replacing
-    /// them would force us to ship vanilla-derived filler for everything we don't generate.
+    /// gfx/map/map_object_data MUST be replaced: vanilla's locator files there carry ~12k instances
+    /// with province IDs up to ~13000. Left additive, CK3 applies those to our ~1300-province map and
+    /// reads past the province array → EXCEPTION_ACCESS_VIOLATION on load. Replacing masks vanilla's
+    /// huge locators; we ship our own (LocatorWriter) plus the map-independent layer/map-table
+    /// definitions (MapObjectDataWriter). This is what TCS did for us.
+    ///
+    /// Deliberately NOT replaced: gfx/map/map_object_data/generated. replace_path is per-directory
+    /// (not recursive — TCS listed both), so leaving /generated additive lets vanilla's tree
+    /// generators vegetate our map from our terrain masks (they key off masks, not province IDs).
     /// </summary>
     private static readonly string[] ReplacePaths =
     [
@@ -26,6 +31,7 @@ public static class ModDescriptorWriter
         "history/provinces",
         "history/province_mappings",
         "map_data",
+        "gfx/map/map_object_data",
     ];
 
     public static async Task Write(string modName, string modsDirectory, string outputDirectory)

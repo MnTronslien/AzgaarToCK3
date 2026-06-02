@@ -245,6 +245,9 @@ namespace Converter.Lemur
                 await MapDefinesWriter.Write(Settings.OutputDirectory);
             }
             await MapTableWriter.Write(Settings.OutputDirectory);
+            // We replace_path gfx/map/map_object_data (masks vanilla's out-of-range locators that
+            // crash load); re-supply vanilla's map-independent layer + map-table definitions.
+            await MapObjectDataWriter.Write(Settings.Instance.Ck3Directory, Settings.OutputDirectory);
             if (w.ProvinceTerrain)
             {
                 using var _ = OperationTimer.Start("Writing province terrain");
