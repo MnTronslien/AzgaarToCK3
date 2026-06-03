@@ -29,10 +29,8 @@ public static class LocatorWriter
             await ImageUtility.DrawAllLocatorsDebugImage(map);
     }
 
-    // -------------------------------------------------------------------------
-    // Burg-directional locators (buildings, special building, siege)
-    // Position = burg nudged 20px toward cell centroid, with optional spread
-    // -------------------------------------------------------------------------
+    // Burg-directional locators (buildings, special building, siege):
+    // position = burg nudged 20px toward cell centroid, with optional spread.
 
     private static (string fileName, string content) BuildBuildingLocators(L.Map map)
     {
@@ -62,7 +60,7 @@ public static class LocatorWriter
     private static (string fileName, string content) BuildSiegeLocators(L.Map map)
     {
         int id = 1;
-        var sb = StartLocatorFile("siege", "siege_layer");
+        var sb = StartLocatorFile("siege", "unit_layer");
         foreach (var barony in map.Baronies!)
         {
             var (x, z) = BurgNudgedTowardCentroid(barony, map);
@@ -71,15 +69,13 @@ public static class LocatorWriter
         return ("siege_locators.txt", EndLocatorFile(sb));
     }
 
-    // -------------------------------------------------------------------------
-    // Centroid-based locators (combat, activities, player stack)
-    // Position = cell centroid + fixed pixel offset
-    // -------------------------------------------------------------------------
+    // Centroid-based locators (combat, activities, player stack):
+    // position = cell centroid + fixed pixel offset.
 
     private static (string fileName, string content) BuildCombatLocators(L.Map map)
     {
         int id = 1;
-        var sb = StartLocatorFile("combat", "combat_layer");
+        var sb = StartLocatorFile("combat", "unit_layer");
         foreach (var barony in map.Baronies!)
         {
             var (x, z) = ComputeCentroid(barony.Cells, map);
@@ -88,6 +84,12 @@ public static class LocatorWriter
         foreach (var wasteland in map.Wastelands!)
         {
             var (x, z) = ComputeCentroid(wasteland.Cells, map);
+            AppendInstance(sb, id++, x + 15, z + 10);
+        }
+        // Sea zones too — CK3 expects a locator per province, else it flags it incomplete.
+        foreach (var sea in map.SeaZones!.Concat(map.FarSeaZones!))
+        {
+            var (x, z) = ComputeCentroid(sea.Cells, map);
             AppendInstance(sb, id++, x + 15, z + 10);
         }
         return ("combat_locators.txt", EndLocatorFile(sb));
@@ -107,6 +109,12 @@ public static class LocatorWriter
             var (x, z) = ComputeCentroid(wasteland.Cells, map);
             AppendInstance(sb, id++, x - 10, z + 15);
         }
+        // Sea zones too, so the locator covers every province and CK3 doesn't flag it incomplete.
+        foreach (var sea in map.SeaZones!.Concat(map.FarSeaZones!))
+        {
+            var (x, z) = ComputeCentroid(sea.Cells, map);
+            AppendInstance(sb, id++, x - 10, z + 15);
+        }
         return ("activities.txt", EndLocatorFile(sb));
     }
 
@@ -122,7 +130,7 @@ public static class LocatorWriter
     private static (string fileName, string content) BuildAllProvinceStackLocator(L.Map map, string locatorName, string fileName)
     {
         int id = 1;
-        var sb = StartLocatorFile(locatorName, "unit_stack_layer");
+        var sb = StartLocatorFile(locatorName, "unit_layer");
         foreach (var barony in map.Baronies!)
         {
             var (x, z) = ComputeCentroid(barony.Cells, map);
@@ -161,6 +169,9 @@ public static class LocatorWriter
         sb.AppendLine("\tgenerated_content=no");
         sb.AppendLine($"\tlayer=\"{layer}\"");
         sb.AppendLine("\tinstances={");
+        // Seed dummy province id 0 (per-province loops start at id 1); else CK3 logs
+        // "Failed to get transform ... instance id 0".
+        AppendInstance(sb, 0, 3, 5);
         return sb;
     }
 
@@ -182,9 +193,8 @@ public static class LocatorWriter
     }
 
     /// <summary>
-    /// Burg position nudged 20px toward the cell centroid, keeping the locator
-    /// inland for coastal burgs. Falls back to the bare burg position if the
-    /// burg and centroid are within 5px of each other.
+    /// Burg position nudged 20px toward the cell centroid (keeps coastal burgs inland).
+    /// Falls back to the bare burg position when burg and centroid are within 5px.
     /// </summary>
     internal static (double x, double z) BurgNudgedTowardCentroid(L.Barony barony, L.Map map)
     {
@@ -204,9 +214,8 @@ public static class LocatorWriter
     }
 
     /// <summary>
-    /// Unit vector perpendicular to the burg→centroid direction (rotated 90° clockwise).
-    /// Used to spread building and special_building locators to either side of the burg.
-    /// Returns (0, 0) if burg and centroid are within 5px of each other.
+    /// Unit vector perpendicular to the burg→centroid direction (90° clockwise), used to spread
+    /// building/special_building locators sideways. Falls back to a fixed rightward vector within 5px.
     /// </summary>
     internal static (double x, double z) PerpendicularTowardCentroid(L.Barony barony, L.Map map)
     {
