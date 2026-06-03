@@ -1,6 +1,6 @@
 # Usage Guide
 
-Assumes you have CK3, the [Total Conversion Sandbox](https://steamcommunity.com/sharedfiles/filedetails/?id=2524797018) mod, and [.NET 8](https://dotnet.microsoft.com/en-us/download/dotnet/8.0) installed.
+Assumes you have CK3 and [.NET 8](https://dotnet.microsoft.com/en-us/download/dotnet/8.0) installed.
 
 ---
 
@@ -49,7 +49,7 @@ For a full list of supported arguments see usage with:
 
 1. Launch CK3
 2. Open the **Mods** menu → **Playsets**
-3. Create a playset containing **Total Conversion Sandbox** and your generated mod
+3. Create a playset containing your generated mod
 4. Launch
 
 ---

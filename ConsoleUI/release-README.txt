@@ -1,20 +1,17 @@
 AzgaarToCK3 — Quickstart
 ========================
 
-1. Subscribe to "Total Conversion Sandbox" on the Steam Workshop
-   (Crusader Kings III → Workshop tab). Wait for Steam to download it.
-
-2. Generate a map at https://azgaar.github.io/Fantasy-Map-Generator/
+1. Generate a map at https://azgaar.github.io/Fantasy-Map-Generator/
    Export THREE files: Full data .json, Cells .geojson, Rivers .geojson.
 
-3. Run ConsoleUI.exe. The first time, it walks you through a 3-step setup
-   (CK3 location, TCS location, mod name). It writes a settings.json
-   next to itself; edit that file later to change anything.
+2. Run ConsoleUI.exe. The first time, it walks you through a short setup
+   (CK3 location, mods folder, mod name, and your Azgaar exports). It writes
+   a settings.json next to itself; edit that file later to change anything.
 
-4. Tell the converter where your Azgaar exports are. Easiest:
+3. To convert different exports later, point the converter at them:
        ConsoleUI.exe --input-dir "C:\path\to\your\exports"
    Or set "InputDirectory" in settings.json and just double-click.
 
-5. Activate the generated mod in the CK3 launcher alongside TCS.
+4. Enable the generated mod in the CK3 launcher and play.
 
 Docs and issue tracker: https://github.com/MnTronslien/AzgaarToCK3

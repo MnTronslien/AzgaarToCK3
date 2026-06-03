@@ -38,7 +38,6 @@ See the [Usage Guide](docs/USAGE.md) for CLI options, seed control, and debug ou
 
 ## Requirements
 - Crusader Kings III `1.19.*` (newest at the time of writing, but any version should do)
-- [Total Conversion Sandbox](https://steamcommunity.com/sharedfiles/filedetails/?id=2524797018) mod (Steam Workshop) (Working to make this dependency obsolete.) — the current TCS is built for CK3 1.18, but it is still the correct mod to subscribe to and load for the converter to work.
 - [Azgaar's Fantasy Map Generator](https://azgaar.github.io/Fantasy-Map-Generator/) — default settings work out of the box. An [alternate build](https://pryvyd9.github.io/Fantasy-Map-Generator/) produces better sea zones; if you use it, **do not use its built-in "Export for CK3" button** — that targets a different converter.
 
 ---
