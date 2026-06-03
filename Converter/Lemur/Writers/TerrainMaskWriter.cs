@@ -14,7 +14,7 @@ public static class TerrainMaskWriter
     public static async Task Write(
         IReadOnlyList<TerrainMaskEntry> masks,
         L.Map map,
-        string tcsSandboxPath,
+        string ck3Directory,
         string outputDirectory)
     {
         using var _ = OperationTimer.Start("Writing terrain mask files");
@@ -31,9 +31,10 @@ public static class TerrainMaskWriter
             Height = L.Map.MapHeight,
         };
 
-        // Supplement with blank masks for every TCS mask filename we don't explicitly set.
-        // Without this, TCS files at 9216×4608 leak through at wrong scale.
-        var baseMasksDir = Helper.GetPath(tcsSandboxPath, "gfx", "map", "terrain", "masks");
+        // Supplement with a blank mask for every CK3 mask filename we don't explicitly set, so
+        // vanilla's full-resolution masks don't leak through at the wrong scale. Filenames come from
+        // the CK3 install (same set TCS shipped) — no TCS dependency.
+        var baseMasksDir = Helper.GetPath(ck3Directory, "game", "gfx", "map", "terrain", "masks");
         var covered = masks.Select(m => m.FileName).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var blanks = Directory.Exists(baseMasksDir)
             ? Directory.EnumerateFiles(baseMasksDir, "*.png")
@@ -60,8 +61,8 @@ public static class TerrainMaskWriter
         // Run all 5 groups concurrently — they write to different files, no shared mutable state.
         await Task.WhenAll(
             Task.WhenAll(allMasks.Select(entry => WriteBiomeMask(entry, masksDir, readSettings, map, blankPath))),
-            WriteColormapAsync(tcsSandboxPath, terrainDir),
-            WriteMasksGenAsync(tcsSandboxPath, terrainDir, blankPath),
+            WriteColormapAsync(terrainDir),
+            WriteMasksGenAsync(ck3Directory, terrainDir, blankPath),
             Task.Run(async () =>
             {
                 // map.HeightmapPixels/F are populated by HeightmapWriter if it ran first.
@@ -101,37 +102,21 @@ public static class TerrainMaskWriter
         await image.WriteAsync(dst);
     }
 
-    private static async Task WriteColormapAsync(string tcsSandboxPath, string terrainDir)
+    private static async Task WriteColormapAsync(string terrainDir)
     {
-        var src = Helper.GetPath(tcsSandboxPath, "gfx", "map", "terrain", "colormap.dds");
-        var dst = Helper.GetPath(terrainDir, "colormap.dds");
-
-        // Cache key: source path + last-write time + output dimensions → stable per TCS version.
-        var srcInfo = new FileInfo(src);
-        var cacheKey = $"{src}|{srcInfo.LastWriteTimeUtc.Ticks}|{L.Map.MapWidth / 4}|{L.Map.MapHeight / 4}";
-        var cacheHash = Convert.ToHexString(
-            System.Security.Cryptography.SHA256.HashData(
-                System.Text.Encoding.UTF8.GetBytes(cacheKey)))[..16];
-        var cachePath = Helper.GetPath(CacheDir, $"colormap_{cacheHash}.dds");
-
-        if (!File.Exists(cachePath))
-        {
-            using var img = new MagickImage(src);
-            img.Resize(L.Map.MapWidth / 4, L.Map.MapHeight / 4);
-            await img.WriteAsync(cachePath);
-            Logger.Debug($"Cached resized colormap.dds → {cachePath}");
-        }
-        else
-        {
-            Logger.Debug("colormap.dds cache hit — skipping 163MB load");
-        }
-
-        File.Copy(cachePath, dst, overwrite: true);
+        // Generate a flat colormap (every pixel mid-grey 132,132,132) at map/4 resolution. Its only
+        // job is to override vanilla's real-world-geography colormap so our map isn't Earth-tinted;
+        // 132 is the exact uniform value TCS shipped, so the look is unchanged. No TCS, no shipped
+        // binary. Enrichment (biome-driven tint) is a logged follow-up — see notes-for-later.md.
+        await DdsWriter.WriteSolidAsync(
+            Helper.GetPath(terrainDir, "colormap.dds"),
+            L.Map.MapWidth / 4, L.Map.MapHeight / 4,
+            r: 132, g: 132, b: 132, a: 255);
     }
 
-    private static async Task WriteMasksGenAsync(string tcsSandboxPath, string terrainDir, string blankPath)
+    private static async Task WriteMasksGenAsync(string ck3Directory, string terrainDir, string blankPath)
     {
-        var srcDir = Helper.GetPath(tcsSandboxPath, "gfx", "map", "terrain", "masks_gen");
+        var srcDir = Helper.GetPath(ck3Directory, "game", "gfx", "map", "terrain", "masks_gen");
         if (!Directory.Exists(srcDir)) return;
 
         var dstDir = Helper.GetPath(terrainDir, "masks_gen");

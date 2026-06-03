@@ -1,35 +1,15 @@
-using Microsoft.VisualBasic.FileIO;
-
 namespace Converter;
 
 public static class ModManager
 {
     public static async Task CreateMod()
     {
-        // CK3's mod folder may not exist yet on a fresh CK3 install (or if the user
-        // pointed ModsDirectory at a custom location). File.WriteAllTextAsync won't
-        // create missing parents, so we make sure the directory exists first.
-        Directory.CreateDirectory(Settings.Instance.ModsDirectory);
-
-        var outsideDescriptor = $@"version=""1.0""
-tags={{
-	""Total Conversion""
-}}
-name=""{Settings.Instance.ModName}""
-supported_version=""1.12.4""
-path=""mod/{Settings.Instance.ModName}""";
-
-        await File.WriteAllTextAsync(Helper.GetPath(Settings.Instance.ModsDirectory, $"{Settings.Instance.ModName}.mod"), outsideDescriptor);
-
-        FileSystem.CopyDirectory(Settings.Instance.TotalConversionSandboxPath, Helper.GetPath(Settings.Instance.ModsDirectory, Settings.Instance.ModName), true);
-
-        var insideDescriptor = $@"version=""1.0""
-tags={{
-	""Total Conversion""
-}}
-name=""{Settings.Instance.ModName}""
-supported_version=""1.12.4""";
-        await File.WriteAllTextAsync(Helper.GetPath(Settings.Instance.ModsDirectory, Settings.Instance.ModName, "descriptor.mod"), insideDescriptor);
+        // Ensure the mod output folder exists. We no longer seed it from TCS — the Lemur writers
+        // produce a complete, self-contained mod, and ModDescriptorWriter writes the descriptor +
+        // launcher .mod with the correct supported_version. (Previously this copied the entire TCS
+        // directory as a baseline; that was the last build-time TCS dependency and is now gone.)
+        Directory.CreateDirectory(Helper.GetPath(Settings.Instance.ModsDirectory, Settings.Instance.ModName));
+        await Task.CompletedTask;
     }
     public static bool DoesModExist()
     {
