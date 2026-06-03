@@ -4,8 +4,7 @@ namespace Converter.Lemur;
 
 /// <summary>
 /// Extracts files embedded in the Converter assembly (see Converter.csproj EmbeddedResource items)
-/// to disk. Used to ship static mod assets — frontend_main.gui override and the map-render rasters
-/// (colormap / surround) — without depending on a TCS or CK3 install at build time.
+/// to disk, so static mod assets ship without a TCS or CK3 install at build time.
 /// </summary>
 internal static class EmbeddedAssets
 {

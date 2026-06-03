@@ -31,9 +31,7 @@ public static class TerrainMaskWriter
             Height = L.Map.MapHeight,
         };
 
-        // Supplement with a blank mask for every CK3 mask filename we don't explicitly set, so
-        // vanilla's full-resolution masks don't leak through at the wrong scale. Filenames come from
-        // the CK3 install (same set TCS shipped) — no TCS dependency.
+        // Blank-fill every CK3 mask filename we don't explicitly set, so vanilla's masks don't leak through at the wrong scale.
         var baseMasksDir = Helper.GetPath(ck3Directory, "game", "gfx", "map", "terrain", "masks");
         var covered = masks.Select(m => m.FileName).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var blanks = Directory.Exists(baseMasksDir)
@@ -104,10 +102,8 @@ public static class TerrainMaskWriter
 
     private static async Task WriteColormapAsync(string terrainDir)
     {
-        // Generate a flat colormap (every pixel mid-grey 132,132,132) at map/4 resolution. Its only
-        // job is to override vanilla's real-world-geography colormap so our map isn't Earth-tinted;
-        // 132 is the exact uniform value TCS shipped, so the look is unchanged. No TCS, no shipped
-        // binary. Enrichment (biome-driven tint) is a logged follow-up — see notes-for-later.md.
+        // Flat mid-grey (132,132,132) colormap at map/4 resolution, to override vanilla's
+        // real-world-geography colormap so our map isn't Earth-tinted.
         await DdsWriter.WriteSolidAsync(
             Helper.GetPath(terrainDir, "colormap.dds"),
             L.Map.MapWidth / 4, L.Map.MapHeight / 4,

@@ -11,9 +11,7 @@ public class Settings
 {
     public required string ModsDirectory { get; init; }
     public required string Ck3Directory { get; init; }
-    // Optional: nothing in the converter reads this any more (the build is TCS-free as of the
-    // breakaway). Kept nullable so old settings.json files still deserialize and the first-run
-    // setup can leave it unset. Safe to remove once no settings.json references it.
+    // Unused by the converter; kept nullable so old settings.json files still deserialize.
     public string? TotalConversionSandboxPath { get; init; }
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
     public string InputJsonPath { get; set; }

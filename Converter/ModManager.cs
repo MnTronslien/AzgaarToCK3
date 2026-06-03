@@ -4,10 +4,8 @@ public static class ModManager
 {
     public static async Task CreateMod()
     {
-        // Ensure the mod output folder exists. We no longer seed it from TCS — the Lemur writers
-        // produce a complete, self-contained mod, and ModDescriptorWriter writes the descriptor +
-        // launcher .mod with the correct supported_version. (Previously this copied the entire TCS
-        // directory as a baseline; that was the last build-time TCS dependency and is now gone.)
+        // Ensure the mod output folder exists. The Lemur writers produce a complete, self-contained
+        // mod, so this no longer seeds the folder from TCS.
         Directory.CreateDirectory(Helper.GetPath(Settings.Instance.ModsDirectory, Settings.Instance.ModName));
         await Task.CompletedTask;
     }

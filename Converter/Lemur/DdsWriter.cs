@@ -1,11 +1,8 @@
 namespace Converter.Lemur;
 
 /// <summary>
-/// Writes a solid-colour, uncompressed 32-bit BGRA <c>.dds</c> from code — no shipped binary, no
-/// image library. Used for the map-render rasters that only need to be a single uniform value to
-/// override vanilla (colormap, surround mask/fade, water flow/foam/colour). The values match what
-/// TCS shipped (sampled — every pixel identical), so the in-game look is unchanged while the build
-/// stays TCS-free and the repo carries no large DDS. Enrichment (real detail) is a logged follow-up.
+/// Writes a solid-colour, uncompressed 32-bit BGRA <c>.dds</c> from code (no binary, no image
+/// library) for map-render rasters that only need a uniform value to override vanilla.
 /// </summary>
 public static class DdsWriter
 {
