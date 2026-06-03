@@ -3,6 +3,11 @@
 ###############################################################################
 * text=auto
 
+# Binary map assets — never line-ending-normalize (would corrupt the embedded DDS rasters).
+*.dds binary
+*.tga binary
+*.png binary
+
 ###############################################################################
 # Set default behavior for command prompt diff.
 #

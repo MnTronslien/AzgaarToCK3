@@ -22,7 +22,6 @@ Explicit paths (`-j`, `-g`, `-r`) always override directory auto-detection.
 |-----|-----|------|---------|-------------|
 | `ModsDirectory` | — | string | *(required)* | CK3 mods folder |
 | `Ck3Directory` | — | string | *(required)* | CK3 install root |
-| `TotalConversionSandboxPath` | — | string | *(required)* | Path to TCS mod folder |
 | `ModName` | — | string | *(required)* | Name of the generated mod |
 | `AutoWipeOutput` | `--no-wipe` | bool | `true` | Wipe mod folder before converting |
 

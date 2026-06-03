@@ -1,56 +1,50 @@
 namespace Converter.Lemur.Writers;
 
 /// <summary>
-/// Ships the map-render rasters that suppress vanilla bleed-through on the standalone map:
-///   * gfx/map/surround_map/  — decorative terrain outside the grid (vanilla shows real geography)
-///   * gfx/map/water/          — water colour/flow/foam (vanilla's gives wrong sea topology+colour)
-///   * gfx/map/map_object_data/generated/ — vegetation generators (replace_path'd by ModDescriptorWriter)
-/// surround_map + water override vanilla by filename (no replace_path needed).
-///
-/// Copied verbatim from the local TCS install at convert time; the runtime mod stays TCS-free.
-/// Phase B will synthesize these so the build needs no TCS. See bugs/BUG_tcs-breakaway-bootcrash.md.
+/// Writes the rasters that keep the standalone (TCS-free) map from showing vanilla content:
+/// surround_map (terrain outside the grid — tile copied from CK3, mask/fade generated flat), water
+/// (flow/foam/colour, generated flat), and an empty map_object_data/generated (no vanilla trees).
+/// Flat solids come from <see cref="DdsWriter"/> at the uniform values TCS used; enrich later (notes-for-later.md).
 /// </summary>
 public static class MapRenderAssetsWriter
 {
-    // Directories copied verbatim from <tcs>/gfx/map/ into <mod>/gfx/map/.
-    private static readonly string[] AssetDirs =
+    // (relative output path, width, height, r, g, b, a) — flat-solid rasters generated in code.
+    private static readonly (string Rel, int W, int H, byte R, byte G, byte B, byte A)[] SolidRasters =
     [
-        Path.Combine("surround_map"),
-        Path.Combine("water"),
-        Path.Combine("map_object_data", "generated"),
+        ("surround_map/surround_mask.dds",          4096, 2048,   0,   0,   0, 255),
+        ("surround_map/surround_fade.dds",          1024,  512, 255, 255,   0, 255),
+        ("water/flowmap.dds",                       2048, 1024, 126, 130, 255, 255),
+        ("water/foam_map.dds",                      1024,  512,   0,   1,   0, 255),
+        ("water/watercolor_rgb_waterspec_a.dds",    4096, 2048,  13,  27,  32, 255),
     ];
 
-    public static async Task Write(string tcsSandboxPath, string outputDirectory)
+    public static async Task Write(string ck3Directory, string outputDirectory)
     {
         using var _ = OperationTimer.Start("Writing map render assets");
 
-        if (string.IsNullOrWhiteSpace(tcsSandboxPath) || !Directory.Exists(tcsSandboxPath))
-        {
-            Logger.Warning("MapRenderAssetsWriter: TCS path unavailable — skipping surround_map/water/generated " +
-                           "(map will show vanilla bleed around edges / sea until Phase B synthesizes these).");
-            return;
-        }
+        foreach (var s in SolidRasters)
+            await DdsWriter.WriteSolidAsync(
+                Helper.GetPath(outputDirectory, "gfx", "map", s.Rel.Replace('/', Path.DirectorySeparatorChar)),
+                s.W, s.H, s.R, s.G, s.B, s.A);
 
+        // surround_tile is byte-identical to vanilla — copy it from the CK3 install (not generated).
+        var tileSrc = Helper.GetPath(ck3Directory, "game", "gfx", "map", "surround_map", "surround_tile.dds");
         var copied = 0;
-        foreach (var rel in AssetDirs)
+        if (File.Exists(tileSrc))
         {
-            var srcDir = Helper.GetPath(tcsSandboxPath, "gfx", "map", rel);
-            if (!Directory.Exists(srcDir))
-            {
-                Logger.Warning($"MapRenderAssetsWriter: '{rel}' not found in TCS install — skipping.");
-                continue;
-            }
-
-            var dstDir = Helper.GetPath(outputDirectory, "gfx", "map", rel);
-            Directory.CreateDirectory(dstDir);
-            foreach (var src in Directory.EnumerateFiles(srcDir))
-            {
-                File.Copy(src, Helper.GetPath(dstDir, Path.GetFileName(src)), overwrite: true);
-                copied++;
-            }
+            var dst = Helper.GetPath(outputDirectory, "gfx", "map", "surround_map", "surround_tile.dds");
+            Directory.CreateDirectory(Path.GetDirectoryName(dst)!);
+            File.Copy(tileSrc, dst, overwrite: true);
+            copied = 1;
+        }
+        else
+        {
+            Logger.Warning("MapRenderAssetsWriter: surround_tile.dds not found in CK3 install — skipping.");
         }
 
-        Logger.Info($"Copied {copied} map render assets from TCS (surround_map + water + vegetation generators) [stopgap]");
-        await Task.CompletedTask;
+        // gfx/map/map_object_data/generated — replace_path'd + shipped EMPTY (no vanilla vegetation).
+        Directory.CreateDirectory(Helper.GetPath(outputDirectory, "gfx", "map", "map_object_data", "generated"));
+
+        Logger.Info($"Wrote map render assets: {SolidRasters.Length} generated solids (surround mask/fade + water) + {copied} CK3 copy (surround_tile) + empty generated [no TCS, no shipped DDS]");
     }
 }

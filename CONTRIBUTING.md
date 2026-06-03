@@ -8,7 +8,7 @@ Contributions are welcome. Please read this before opening a pull request.
 
 **Prerequisites:**
 - [.NET 8 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)
-- CK3 installed with [Total Conversion Sandbox](https://steamcommunity.com/sharedfiles/filedetails/?id=2524797018)
+- CK3 installed
 - An Azgaar export to test with (or use the included test data)
 
 **Build:**

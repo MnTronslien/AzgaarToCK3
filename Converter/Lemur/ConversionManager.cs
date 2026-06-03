@@ -250,7 +250,7 @@ namespace Converter.Lemur
             // hide the bookmark portrait; its render crashes the main menu on a generated map
             await FrontendGuiWriter.Write(Settings.OutputDirectory);
             // surround_map / water / vegetation, so the standalone map shows no vanilla geography
-            await MapRenderAssetsWriter.Write(Settings.Instance.TotalConversionSandboxPath, Settings.OutputDirectory);
+            await MapRenderAssetsWriter.Write(Settings.Instance.Ck3Directory, Settings.OutputDirectory);
             if (w.ProvinceTerrain)
             {
                 using var _ = OperationTimer.Start("Writing province terrain");
@@ -264,12 +264,12 @@ namespace Converter.Lemur
             if (w.TerrainMasks)
             {
                 var terrainMasks = TerrainMaskPreparer.Prepare(map);
-                await TerrainMaskWriter.Write(terrainMasks, map, Settings.Instance.TotalConversionSandboxPath, Settings.OutputDirectory);
+                await TerrainMaskWriter.Write(terrainMasks, map, Settings.Instance.Ck3Directory, Settings.OutputDirectory);
             }
             if (w.Flatmap)
                 await FlatmapWriter.Write(map, Settings.Instance.AzgaarSvgPath, Settings.OutputDirectory);
             if (w.MapStaticFiles)
-                await StaticFilesWriter.Write(Settings.Instance.TotalConversionSandboxPath, Settings.OutputDirectory);
+                await StaticFilesWriter.Write(Settings.OutputDirectory);
             if (w.Religion)
             {
                 using var _ = OperationTimer.Start("Writing religion files (copy from CK3)");

@@ -25,6 +25,9 @@
     <EmbeddedResource Include="Lemur\Assets\frontend_main.info">
       <LogicalName>Converter.Lemur.Assets.frontend_main.info</LogicalName>
     </EmbeddedResource>
+    <!-- Map-render rasters (colormap, surround mask/fade, water) are NOT bundled — they're generated
+         as flat solids at convert time by DdsWriter (see MapRenderAssetsWriter / TerrainMaskWriter),
+         so the build needs no TCS and the repo carries no large DDS. -->
   </ItemGroup>
 
   <ItemGroup>
