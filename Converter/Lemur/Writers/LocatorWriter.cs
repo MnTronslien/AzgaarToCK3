@@ -29,10 +29,8 @@ public static class LocatorWriter
             await ImageUtility.DrawAllLocatorsDebugImage(map);
     }
 
-    // -------------------------------------------------------------------------
-    // Burg-directional locators (buildings, special building, siege)
-    // Position = burg nudged 20px toward cell centroid, with optional spread
-    // -------------------------------------------------------------------------
+    // Burg-directional locators (buildings, special building, siege):
+    // position = burg nudged 20px toward cell centroid, with optional spread.
 
     private static (string fileName, string content) BuildBuildingLocators(L.Map map)
     {
@@ -71,10 +69,8 @@ public static class LocatorWriter
         return ("siege_locators.txt", EndLocatorFile(sb));
     }
 
-    // -------------------------------------------------------------------------
-    // Centroid-based locators (combat, activities, player stack)
-    // Position = cell centroid + fixed pixel offset
-    // -------------------------------------------------------------------------
+    // Centroid-based locators (combat, activities, player stack):
+    // position = cell centroid + fixed pixel offset.
 
     private static (string fileName, string content) BuildCombatLocators(L.Map map)
     {
@@ -90,8 +86,7 @@ public static class LocatorWriter
             var (x, z) = ComputeCentroid(wasteland.Cells, map);
             AppendInstance(sb, id++, x + 15, z + 10);
         }
-        // Sea zones too — naval combat happens there, and CK3 expects a locator per province
-        // (else it logs the locator as "incomplete" and regenerates it under the user's Documents).
+        // Sea zones too — CK3 expects a locator per province, else it flags it incomplete.
         foreach (var sea in map.SeaZones!.Concat(map.FarSeaZones!))
         {
             var (x, z) = ComputeCentroid(sea.Cells, map);
@@ -174,9 +169,8 @@ public static class LocatorWriter
         sb.AppendLine("\tgenerated_content=no");
         sb.AppendLine($"\tlayer=\"{layer}\"");
         sb.AppendLine("\tinstances={");
-        // CK3 expects an instance for province id 0 (the dummy province). Vanilla and TCS both emit
-        // one near the origin; without it CK3 logs "Failed to get transform ... instance id 0". Our
-        // per-province loops start at id 1, so seed id 0 here for every locator.
+        // Seed dummy province id 0 (per-province loops start at id 1); else CK3 logs
+        // "Failed to get transform ... instance id 0".
         AppendInstance(sb, 0, 3, 5);
         return sb;
     }
@@ -199,9 +193,8 @@ public static class LocatorWriter
     }
 
     /// <summary>
-    /// Burg position nudged 20px toward the cell centroid, keeping the locator
-    /// inland for coastal burgs. Falls back to the bare burg position if the
-    /// burg and centroid are within 5px of each other.
+    /// Burg position nudged 20px toward the cell centroid (keeps coastal burgs inland).
+    /// Falls back to the bare burg position when burg and centroid are within 5px.
     /// </summary>
     internal static (double x, double z) BurgNudgedTowardCentroid(L.Barony barony, L.Map map)
     {
@@ -221,9 +214,8 @@ public static class LocatorWriter
     }
 
     /// <summary>
-    /// Unit vector perpendicular to the burg→centroid direction (rotated 90° clockwise).
-    /// Used to spread building and special_building locators to either side of the burg.
-    /// Returns (0, 0) if burg and centroid are within 5px of each other.
+    /// Unit vector perpendicular to the burg→centroid direction (90° clockwise), used to spread
+    /// building/special_building locators sideways. Falls back to a fixed rightward vector within 5px.
     /// </summary>
     internal static (double x, double z) PerpendicularTowardCentroid(L.Barony barony, L.Map map)
     {

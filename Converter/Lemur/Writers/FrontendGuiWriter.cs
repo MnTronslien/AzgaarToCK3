@@ -3,18 +3,11 @@ using System.Reflection;
 namespace Converter.Lemur.Writers;
 
 /// <summary>
-/// Ships a stripped copy of CK3's <c>gui/frontend_main.gui</c> into the mod.
-///
-/// CK3's main menu renders the default bookmark character's 3D portrait. On a fully generated,
-/// TCS-free map that render faults with EXCEPTION_ACCESS_VIOLATION at the main menu — the game
-/// crashes on load before a game can be started. Our override is vanilla's frontend with the
-/// main-menu portrait widget and the challenge-character window set to <c>visible = no</c>, which
-/// stops the portrait render and avoids the crash (the same fix TCS shipped). In-game portraits are
-/// unaffected. See bugs/BUG_tcs-breakaway-bootcrash.md.
-///
-/// The .gui is a STATIC embedded asset pinned to a CK3 version — re-sync on front-end updates per
-/// the bundled frontend_main.info. We ship that .info alongside it (CK3 ignores .info files) so the
-/// rationale travels with the mod.
+/// Ships a copy of CK3's <c>gui/frontend_main.gui</c> with the main-menu portrait widget hidden
+/// (<c>visible = no</c>) — that 3D portrait render crashes the main menu on a generated map.
+/// The .gui is a static embedded asset pinned to a CK3 version; re-sync on front-end updates per the
+/// bundled frontend_main.info (shipped alongside; CK3 ignores .info files).
+/// See bugs/BUG_tcs-breakaway-bootcrash.md.
 /// </summary>
 public static class FrontendGuiWriter
 {

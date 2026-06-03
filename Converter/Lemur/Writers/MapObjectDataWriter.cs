@@ -1,19 +1,15 @@
 namespace Converter.Lemur.Writers;
 
 /// <summary>
-/// We replace_path gfx/map/map_object_data (see <see cref="ModDescriptorWriter"/>) to mask vanilla's
-/// locator files, whose ~12k instances reference province IDs far beyond our map and crash CK3 on load.
-/// Replacing also masks vanilla's layer definitions and map-table objects, which our locators and the
-/// 3D map table depend on — so we must re-supply them. These files are map-INDEPENDENT (layer type
-/// declarations and zoom-table object meshes), so we copy them verbatim from the CK3 install, the same
-/// way <c>ReligionWriter</c> sources vanilla religion files.
+/// Re-supplies the map-independent layer definitions and map-table objects masked by our
+/// replace_path on gfx/map/map_object_data (see <see cref="ModDescriptorWriter"/>); copied verbatim
+/// from the CK3 install since our locators and the 3D map table depend on them.
 ///
 /// NOT copied here:
-///   - the *_locators.txt files       → written per-map by <see cref="LocatorWriter"/>
-///   - map_table_western.txt          → written by <see cref="MapTableWriter"/> (carries our Y-offset fix)
-///   - decoration instance files (bridges/lakes/cliffs/audio/env_effects) → vanilla's hold map-specific
-///     transforms; their absence is non-fatal (just no eye-candy), so we omit them rather than ship
-///     wrong-position copies.
+///   - *_locators.txt        → written per-map by <see cref="LocatorWriter"/>
+///   - map_table_western.txt → written by <see cref="MapTableWriter"/> (carries our Y-offset fix)
+///   - decoration instances (bridges/lakes/cliffs/audio/env_effects) → map-specific; omitted rather
+///     than shipped at wrong positions (absence is non-fatal, just no eye-candy)
 /// </summary>
 public static class MapObjectDataWriter
 {

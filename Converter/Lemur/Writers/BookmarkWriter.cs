@@ -3,15 +3,9 @@ using L = Converter.Lemur.Entities;
 namespace Converter.Lemur.Writers;
 
 /// <summary>
-/// Emits the start bookmark our generated world needs to be playable. CK3 requires at least one
-/// playable bookmark to enter a game; the Total Conversion Sandbox mod used to supply this, so a
-/// TCS-free playset had no startable game. We point the bookmark at our largest generated realms.
-///
-/// Files written (all under <c>replace_path</c>s declared by <see cref="ModDescriptorWriter"/>):
-///   common/bookmarks/groups/00_bookmark_groups.txt   — one group at the start date
-///   common/bookmarks/bookmarks/00_bookmarks.txt       — one bookmark, one character per ruler
-///   common/bookmark_portraits/                        — empty (portraits render from culture/DNA)
-///   localization/english/lemur_bookmarks_l_english.yml
+/// Emits the start bookmark CK3 requires to enter a game, pointed at our largest generated realms.
+/// Writes bookmark group, bookmark + per-ruler characters, an empty bookmark_portraits dir, and loc
+/// (all under <c>replace_path</c>s from <see cref="ModDescriptorWriter"/>).
 /// </summary>
 public static class BookmarkWriter
 {
@@ -27,8 +21,7 @@ public static class BookmarkWriter
     {
         using var _ = OperationTimer.Start("Writing start bookmark");
 
-        // Largest held realms first (by county count). Empires are de jure shells with no holder,
-        // so kingdoms are the top playable tier (matches TitleHistoryWriter).
+        // Largest held realms first; kingdoms are the top playable tier (empires have no holder).
         var rulers = map.Kingdoms
             .Where(k => k.Holder != null)
             .OrderByDescending(k => k.Duchies.Sum(d => d.Counties.Count))
@@ -84,8 +77,7 @@ public static class BookmarkWriter
             sb.AppendLine("\t\tanimation = happiness");
             sb.AppendLine("\t}");
 
-            // Characters carry no name in history (CK3 names them from the culture list at runtime),
-            // so the bookmark screen falls back to the realm name.
+            // Characters have no history name (CK3 names them at runtime); fall back to the realm name.
             locLines.Add($" {nameKey}:0 \"{holder.Name ?? k.Name}\"");
         }
 
