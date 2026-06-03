@@ -245,15 +245,11 @@ namespace Converter.Lemur
                 await MapDefinesWriter.Write(Settings.OutputDirectory);
             }
             await MapTableWriter.Write(Settings.OutputDirectory);
-            // We replace_path gfx/map/map_object_data (masks vanilla's out-of-range locators that
-            // crash load); re-supply vanilla's map-independent layer + map-table definitions.
+            // re-supply the layer/map-table defs masked by our gfx/map/map_object_data replace_path
             await MapObjectDataWriter.Write(Settings.Instance.Ck3Directory, Settings.OutputDirectory);
-            // Override the main-menu front-end to hide the bookmark-character portrait, whose render
-            // crashes CK3 on a TCS-free custom map (EXCEPTION_ACCESS_VIOLATION at the main menu).
+            // hide the bookmark portrait; its render crashes the main menu on a generated map
             await FrontendGuiWriter.Write(Settings.OutputDirectory);
-            // Ship surround_map / water / vegetation generators so the standalone map doesn't bleed
-            // vanilla geography around the edges, wrong sea colour, or vanilla-placed trees. Stopgap:
-            // copied from the TCS install at build time (see MapRenderAssetsWriter); Phase B synthesizes.
+            // surround_map / water / vegetation, so the standalone map shows no vanilla geography
             await MapRenderAssetsWriter.Write(Settings.Instance.TotalConversionSandboxPath, Settings.OutputDirectory);
             if (w.ProvinceTerrain)
             {
@@ -306,7 +302,7 @@ namespace Converter.Lemur
                 using var _ = OperationTimer.Start("Writing title history");
                 await TitleHistoryWriter.Write(map, Settings.OutputDirectory);
             }
-            // After TitleHistory so kingdom.Holder assignments exist to point the bookmark at.
+            // after TitleHistory, so kingdom holders exist
             if (w.Bookmark)
                 await BookmarkWriter.Write(map, Settings.OutputDirectory);
 
