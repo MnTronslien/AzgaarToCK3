@@ -47,12 +47,8 @@ public static class StaticFilesWriter
         // island_region.txt — no islands to declare
         await File.WriteAllTextAsync(Helper.GetPath(mapDataDir, "island_region.txt"), "", enc);
 
-        // positions.txt — written EMPTY (0 bytes), matching TCS's own positions.txt.
-        // Once we declare the map_data replace_path ourselves (TCS breakaway), there is no
-        // fall-through: the file must exist or CK3 has no positions data at all. An empty file
-        // makes CK3 default every map object to its province midpoint — which is exactly the
-        // proven state today (TCS ships an empty positions.txt) and is independent of the modern
-        // map_object_data locators we already emit via LocatorWriter. No BOM: byte-identical to TCS.
+        // positions.txt — empty. Under our map_data replace_path the file must exist; empty makes
+        // CK3 place map objects at province midpoints (real placement comes from LocatorWriter).
         await File.WriteAllTextAsync(Helper.GetPath(mapDataDir, "positions.txt"),
             "", new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 

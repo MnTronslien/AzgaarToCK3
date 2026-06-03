@@ -5,21 +5,8 @@ namespace Converter.Lemur.Writers;
 public static class ModDescriptorWriter
 {
     /// <summary>
-    /// Directories CK3 must load as non-additive replacements so vanilla content there is wiped
-    /// and only our generated world remains. This is the "clean slate" the Total Conversion Sandbox
-    /// mod used to provide via its own descriptor; we now declare it ourselves so the generated mod
-    /// is self-sufficient and needs no TCS in the playset.
-    ///
-    /// gfx/map/map_object_data MUST be replaced: vanilla's locator files there carry ~12k instances
-    /// with province IDs up to ~13000. Left additive, CK3 applies those to our ~1300-province map and
-    /// reads past the province array → EXCEPTION_ACCESS_VIOLATION on load. Replacing masks vanilla's
-    /// huge locators; we ship our own (LocatorWriter) plus the map-independent layer/map-table
-    /// definitions (MapObjectDataWriter). This is what TCS did for us.
-    ///
-    /// gfx/map/map_object_data/generated is ALSO replaced (reversed from an earlier guess): left
-    /// additive, vanilla's vegetation generators place trees at vanilla-map positions on our map.
-    /// replace_path is per-directory (not recursive — TCS lists both), so we replace it explicitly
-    /// and ship our own generators (copied from TCS for now by MapRenderAssetsWriter).
+    /// Paths CK3 loads as non-additive replacements, so vanilla content there is wiped and only our
+    /// generated world remains — the clean slate we used to rely on TCS to provide.
     /// </summary>
     private static readonly string[] ReplacePaths =
     [
@@ -32,7 +19,9 @@ public static class ModDescriptorWriter
         "history/provinces",
         "history/province_mappings",
         "map_data",
+        // vanilla's locators here reference province IDs far past our map → access violation if additive
         "gfx/map/map_object_data",
+        // else vanilla's tree generators scatter vegetation at vanilla-map positions
         "gfx/map/map_object_data/generated",
     ];
 
