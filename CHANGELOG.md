@@ -1,22 +1,22 @@
-# 1.5.0 — 2026-06-03
+# 1.5.0 — Independence — 2026-06-03
+
+The dependency is gone. Since day one the converter's output only loaded because you subscribed to Total Conversion Sandbox and loaded it beneath the generated mod — TCS wiped vanilla's titles, characters, provinces and religions so ours wouldn't collide, and supplied the start bookmark and a handful of map render assets. That whole arrangement is now done in-house. The generated mod is self-sufficient: one mod in the playset, no subscription, no load order to get right. TCS can be removed from the machine entirely.
 
 ### Added
-- declare 9 replace_paths for TCS-free clean slate
-- generate a start bookmark from the largest realms
-- write empty positions.txt for the map_data replace_path
-- replace path + ship layer/map-table defs + complete locators
-- ship surround_map/water/vegetation generators (TCS copy stopgap)
-- build independence — sever TCS reads, generate map rasters in code
-- drop the TCS sandbox prompt from first-time setup
+- **Self-sufficient clean slate.** The generated descriptor now declares the `replace_path` entries that wipe vanilla's colliding content — landed titles, religions, bookmarks, character and title history, provinces, province mappings, and map_data — so our generated world loads cleanly as the only mod. This was the single job we used to hand to TCS.
+- **A start bookmark, generated from your map.** The converter picks the largest realms and writes a playable 1066 start bookmark with their rulers, so the game is startable with no external bookmark mod.
+- **Map render assets generated in code.** The surround-map mask/fade and the water flow/foam/colour rasters are now produced at conversion time (flat solids matching the values TCS shipped) instead of copied from a TCS install, so nothing large is bundled in the release. `colormap.dds` is generated flat as a vanilla override. Biome-driven colormap enrichment and in-game vegetation are noted as follow-ups.
 
 ### Fixed
-- ship stripped frontend_main.gui to stop TCS-free boot crash
+- **TCS-free boot crash on the main menu.** A stripped `gui/frontend_main.gui` ships with the main-menu portrait widget hidden — that 3D portrait render crashed the menu on a generated map once TCS was no longer present to override the GUI.
+- **Vanilla map content bleeding through.** With `gfx/map/map_object_data` now replace_path'd and re-supplied with the map-independent layer and map-table definitions, vanilla's ~12k-instance locators and tree placements no longer load onto our ~1300-province map.
 
 ### Changed
-- trim verbose comments per PR review
-- trim verbose comments across breakaway writers
-- trim verbose wiring comments in ConversionManager
-- trim verbose comments in build-independence writers
+- **First-run setup no longer asks for a TCS path.** One fewer step; the prompt and its validation are gone.
+- **Build no longer reads from a TCS install.** The converter runs to completion with TCS removed from the machine — terrain masks, mask filenames, and colormap no longer depend on it.
+
+### Removed
+- **The Total Conversion Sandbox dependency, runtime and build-time.** No subscription, no load order, no TCS on disk. User docs (README, USAGE, CONFIGURATION, CONTRIBUTING, release README) updated to match.
 
 ---
 
