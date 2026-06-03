@@ -243,6 +243,7 @@ namespace Converter.Lemur
             {
                 using var _ = OperationTimer.Start("Writing map defines");
                 await MapDefinesWriter.Write(Settings.OutputDirectory);
+                await BenchmarkDefinesWriter.Write(map, Settings.OutputDirectory);
             }
             await MapTableWriter.Write(Settings.OutputDirectory);
             if (w.ProvinceTerrain)
