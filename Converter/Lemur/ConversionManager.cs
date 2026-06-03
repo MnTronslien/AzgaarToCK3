@@ -245,6 +245,12 @@ namespace Converter.Lemur
                 await MapDefinesWriter.Write(Settings.OutputDirectory);
             }
             await MapTableWriter.Write(Settings.OutputDirectory);
+            // re-supply the layer/map-table defs masked by our gfx/map/map_object_data replace_path
+            await MapObjectDataWriter.Write(Settings.Instance.Ck3Directory, Settings.OutputDirectory);
+            // hide the bookmark portrait; its render crashes the main menu on a generated map
+            await FrontendGuiWriter.Write(Settings.OutputDirectory);
+            // surround_map / water / vegetation, so the standalone map shows no vanilla geography
+            await MapRenderAssetsWriter.Write(Settings.Instance.TotalConversionSandboxPath, Settings.OutputDirectory);
             if (w.ProvinceTerrain)
             {
                 using var _ = OperationTimer.Start("Writing province terrain");
@@ -296,6 +302,9 @@ namespace Converter.Lemur
                 using var _ = OperationTimer.Start("Writing title history");
                 await TitleHistoryWriter.Write(map, Settings.OutputDirectory);
             }
+            // after TitleHistory, so kingdom holders exist
+            if (w.Bookmark)
+                await BookmarkWriter.Write(map, Settings.OutputDirectory);
 
             Logger.Success();
 
