@@ -243,6 +243,7 @@ namespace Converter.Lemur
             {
                 using var _ = OperationTimer.Start("Writing map defines");
                 await MapDefinesWriter.Write(Settings.OutputDirectory);
+                await BenchmarkDefinesWriter.Write(map, Settings.OutputDirectory);
             }
             await MapTableWriter.Write(Settings.OutputDirectory);
             // re-supply the layer/map-table defs masked by our gfx/map/map_object_data replace_path
