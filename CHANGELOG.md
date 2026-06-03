@@ -1,3 +1,25 @@
+# 1.5.0 — 2026-06-03
+
+### Added
+- declare 9 replace_paths for TCS-free clean slate
+- generate a start bookmark from the largest realms
+- write empty positions.txt for the map_data replace_path
+- replace path + ship layer/map-table defs + complete locators
+- ship surround_map/water/vegetation generators (TCS copy stopgap)
+- build independence — sever TCS reads, generate map rasters in code
+- drop the TCS sandbox prompt from first-time setup
+
+### Fixed
+- ship stripped frontend_main.gui to stop TCS-free boot crash
+
+### Changed
+- trim verbose comments per PR review
+- trim verbose comments across breakaway writers
+- trim verbose wiring comments in ConversionManager
+- trim verbose comments in build-independence writers
+
+---
+
 # 1.4.0 — Governance — 2026-06-01
 
 Governments and development — finally, they're here, and they're a big deal. These are two of the last things standing between "the map looks right" and "the map plays right." Until now every realm was feudal and every county started at development 0, so the whole world played the same way. Now each realm gets a government that fits its Azgaar state, and every county starts with a development level set by how big its capital is. The world opens with real political and economic texture instead of a flat feudal sheet.
