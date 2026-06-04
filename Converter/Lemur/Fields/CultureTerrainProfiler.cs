@@ -78,19 +78,21 @@ public static class CultureTerrainProfiler
     private static void LogProfiles(Map map, Dictionary<int, CultureContext> profiles)
     {
         var sb = new System.Text.StringBuilder(
-            "Culture terrain profiles (cultureId,name,cells,coastal%,topTerrain,topTerrain%):");
+            "Culture terrain profiles (cultureId,name,cells,coastal%,topTerrain,topTerrain%,fullBreakdown[terrain:pct|...]):");
         foreach (var (id, ctx) in profiles.OrderBy(kv => kv.Key))
         {
             string name = map.Cultures.TryGetValue(id, out var c) ? c.Name : "?";
             string topTerrain = "none";
             float topFrac = 0f;
+            string breakdown = "";
             if (ctx.TerrainFraction.Count > 0)
             {
-                var top = ctx.TerrainFraction.OrderByDescending(kv => kv.Value).First();
-                topTerrain = top.Key.ToCk3String();
-                topFrac = top.Value;
+                var ordered = ctx.TerrainFraction.OrderByDescending(kv => kv.Value).ToList();
+                topTerrain = ordered[0].Key.ToCk3String();
+                topFrac = ordered[0].Value;
+                breakdown = string.Join("|", ordered.Select(kv => $"{kv.Key.ToCk3String()}:{kv.Value * 100f:F1}"));
             }
-            sb.Append($"\n{id},{name},{ctx.CellCount},{ctx.CoastalFraction * 100f:F1},{topTerrain},{topFrac * 100f:F1}");
+            sb.Append($"\n{id},{name},{ctx.CellCount},{ctx.CoastalFraction * 100f:F1},{topTerrain},{topFrac * 100f:F1},{breakdown}");
         }
         Logger.Info(sb.ToString());
     }
