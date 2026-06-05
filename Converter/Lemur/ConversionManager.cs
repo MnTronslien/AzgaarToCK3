@@ -233,6 +233,14 @@ namespace Converter.Lemur
                 CultureTraditionAssigner.Assign(map, cultureTerrain, Settings.Instance.Seed!.Value);
             }
 
+            // Faith tenets are deferred here (not in FaithManager.Build) for the same reason as
+            // traditions: they gate on the canonical Barony.Ck3Terrain just computed above.
+            using (var _ = OperationTimer.Start("Assigning faith tenets"))
+            {
+                var faithTerrain = FaithTerrainProfiler.Compute(map);
+                FaithTenetAssigner.Assign(map, faithTerrain, Settings.Instance.Seed!.Value);
+            }
+
             Logger.Section("Writing CK3 mod files");
 
             if (w.Adjacencies)
