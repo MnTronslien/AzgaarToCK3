@@ -1,15 +1,18 @@
 # 1.6.0 — 2026-06-05
 
----
-
-# Unreleased
+This release is about cultural character. Until now every culture drew its traditions at random, so the desert nomads were as likely to end up seafarers as the coast-dwellers, and the cultural map read as noise. Now a culture's traditions follow from where it lives and what it values: the land it sits on decides which terrain-flavoured traditions it can take at all, and its ethos tilts the rest. Each people reads as its own thing instead of a random assortment.
 
 ### Changed
 - **Culture traditions now reflect where a culture lives and what it values.** Traditions used to be handed out at random, so a desert people were as likely to get seafaring or deep-forest traditions as anything appropriate. Now the land comes first: terrain-flavoured traditions only go to cultures whose territory actually fits them, so you won't find maritime traditions on a landlocked realm or jungle traditions out in the desert. Within what's allowed, a culture's ethos tilts the odds, so a warlike people leans toward martial traditions and a scholarly or devout one leans away from them. Flavourful and regional traditions are still in the pool and can turn up anywhere, and traditions a culture inherited from its ancestors are left untouched, so a forest people descended from desert nomads can still carry an old homeland tradition. The result is that cultures read as distinct and rooted in their part of the map instead of looking like a random grab-bag. How the selection works, and how to adjust it, is written up in [CONTRIBUTING.md](CONTRIBUTING.md#culture-traditions).
 
+### Added
+- **Benchmark boot support.** The mod now ships a small defines override that points CK3's `-benchmark` mode at the first generated kingdom, so you can boot straight onto your converted map for a quick look without clicking through the bookmark. A testing convenience; no effect on normal play.
+
 ### Fixed
 - **All of CK3's culture ethoses can now appear.** One ethos was never being assigned to any generated culture; cultures can now take it like any other.
 - **Stopped assigning a couple of traditions that have no usable effect** (placeholder entries that were never meant to be picked).
+
+---
 
 # 1.5.0 — Independence — 2026-06-03
 
