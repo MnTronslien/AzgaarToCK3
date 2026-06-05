@@ -66,11 +66,13 @@ public static class FaithManager
             }
         }
 
-        // Pass 3: assign doctrines and tenets in topological order (parents before children)
-        // so child faiths can inherit and mutate from an already-assigned parent.
+        // Pass 3: assign DOCTRINES in topological order (parents before children) so child faiths
+        // can inherit and mutate from an already-assigned parent. TENETS are NOT assigned here —
+        // they are deferred to FaithTenetAssigner (run after BaronyTerrainAssigner) so they can gate
+        // on the canonical Barony.Ck3Terrain, which does not exist yet at Build time. Faith.Tenets
+        // is left empty here; nothing between Build and the assigner reads it.
         // Global seed is always resolved by ConversionManager before Build() is called.
         int seed = Settings.Instance.Seed!.Value;
-        int tenetCount = Settings.Instance.TenetCount;
         float mutationRate = Settings.Instance.DoctrineMutationRate;
 
         var childrenOf = faiths.Values
@@ -82,7 +84,7 @@ public static class FaithManager
         while (queue.Count > 0)
         {
             var faith = queue.Dequeue();
-            AssignDoctrinesAndTenets(faith, seed, tenetCount, mutationRate);
+            AssignDoctrines(faith, seed, mutationRate);
             if (childrenOf.TryGetValue(faith.AzgaarId, out var children))
                 foreach (var child in children)
                     queue.Enqueue(child);
@@ -90,24 +92,20 @@ public static class FaithManager
 
         // Since we used topological order, all parents will have been processed before their children, so inheritance and mutation will work as intended.
 
-        var sb = new System.Text.StringBuilder($"Assigned doctrines and tenets to {faiths.Count} faiths.");
-        foreach (var f in faiths.Values)
-            sb.Append($"\n- {f.Name} (id {f.AzgaarId}): tenets=[{string.Join(", ", f.Tenets)}]");
-        Logger.Info(sb.ToString());
+        Logger.Info($"Assigned doctrines to {faiths.Count} faiths (tenets deferred to FaithTenetAssigner).");
         Logger.Info("Faiths done.");
 
         return faiths;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Doctrine & tenet assignment
+    // Doctrine assignment (tenets are assigned later by FaithTenetAssigner)
     // ─────────────────────────────────────────────────────────────────────────
 
-    private static void AssignDoctrinesAndTenets(Faith faith, int seed, int tenetCount, float mutationRate)
+    private static void AssignDoctrines(Faith faith, int seed, float mutationRate)
     {
         var rng = new Random(Helper.MixSeeds(seed, faith.AzgaarId));
         faith.Doctrines = PickDoctrines(faith, rng, mutationRate);
-        faith.Tenets    = PickTenets(faith, rng, tenetCount, mutationRate);
     }
 
     private static List<string> PickDoctrines(Faith faith, Random rng, float mutationRate)
@@ -123,28 +121,6 @@ public static class FaithManager
                 result.Add(options[rng.Next(options.Length)]);
         }
         return result;
-    }
-
-    private static List<string> PickTenets(Faith faith, Random rng, int count, float mutationRate)
-    {
-        var chosen = new List<string>(faith.Parent?.Tenets ?? []);
-
-        while (chosen.Count < count)
-            chosen.Add(PickUniqueTenet(rng, chosen));
-        while (chosen.Count > count)
-            chosen.RemoveAt(chosen.Count - 1);
-
-        for (int i = 0; i < chosen.Count; i++)
-            if (faith.Parent == null || rng.NextDouble() < mutationRate)
-                chosen[i] = PickUniqueTenet(rng, chosen.Where((_, idx) => idx != i).ToList());
-
-        return chosen;
-    }
-
-    private static string PickUniqueTenet(Random rng, ICollection<string> excluded)
-    {
-        var pool = DoctrineData.AllTenets.Except(excluded).ToArray();
-        return pool[rng.Next(pool.Length)];
     }
 
     // ─────────────────────────────────────────────────────────────────────────
