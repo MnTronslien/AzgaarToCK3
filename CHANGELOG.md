@@ -1,3 +1,12 @@
+# Unreleased
+
+### Changed
+- **Culture traditions now reflect where a culture lives and what it values.** Traditions used to be handed out at random, so a desert people were as likely to get seafaring or deep-forest traditions as anything appropriate. Now the land comes first: terrain-flavoured traditions only go to cultures whose territory actually fits them, so you won't find maritime traditions on a landlocked realm or jungle traditions out in the desert. Within what's allowed, a culture's ethos tilts the odds, so a warlike people leans toward martial traditions and a scholarly or devout one leans away from them. Flavourful and regional traditions are still in the pool and can turn up anywhere, and traditions a culture inherited from its ancestors are left untouched, so a forest people descended from desert nomads can still carry an old homeland tradition. The result is that cultures read as distinct and rooted in their part of the map instead of looking like a random grab-bag. How the selection works, and how to adjust it, is written up in [CONTRIBUTING.md](CONTRIBUTING.md#culture-traditions).
+
+### Fixed
+- **All of CK3's culture ethoses can now appear.** One ethos was never being assigned to any generated culture; cultures can now take it like any other.
+- **Stopped assigning a couple of traditions that have no usable effect** (placeholder entries that were never meant to be picked).
+
 # 1.5.0 — Independence — 2026-06-03
 
 The dependency is gone. Since day one the converter's output only loaded because you subscribed to Total Conversion Sandbox and loaded it beneath the generated mod — TCS wiped vanilla's titles, characters, provinces and religions so ours wouldn't collide, and supplied the start bookmark and a handful of map render assets. That whole arrangement is now done in-house. The generated mod is self-sufficient: one mod in the playset, no subscription, no load order to get right. TCS can be removed from the machine entirely.
