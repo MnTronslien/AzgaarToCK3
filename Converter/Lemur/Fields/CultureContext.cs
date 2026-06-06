@@ -38,6 +38,22 @@ public readonly struct CultureContext
 
     public float TerrainFractionOf(Ck3Terrain t) =>
         TerrainFraction.TryGetValue(t, out var f) ? f : 0f;
+
+    /// <summary>
+    /// Hard {0,1} terrain gate: 1 iff the summed fraction of the listed terrains ≥ threshold.
+    /// Reusable predicate for inline <see cref="TraditionWeight"/> lambdas, mirroring
+    /// <c>PixelContext.AzgaarBiomeWeight</c>.
+    /// </summary>
+    public float TerrainAtLeast(float threshold, params Ck3Terrain[] terrains)
+    {
+        float f = 0f;
+        foreach (var t in terrains) f += TerrainFractionOf(t);
+        return f >= threshold ? 1f : 0f;
+    }
+
+    /// <summary>Hard {0,1} coastal gate: 1 iff <see cref="CoastalFraction"/> ≥ threshold.</summary>
+    public float CoastalAtLeast(float threshold) =>
+        CoastalFraction >= threshold ? 1f : 0f;
 }
 
 /// <summary>
