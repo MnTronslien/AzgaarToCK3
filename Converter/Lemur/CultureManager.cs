@@ -7,7 +7,7 @@ public static class CultureManager
     private static readonly string[] Ethoses =
     [
         "ethos_bellicose", "ethos_stoic", "ethos_bureaucratic",
-        "ethos_communal", "ethos_egalitarian", "ethos_spiritual"
+        "ethos_communal", "ethos_egalitarian", "ethos_spiritual", "ethos_courtly"
     ];
 
     private static readonly string[] MartialCustoms =
@@ -100,9 +100,9 @@ public static class CultureManager
         // (parents before children so children can inherit)
         AssignPillarsTopological(cultures, result, seed);
 
-        // Pass 3: assign traditions
-        float mutationRate = Converter.Settings.Instance.DoctrineMutationRate;
-        AssignTraditionsTopological(cultures, result, seed, mutationRate);
+        // Traditions are NOT assigned here. They are deferred to CultureTraditionAssigner,
+        // which runs after BaronyTerrainAssigner so it can gate on canonical Barony.Ck3Terrain.
+        // Build leaves Culture.Traditions empty; nothing between here and CultureWriter reads it.
 
         // Pass 4: wire Parents list (CK3 keys of direct parents)
         foreach (var azc in cultures)
@@ -122,9 +122,9 @@ public static class CultureManager
         // Depth 2+ (derived from derived): 1000.1.1
         AssignCreationDates(cultures, result);
 
-        var sb = new System.Text.StringBuilder($"Assigned pillars and traditions to {result.Count} cultures.");
+        var sb = new System.Text.StringBuilder($"Assigned pillars to {result.Count} cultures (traditions assigned later by CultureTraditionAssigner).");
         foreach (var c in result.Values.OrderBy(c => c.AzgaarId))
-            sb.Append($"\n- {c.Name} (id {c.AzgaarId}): heritage={c.Heritage}, language={c.Language}, traditions=[{string.Join(", ", c.Traditions)}]");
+            sb.Append($"\n- {c.Name} (id {c.AzgaarId}): heritage={c.Heritage}, language={c.Language}, ethos={c.Ethos}");
         Converter.Lemur.Logger.Info(sb.ToString());
         Converter.Lemur.Logger.Info("Cultures done.");
 
@@ -242,107 +242,6 @@ public static class CultureManager
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Tradition assignment
-    // ─────────────────────────────────────────────────────────────────────────
-
-    private static void AssignTraditionsTopological(
-        AzgaarCulture[] cultures,
-        Dictionary<int, Culture> result,
-        int seed,
-        float mutationRate)
-    {
-        var parentIds = new Dictionary<int, int[]>();
-        foreach (var azc in cultures)
-        {
-            if (azc.i == 0) continue;
-            parentIds[azc.i] = GetRealOrigins(azc.origins);
-        }
-
-        var visited = new HashSet<int>();
-        var queue = new Queue<int>();
-
-        foreach (var azc in cultures)
-        {
-            if (azc.i == 0) continue;
-            if (parentIds[azc.i].Length == 0)
-                queue.Enqueue(azc.i);
-        }
-
-        while (queue.Count > 0)
-        {
-            var id = queue.Dequeue();
-            if (!visited.Add(id)) continue;
-            if (!result.TryGetValue(id, out var culture)) continue;
-
-            var origins = parentIds[id];
-            var rng = new Random(Helper.MixSeeds(seed, id, 99)); // distinct salt
-
-            if (origins.Length == 0)
-            {
-                // Foundational: pick 4 distinct random traditions
-                culture.Traditions = PickDistinct(rng, 4, Converter.Lemur.TraditionData.All.Select(t => t.Key).ToList(), []);
-            }
-            else if (origins.Length == 1)
-            {
-                // Derived: copy parent list, mutate per slot
-                result.TryGetValue(origins[0], out var parent);
-                var traditions = new List<string>(parent?.Traditions ?? []);
-                while (traditions.Count < 4)
-                    traditions.Add(PickOneNew(rng, Converter.Lemur.TraditionData.All.Select(t => t.Key).ToList(), traditions));
-                for (int i = 0; i < traditions.Count; i++)
-                    if (rng.NextDouble() < mutationRate)
-                        traditions[i] = PickOneNew(rng, Converter.Lemur.TraditionData.All.Select(t => t.Key).ToList(), traditions.Where((_, idx) => idx != i).ToList());
-                culture.Traditions = traditions;
-            }
-            else
-            {
-                // Hybrid: 1 from A, 1 from B, fill 2 more from pool
-                result.TryGetValue(origins[0], out var parentA);
-                result.TryGetValue(origins[1], out var parentB);
-
-                var listA = parentA?.Traditions ?? [];
-                var listB = parentB?.Traditions ?? [];
-                var chosen = new List<string>();
-
-                // Pick 1 from A
-                if (listA.Count > 0)
-                    chosen.Add(listA[rng.Next(listA.Count)]);
-                // Pick 1 from B (different)
-                var bPool = listB.Where(t => !chosen.Contains(t)).ToList();
-                if (bPool.Count > 0)
-                    chosen.Add(bPool[rng.Next(bPool.Count)]);
-                else if (listB.Count > 0)
-                    chosen.Add(listB[rng.Next(listB.Count)]);
-
-                // Fill remaining slots
-                var pool = listA.Concat(listB).Where(t => !chosen.Contains(t)).Distinct().ToList();
-                while (chosen.Count < 4)
-                {
-                    if (pool.Count > 0 && rng.NextDouble() >= mutationRate)
-                    {
-                        var pick = pool[rng.Next(pool.Count)];
-                        pool.Remove(pick);
-                        chosen.Add(pick);
-                    }
-                    else
-                    {
-                        chosen.Add(PickOneNew(rng, Converter.Lemur.TraditionData.All.Select(t => t.Key).ToList(), chosen));
-                    }
-                }
-                culture.Traditions = chosen;
-            }
-
-            // Enqueue children
-            foreach (var candidate in result.Keys)
-            {
-                if (visited.Contains(candidate)) continue;
-                if (parentIds.TryGetValue(candidate, out var pids) && pids.Contains(id))
-                    queue.Enqueue(candidate);
-            }
-        }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -439,26 +338,6 @@ public static class CultureManager
     {
         if (origins == null) return [];
         return origins.Where(o => o != 0).Take(2).ToArray();
-    }
-
-    private static List<string> PickDistinct(Random rng, int count, List<string> pool, List<string> excluded)
-    {
-        var available = pool.Where(t => !excluded.Contains(t)).ToList();
-        var result = new List<string>();
-        while (result.Count < count && available.Count > 0)
-        {
-            var idx = rng.Next(available.Count);
-            result.Add(available[idx]);
-            available.RemoveAt(idx);
-        }
-        return result;
-    }
-
-    private static string PickOneNew(Random rng, List<string> pool, List<string> excluded)
-    {
-        var available = pool.Where(t => !excluded.Contains(t)).ToList();
-        if (available.Count == 0) return pool[rng.Next(pool.Count)]; // fallback
-        return available[rng.Next(available.Count)];
     }
 }
 

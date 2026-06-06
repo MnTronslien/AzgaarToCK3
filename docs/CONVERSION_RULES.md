@@ -17,7 +17,7 @@ But for the very best results some handcrafting is recommended.
 | State | Kingdom | Approximate. Small states are absorbed into larger kingdoms — see De Jure Consolidation below. But they remain de facto independents as a duchy on game start. |
 | **County** | County | **Inferred** counties are constructed by grouping baronies together. The algorithm targets equal population per county and respects duchy boundaries. The balance tries to mimic base CK3 where in populous urbanized parts of the world there are fewer baronies per county (ref Byzantium), but in sparsely populated areas of the world (Russia, Nordics) there are more baronies per county. All this while maintaining a decent ratio between duchies and counties. The county capital is the most populous barony, unless a barony is marked as the province or state capital in Azgaar — that takes precedence. |
 | **Empire** | Empire | **Inferred** — grouped by culture or faith, depending on the `EmpireFromCulture` setting. |
-| Culture | Culture | Name and lineage from Azgaar. Pillars and traditions are selected randomly for root cultures and then mutated randomly for diverging cultures and merge-mutated for hybrid cultures. Culture also randomly selects a "theme bundle" — a converter concept for namelist, clothing, genes and architecture. |
+| Culture | Culture | Name and lineage from Azgaar. Heritage, language, ethos and martial custom are selected for root cultures and mutated down the lineage (and merge-mutated for hybrids). Traditions are chosen to fit the culture's land and ethos rather than at random — see [Culture traditions](#culture-traditions). Culture also selects a "theme bundle" — a converter concept for namelist, clothing, genes and architecture. |
 | Religion | Faith + Religion group | Each root Azgaar religion becomes a religion group. Offshoot religions become faiths within their root religion's group. Tenets and doctrines are randomly selected for the base faith, and mutated slightly for new religions in the same group. |
 | Cell | — | Data basis for culture/religion distribution and province geometry. |
 
@@ -224,6 +224,21 @@ Bundles are currently assigned randomly per culture (seeded). The following bund
 | `northern` | Norse / Northern European | Western | Norse |
 
 Future work: bundle selection driven by Azgaar's `nameBase` field so cultures with a Norse namebase automatically receive the `northern` bundle, Arabic → `mena`, etc.
+
+---
+
+## Culture traditions
+
+Each culture gets a handful of traditions. Instead of drawing them at random, the converter weights the pool by two things about the culture: the land it occupies and its ethos.
+
+- **Terrain is a hard filter.** Terrain-flavoured traditions (desert, mountain, forest, jungle, wetland, steppe, maritime, and so on) are only eligible for a culture whose territory actually fits — measured from the same per-barony terrain the converter already assigns (see [Province terrain](#province-terrain-gameplay)), plus a coastal check for seafaring traditions. A landlocked plains culture simply can't roll maritime, mountain, or jungle traditions; a desert culture can't roll forest ones. The wrong flavour is impossible, not merely unlikely.
+- **Ethos is a soft nudge.** Among the traditions a culture *is* allowed, those that suit its ethos are favoured and those that clash are made less likely (not forbidden). A warlike culture leans toward martial traditions; a scholarly or devout one leans away from them. This mirrors how the base game treats traditions that fit a culture's ethos versus ones that don't.
+
+Everything else stays in the pool at normal odds, including flavourful regional and heritage traditions — this is a generated fantasy world, so those are allowed to appear anywhere rather than being tied to a real-world region. Because the generic pool is large, a matched terrain tradition shows up *sometimes* rather than every time; the guarantee is that nothing inappropriate to the land ever appears.
+
+Inheritance is unchanged: a child culture copies its parent's traditions and only mutates a slot at a time, and hybrids blend both parents. Only *fresh* picks are filtered this way, so an inherited tradition that no longer matches the land (a forest people descended from desert nomads keeping a desert tradition) is kept on purpose as ancestral flavour.
+
+Selection is fully deterministic — the same seed produces the same traditions. Contributors can find where the pool, the terrain gates, and the ethos weighting live in [CONTRIBUTING.md](../CONTRIBUTING.md#culture-traditions).
 
 ---
 

@@ -53,6 +53,16 @@ A few areas where additional eyes / opinions are particularly welcome:
 
   To iterate: set `"GenerateDebugImages": true` in `settings.json`, run the converter, and inspect `%LOCALAPPDATA%\AzgaarToCK3\debug\<run>\9_terrain_overview.png` — each barony coloured by its assigned terrain with river polylines and province outlines drawn on top. Lets you compare before / after a tuning change without launching CK3.
 
+### Culture traditions
+
+Each culture's traditions are picked from a pool, filtered and weighted by the culture's terrain and ethos — see the [Culture traditions section in CONVERSION_RULES.md](docs/CONVERSION_RULES.md#culture-traditions) for what the rules do. The pieces:
+
+- **The pool and its metadata** live in `Converter/Lemur/TraditionData.cs`: every tradition entry carries its category, its favoured-ethos set, and (for terrain-flavoured ones) a terrain gate. Adding, removing, or re-classifying a tradition is an edit here.
+- **The selection logic** is in `Converter/Lemur/CultureTraditionAssigner.cs`, which combines the terrain gate (a hard yes/no) with the ethos weighting (a soft multiplier). The two tuning knobs — the terrain-coverage thresholds and the ethos penalty factor — are constants at the top of these files.
+- **The per-culture land facts** (terrain mix, coastal fraction) come from `Converter/Lemur/Fields/CultureTerrainProfiler.cs`.
+
+Good contained changes: adjusting a terrain threshold, tuning the ethos penalty, fixing a tradition's favoured-ethos set, or adding a terrain gate to a tradition that should have one. Current values were set against a single map; calibration on other maps is welcome. The profiler logs a per-culture terrain summary each run, so you can see *why* a culture was eligible for what.
+
 If you have a screenshot of "before / after" for a texture proposal, drop it in the PR — visual diffs are the most useful thing here.
 
 ---

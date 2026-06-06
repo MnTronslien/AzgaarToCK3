@@ -225,6 +225,14 @@ namespace Converter.Lemur
                 BaronyTerrainAssigner.Assign(map);
             await TerrainDebugImage.Write(map);
 
+            // Traditions are assigned here (not in CultureManager.Build) so they can gate on the
+            // canonical Barony.Ck3Terrain just computed above.
+            using (var _ = OperationTimer.Start("Assigning culture traditions"))
+            {
+                var cultureTerrain = CultureTerrainProfiler.Compute(map);
+                CultureTraditionAssigner.Assign(map, cultureTerrain, Settings.Instance.Seed!.Value);
+            }
+
             Logger.Section("Writing CK3 mod files");
 
             if (w.Adjacencies)
@@ -243,6 +251,7 @@ namespace Converter.Lemur
             {
                 using var _ = OperationTimer.Start("Writing map defines");
                 await MapDefinesWriter.Write(Settings.OutputDirectory);
+                await BenchmarkDefinesWriter.Write(map, Settings.OutputDirectory);
             }
             await MapTableWriter.Write(Settings.OutputDirectory);
             // re-supply the layer/map-table defs masked by our gfx/map/map_object_data replace_path
