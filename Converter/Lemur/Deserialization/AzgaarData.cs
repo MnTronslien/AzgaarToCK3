@@ -119,11 +119,12 @@ namespace Converter.Lemur.Deserialization
         float urban,            // urban population (may be 0 if absent)
         int cells,              // cell count (may be 0 if absent)
         [property: JsonConverter(typeof(BoolOrIntConverter))]
-        int removed             // 1/true if deleted in Azgaar (newer exports use true/false)
+        int removed,            // 1/true if deleted in Azgaar (newer exports use true/false)
+        string form = ""        // deity-organisation form e.g. "Shamanism", "Cult", "Polytheism"
     )
     {
         // Provide defaults so that older exports that omit fields don't fail deserialization
-        public AzgaarReligion() : this(0, "", "#808080", null, "", "", 0, 0, 1.0f, "global", 0f, 0f, 0, 0) { }
+        public AzgaarReligion() : this(0, "", "#808080", null, "", "", 0, 0, 1.0f, "global", 0f, 0f, 0, 0, "") { }
     }
 
     public record AzgaarRiver(

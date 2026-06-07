@@ -2,6 +2,7 @@ using Converter.Lemur.Entities;
 using Converter.Lemur.Fields;
 using Converter.Lemur.Provinces;
 using static Converter.Lemur.TenetData.FaithType;
+using static Converter.Lemur.TenetData.Theme;
 using static Converter.Lemur.Provinces.Ck3Terrain;
 
 namespace Converter.Lemur;
@@ -47,12 +48,36 @@ public static class TenetData
         Any       = 15,
     }
 
+    /// <summary>
+    /// A tenet's thematic tags, baked from <c>tenet_distribution.csv</c> (column <c>themes</c>).
+    /// <c>[Flags]</c> so a tenet's tag <i>set</i> is expressible (<c>Occult | Scholarly</c>); a faith's
+    /// form maps to a tag set too (<see cref="FormThemes"/>), and the assigner boosts a candidate when
+    /// the two sets overlap. Mirrors <see cref="FaithType"/>'s shape. Duds / blank → <see cref="None"/>.
+    /// </summary>
+    [Flags]
+    public enum Theme
+    {
+        None          = 0,
+        Nature        = 1,
+        Ancestral     = 2,
+        Communal      = 4,
+        Martial       = 8,
+        Sacrificial   = 16,
+        Occult        = 32,
+        Ascetic       = 64,
+        Hedonistic    = 128,
+        Scholarly     = 256,
+        Dharmic       = 512,
+        Institutional = 1024,
+        Pacific       = 2048,
+    }
+
     /// <summary>Hand-rolled <c>in</c>-by-ref delegate (mirrors the splatmap's <c>EvaluateRule</c>;
     /// avoids copying the struct). Returns a weight in <c>[0, 1]</c>.</summary>
     public delegate float TenetEval(in FaithContext ctx);
 
-    /// <summary>A tenet: its key + one eval lambda. Nothing else.</summary>
-    public record TenetEntry(string Name, TenetEval Eval);
+    /// <summary>A tenet: its key + baked theme tags + one eval lambda. Nothing else.</summary>
+    public record TenetEntry(string Name, Theme Themes, TenetEval Eval);
 
     /// <summary>Literal parse of <c>Faith.Type</c> → <see cref="FaithType"/>. Heresy is its own peer
     /// value; there is no parent resolution.</summary>
@@ -62,7 +87,7 @@ public static class TenetData
         "Organized" => Organized,
         "Cult"      => Cult,
         "Heresy"    => Heresy,
-        _           => None,
+        _           => FaithType.None,
     };
 
     public static readonly TenetEntry[] All =
@@ -70,98 +95,99 @@ public static class TenetData
         // ═══════════════════════════════════════════════════════════════════════
         // Organized / Abrahamic-flavoured
         // ═══════════════════════════════════════════════════════════════════════
-        new("tenet_aniconism",                      (in FaithContext c) => c.Favoured(Organized)),
-        new("tenet_alexandrian_catechism",          (in FaithContext c) => c.Favoured(Organized)),
-        new("tenet_armed_pilgrimages",              (in FaithContext c) => c.Favoured(Organized | Cult)),
-        new("tenet_communion",                      (in FaithContext c) => c.Favoured(Organized)),
-        new("tenet_consolamentum",                  (in FaithContext c) => c.Favoured(Organized | Cult)),
-        new("tenet_gnosticism",                     (in FaithContext c) => c.Favoured(Cult)),
-        new("tenet_mendicant_preachers",            (in FaithContext c) => c.Favoured(Organized)),
-        new("tenet_monasticism",                    (in FaithContext c) => c.Favoured(Organized)),
-        new("tenet_pentarchy",                      (in FaithContext c) => c.Favoured(Organized)),
-        new("tenet_unrelenting_faith",              (in FaithContext c) => c.Favoured(Organized | Cult)),
-        new("tenet_vows_of_poverty",                (in FaithContext c) => c.Favoured(Organized)),
-        new("tenet_adaptive",                       (in FaithContext c) => c.Favoured(Organized)),
-        new("tenet_legalism",                       (in FaithContext c) => c.Favoured(Organized)),
-        new("tenet_literalism",                     (in FaithContext c) => c.Favoured(Organized)),
-        new("tenet_religious_legal_pronouncements", (in FaithContext c) => c.Favoured(Organized)),
-        new("tenet_struggle_submission",            (in FaithContext c) => c.Favoured(Organized)),
-        new("tenet_false_conversion_sanction",      (in FaithContext c) => c.Favoured(Cult | Organized)),
-        new("tenet_tax_nonbelievers",               (in FaithContext c) => c.Favoured(Organized)),
-        new("tenet_asceticism",                     (in FaithContext c) => c.Favoured(Organized | Cult)),
-        new("tenet_communal_possessions",           (in FaithContext c) => c.Favoured(Organized | Folk)),
-        new("tenet_pure_land",                      (in FaithContext c) => c.Favoured(Organized | Cult)),
-        new("tenet_no_mind",                        (in FaithContext c) => c.Favoured(Cult | Organized)),
-        new("tenet_pursuit_of_knowledge",           (in FaithContext c) => c.Favoured(Organized)),
-        new("tenet_benevolent_governance",          (in FaithContext c) => c.Favoured(Organized)),
-        new("tenet_filial_piety",                   (in FaithContext c) => c.Favoured(Organized | Folk)),
-        new("tenet_harmonious_society",             (in FaithContext c) => c.Favoured(Organized)),
-        new("tenet_preservation",                   (in FaithContext c) => c.Favoured(Organized | Folk)),
+        new("tenet_aniconism",                      Institutional,                 (in FaithContext c) => c.Favoured(Organized)),
+        new("tenet_alexandrian_catechism",          Scholarly,                     (in FaithContext c) => c.Favoured(Organized)),
+        new("tenet_armed_pilgrimages",              Martial | Institutional,       (in FaithContext c) => c.Favoured(Organized | Cult)),
+        new("tenet_communion",                      Institutional,                 (in FaithContext c) => c.Favoured(Organized)),
+        new("tenet_consolamentum",                  Ascetic,                       (in FaithContext c) => c.Favoured(Organized | Cult)),
+        new("tenet_gnosticism",                     Occult | Scholarly,            (in FaithContext c) => c.Favoured(Cult)),
+        new("tenet_mendicant_preachers",            Institutional | Ascetic,       (in FaithContext c) => c.Favoured(Organized)),
+        new("tenet_monasticism",                    Ascetic | Institutional,       (in FaithContext c) => c.Favoured(Organized)),
+        new("tenet_pentarchy",                      Institutional,                 (in FaithContext c) => c.Favoured(Organized)),
+        new("tenet_unrelenting_faith",              Martial,                       (in FaithContext c) => c.Favoured(Organized | Cult)),
+        new("tenet_vows_of_poverty",                Ascetic,                       (in FaithContext c) => c.Favoured(Organized)),
+        new("tenet_adaptive",                       Institutional,                 (in FaithContext c) => c.Favoured(Organized)),
+        new("tenet_legalism",                       Institutional | Scholarly,     (in FaithContext c) => c.Favoured(Organized)),
+        new("tenet_literalism",                     Scholarly | Institutional,     (in FaithContext c) => c.Favoured(Organized)),
+        new("tenet_religious_legal_pronouncements", Institutional,                 (in FaithContext c) => c.Favoured(Organized)),
+        new("tenet_struggle_submission",            Martial,                       (in FaithContext c) => c.Favoured(Organized)),
+        new("tenet_false_conversion_sanction",      Occult,                        (in FaithContext c) => c.Favoured(Cult | Organized)),
+        new("tenet_tax_nonbelievers",               Institutional,                 (in FaithContext c) => c.Favoured(Organized)),
+        new("tenet_asceticism",                     Ascetic | Dharmic,             (in FaithContext c) => c.Favoured(Organized | Cult)),
+        new("tenet_communal_possessions",           Communal,                      (in FaithContext c) => c.Favoured(Organized | Folk)),
+        new("tenet_pure_land",                      Dharmic | Ascetic,             (in FaithContext c) => c.Favoured(Organized | Cult)),
+        new("tenet_no_mind",                        Dharmic | Ascetic,             (in FaithContext c) => c.Favoured(Cult | Organized)),
+        new("tenet_pursuit_of_knowledge",           Scholarly,                     (in FaithContext c) => c.Favoured(Organized)),
+        new("tenet_benevolent_governance",          Institutional | Communal,      (in FaithContext c) => c.Favoured(Organized)),
+        new("tenet_filial_piety",                   Ancestral | Communal,          (in FaithContext c) => c.Favoured(Organized | Folk)),
+        new("tenet_harmonious_society",             Communal | Institutional,      (in FaithContext c) => c.Favoured(Organized)),
+        new("tenet_preservation",                   Institutional | Communal,      (in FaithContext c) => c.Favoured(Organized | Folk)),
 
         // ═══════════════════════════════════════════════════════════════════════
         // Pacifism / militancy (exclusivity web is applied by the assigner, not here)
         // ═══════════════════════════════════════════════════════════════════════
-        new("tenet_pacifism",               (in FaithContext c) => c.Favoured(Organized)),
-        new("tenet_dharmic_pacifism",       (in FaithContext c) => c.Favoured(Organized | Cult)),
-        new("tenet_warmonger",              (in FaithContext c) => c.Favoured(Folk | Cult)),
-        new("tenet_human_sacrifice",        (in FaithContext c) => c.Favoured(Folk | Cult)),
-        new("tenet_gruesome_festivals",     (in FaithContext c) => c.Favoured(Folk | Cult)),
-        new("tenet_sacrificial_ceremonies", (in FaithContext c) => c.Favoured(Folk | Cult)),
-        new("tenet_fp3_fedayeen",           (in FaithContext c) => c.Favoured(Cult | Organized)),
-        new("tenet_sacred_destruction",     (in FaithContext c) => c.Favoured(Folk | Cult)),
+        new("tenet_pacifism",               Pacific,            (in FaithContext c) => c.Favoured(Organized)),
+        new("tenet_dharmic_pacifism",       Pacific | Dharmic,  (in FaithContext c) => c.Favoured(Organized | Cult)),
+        new("tenet_warmonger",              Martial,            (in FaithContext c) => c.Favoured(Folk | Cult)),
+        new("tenet_human_sacrifice",        Sacrificial,        (in FaithContext c) => c.Favoured(Folk | Cult)),
+        new("tenet_gruesome_festivals",     Sacrificial,        (in FaithContext c) => c.Favoured(Folk | Cult)),
+        new("tenet_sacrificial_ceremonies", Sacrificial,        (in FaithContext c) => c.Favoured(Folk | Cult)),
+        new("tenet_fp3_fedayeen",           Martial | Occult,   (in FaithContext c) => c.Favoured(Cult | Organized)),
+        new("tenet_sacred_destruction",     Martial,            (in FaithContext c) => c.Favoured(Folk | Cult)),
 
         // ═══════════════════════════════════════════════════════════════════════
         // Folk / pagan / dharmic flavour
         // ═══════════════════════════════════════════════════════════════════════
-        new("tenet_carnal_exaltation",   (in FaithContext c) => c.Favoured(Cult | Folk)),
-        new("tenet_communal_identity",   (in FaithContext c) => c.Favoured(Any)),
-        new("tenet_divine_marriage",     (in FaithContext c) => c.Favoured(Folk | Cult)),
-        new("tenet_rite",                (in FaithContext c) => c.Favoured(Folk)),
-        new("tenet_reincarnation",       (in FaithContext c) => c.Favoured(Folk | Cult)),
-        new("tenet_inner_journey",       (in FaithContext c) => c.Favoured(Cult | Folk)),
-        new("tenet_ritual_hospitality",  (in FaithContext c) => c.Favoured(Folk)),
-        new("tenet_esotericism",         (in FaithContext c) => c.Favoured(Cult)),
-        new("tenet_adorcism",            (in FaithContext c) => c.Favoured(Folk | Cult)),
-        new("tenet_ancestor_worship",    (in FaithContext c) => c.Favoured(Folk | Cult)),
-        new("tenet_astrology",           (in FaithContext c) => c.Favoured(Folk | Cult)),
-        new("tenet_hedonistic",          (in FaithContext c) => c.Favoured(Cult | Folk)),
-        new("tenet_mystical_birthright", (in FaithContext c) => c.Favoured(Folk | Cult)),
-        new("tenet_ritual_celebrations", (in FaithContext c) => c.Favoured(Folk)),
-        new("tenet_sacred_childbirth",   (in FaithContext c) => c.Favoured(Folk)),
-        new("tenet_bhakti",              (in FaithContext c) => c.Favoured(Folk | Cult)),
-        new("tenet_household_gods",      (in FaithContext c) => c.Favoured(Folk)),
-        new("tenet_exaltation_of_pain",  (in FaithContext c) => c.Favoured(Cult)),
-        new("tenet_pursuit_of_power",    (in FaithContext c) => c.Favoured(Cult)),
-        new("tenet_ritual_cannibalism",  (in FaithContext c) => c.Favoured(Folk | Cult)),
-        new("tenet_sacred_shadows",      (in FaithContext c) => c.Favoured(Cult)),
-        new("tenet_polyamory",           (in FaithContext c) => c.Favoured(Folk | Cult)),
-        new("tenet_extinction_of_dharma",(in FaithContext c) => c.Favoured(Cult)),
-        new("tenet_cranial_trophies",    (in FaithContext c) => c.Favoured(Folk | Cult)),
+        new("tenet_carnal_exaltation",   Hedonistic,             (in FaithContext c) => c.Favoured(Cult | Folk)),
+        new("tenet_communal_identity",   Communal,               (in FaithContext c) => c.Favoured(Any)),
+        new("tenet_divine_marriage",     Ancestral,              (in FaithContext c) => c.Favoured(Folk | Cult)),
+        new("tenet_rite",                Institutional,          (in FaithContext c) => c.Favoured(Folk)),
+        new("tenet_reincarnation",       Dharmic,                (in FaithContext c) => c.Favoured(Folk | Cult)),
+        new("tenet_inner_journey",       Dharmic | Ascetic,      (in FaithContext c) => c.Favoured(Cult | Folk)),
+        new("tenet_ritual_hospitality",  Communal,               (in FaithContext c) => c.Favoured(Folk)),
+        new("tenet_esotericism",         Occult | Scholarly,     (in FaithContext c) => c.Favoured(Cult)),
+        new("tenet_adorcism",            Occult | Nature,        (in FaithContext c) => c.Favoured(Folk | Cult)),
+        new("tenet_ancestor_worship",    Ancestral,              (in FaithContext c) => c.Favoured(Folk | Cult)),
+        new("tenet_astrology",           Occult | Scholarly,     (in FaithContext c) => c.Favoured(Folk | Cult)),
+        new("tenet_hedonistic",          Hedonistic,             (in FaithContext c) => c.Favoured(Cult | Folk)),
+        new("tenet_mystical_birthright", Occult,                 (in FaithContext c) => c.Favoured(Folk | Cult)),
+        new("tenet_ritual_celebrations", Communal,               (in FaithContext c) => c.Favoured(Folk)),
+        new("tenet_sacred_childbirth",   Communal,               (in FaithContext c) => c.Favoured(Folk)),
+        new("tenet_bhakti",              Dharmic,                (in FaithContext c) => c.Favoured(Folk | Cult)),
+        new("tenet_household_gods",      Ancestral | Communal,   (in FaithContext c) => c.Favoured(Folk)),
+        new("tenet_exaltation_of_pain",  Sacrificial | Occult,   (in FaithContext c) => c.Favoured(Cult)),
+        new("tenet_pursuit_of_power",    Martial | Occult,       (in FaithContext c) => c.Favoured(Cult)),
+        new("tenet_ritual_cannibalism",  Sacrificial,            (in FaithContext c) => c.Favoured(Folk | Cult)),
+        new("tenet_sacred_shadows",      Occult,                 (in FaithContext c) => c.Favoured(Cult)),
+        new("tenet_polyamory",           Hedonistic,             (in FaithContext c) => c.Favoured(Folk | Cult)),
+        new("tenet_extinction_of_dharma",Martial | Dharmic,      (in FaithContext c) => c.Favoured(Cult)),
+        new("tenet_cranial_trophies",    Sacrificial | Martial,  (in FaithContext c) => c.Favoured(Folk | Cult)),
 
         // ═══════════════════════════════════════════════════════════════════════
         // Formerly terrain-gated (🗺️). Only cthonic_redoubts keeps terrain; the other
         // 7 become plain type-favoured entries (a desert faith may still revere nature).
         // ═══════════════════════════════════════════════════════════════════════
-        new("tenet_pastoral_isolation",  (in FaithContext c) => c.Favoured(Folk)),
-        new("tenet_sanctity_of_nature",  (in FaithContext c) => c.Favoured(Folk)),
-        new("tenet_sun_worship",         (in FaithContext c) => c.Favoured(Folk)),
-        new("tenet_cthonic_redoubts",    (in FaithContext c) => c.TerrainAtLeast(CthonicThreshold, Mountains, DesertMountains)
+        new("tenet_pastoral_isolation",  Nature | Communal,  (in FaithContext c) => c.Favoured(Folk)),
+        new("tenet_sanctity_of_nature",  Nature,             (in FaithContext c) => c.Favoured(Folk)),
+        new("tenet_sun_worship",         Nature,             (in FaithContext c) => c.Favoured(Folk)),
+        new("tenet_cthonic_redoubts",    Nature,             (in FaithContext c) => c.TerrainAtLeast(CthonicThreshold, Mountains, DesertMountains)
                                                   * c.Favoured(Folk | Cult)),
-        new("tenet_natural_primitivism", (in FaithContext c) => c.Favoured(Folk)),
-        new("tenet_megaliths",           (in FaithContext c) => c.Favoured(Folk)),
-        new("tenet_mountain_worship",    (in FaithContext c) => c.Favoured(Folk)),
-        new("tenet_takamin",             (in FaithContext c) => c.Favoured(Folk)),
+        new("tenet_natural_primitivism", Nature | Ascetic,   (in FaithContext c) => c.Favoured(Folk)),
+        new("tenet_megaliths",           Nature,             (in FaithContext c) => c.Favoured(Folk)),
+        new("tenet_mountain_worship",    Nature,             (in FaithContext c) => c.Favoured(Folk)),
+        new("tenet_takamin",             Nature,             (in FaithContext c) => c.Favoured(Folk)),
 
         // ═══════════════════════════════════════════════════════════════════════
         // 💀 Syncretic duds — inert in a full conversion (target vanilla religions). Weight 0
-        // always; kept in the pool so the zero self-documents WHY they never appear.
+        // always; kept in the pool so the zero self-documents WHY they never appear. Blank themes
+        // in the CSV ⇒ Theme.None (no boost can ever fire on a dud).
         // ═══════════════════════════════════════════════════════════════════════
-        new("tenet_sinitic_syncretism",    (in FaithContext c) => 0f),
-        new("tenet_eastern_syncretism",    (in FaithContext c) => 0f),
-        new("tenet_unreformed_syncretism", (in FaithContext c) => 0f),
-        new("tenet_christian_syncretism",  (in FaithContext c) => 0f),
-        new("tenet_islamic_syncretism",    (in FaithContext c) => 0f),
-        new("tenet_jewish_syncretism",     (in FaithContext c) => 0f),
+        new("tenet_sinitic_syncretism",    Theme.None, (in FaithContext c) => 0f),
+        new("tenet_eastern_syncretism",    Theme.None, (in FaithContext c) => 0f),
+        new("tenet_unreformed_syncretism", Theme.None, (in FaithContext c) => 0f),
+        new("tenet_christian_syncretism",  Theme.None, (in FaithContext c) => 0f),
+        new("tenet_islamic_syncretism",    Theme.None, (in FaithContext c) => 0f),
+        new("tenet_jewish_syncretism",     Theme.None, (in FaithContext c) => 0f),
     ];
 
     // ── Central symmetric conflict graph ───────────────────────────────────────

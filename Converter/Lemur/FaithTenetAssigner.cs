@@ -70,11 +70,15 @@ public static class FaithTenetAssigner
         // 2-arg MixSeeds (no salt): tenet selection has no prior stream to preserve.
         var rng = new Random(Helper.MixSeeds(seed, faith.AzgaarId));
 
+        // The faith's form-derived themes, resolved once. Candidate tenets sharing any of these
+        // themes get a ×FormBoost in the per-candidate weight (applied just like conflict).
+        Theme faithThemes = FormThemes.Of(faith.Form);
+
         if (faith.Parent == null)
         {
             // Root: every slot is open.
             faith.Tenets = new List<string>();
-            FillOpenSlots(faith, tenetCount, in ctx, rng, excludedPerSlot: null);
+            FillOpenSlots(faith, tenetCount, in ctx, rng, excludedPerSlot: null, faithThemes);
         }
         else
         {
@@ -99,7 +103,7 @@ public static class FaithTenetAssigner
                 excludedPerSlot.Add(null!);        // genuinely empty slot, no prior occupant
 
             faith.Tenets = survivors;
-            FillOpenSlots(faith, tenetCount, in ctx, rng, excludedPerSlot);
+            FillOpenSlots(faith, tenetCount, in ctx, rng, excludedPerSlot, faithThemes);
         }
     }
 
@@ -110,7 +114,8 @@ public static class FaithTenetAssigner
     /// = no per-slot exclusion. When null, all open slots are unconstrained (root fill).
     /// </summary>
     private static void FillOpenSlots(
-        Faith faith, int tenetCount, in FaithContext ctx, Random rng, List<string>? excludedPerSlot)
+        Faith faith, int tenetCount, in FaithContext ctx, Random rng, List<string>? excludedPerSlot,
+        Theme faithThemes)
     {
         var c = ctx; // snapshot: lambdas/closures cannot capture an `in` parameter
         int slot = 0;
@@ -121,7 +126,7 @@ public static class FaithTenetAssigner
                 : null;
             slot++;
 
-            var pick = PickOne(in c, faith.Tenets, selfExclude, rng);
+            var pick = PickOne(in c, faith.Tenets, selfExclude, rng, faithThemes);
             if (pick == null) break; // nothing legal to add
             faith.Tenets.Add(pick);
         }
@@ -130,7 +135,7 @@ public static class FaithTenetAssigner
     /// <summary>One roulette draw. Candidates already picked (or the per-slot self-exclusion) are out
     /// of the pool; conflict with a picked tenet zeroes a candidate; duds eval to 0. Σ==0 → uniform
     /// over the non-zero, non-blocked, non-excluded remainder.</summary>
-    private static string? PickOne(in FaithContext ctx, List<string> picked, string? selfExclude, Random rng)
+    private static string? PickOne(in FaithContext ctx, List<string> picked, string? selfExclude, Random rng, Theme faithThemes)
     {
         var c = ctx;
         var available = Pool
@@ -142,7 +147,13 @@ public static class FaithTenetAssigner
         double total = 0;
         for (int i = 0; i < available.Count; i++)
         {
-            double w = Blocks(available[i].Name, picked) ? 0d : available[i].Eval(in c);
+            // Theme boost: a candidate sharing any theme with the faith's form is multiplied by
+            // FormBoost (overlap → ×FormBoost; no overlap → ×1, never suppressed). Applied alongside
+            // conflict, exactly like the conflict check — the eval lambdas are untouched.
+            float themeFactor = (available[i].Themes & faithThemes) != Theme.None
+                ? Converter.Settings.Instance.FormBoost
+                : 1f;
+            double w = Blocks(available[i].Name, picked) ? 0d : available[i].Eval(in c) * themeFactor;
             if (w < 0) w = 0;
             weights[i] = w;
             total += w;
