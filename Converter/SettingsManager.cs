@@ -155,9 +155,9 @@ public class Settings
     /// <summary>
     /// Weight multiplier applied to a candidate tenet whose baked themes overlap the faith's
     /// form-derived themes (see <see cref="Converter.Lemur.FormThemes"/>). 1.0 = no boost,
-    /// higher = stronger pull toward on-theme tenets. Default: 2.5.
+    /// higher = stronger pull toward on-theme tenets. Default: 4.
     /// </summary>
-    public float FaithFormThemeBoost { get; set; } = 2.5f;
+    public float FaithFormThemeBoost { get; set; } = 4f;
 
     /// <summary>
     /// Probability (0.0–1.0) that a child faith mutates each doctrine/tenet slot
