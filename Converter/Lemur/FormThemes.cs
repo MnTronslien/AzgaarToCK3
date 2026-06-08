@@ -5,7 +5,7 @@ namespace Converter.Lemur;
 /// <summary>
 /// Maps an Azgaar religion <c>form</c> string to a baked <see cref="TenetData.Theme"/> set. A faith
 /// whose form has themes biases its tenet draw toward tenets sharing any of those themes (see
-/// <see cref="FaithTenetAssigner"/>, which folds in <see cref="Converter.Settings.FormBoost"/> on overlap).
+/// <see cref="FaithTenetAssigner"/>, which folds in <see cref="Converter.Settings.FaithFormThemeBoost"/> on overlap).
 ///
 /// <para>Deity-count labels (Polytheism / Monotheism / Dualism / Syncretism / Pantheism / Non-theism /
 /// Deism / Henotheism) are deliberately absent ⇒ <see cref="TenetData.Theme.None"/> — they are a later

@@ -71,7 +71,7 @@ public static class FaithTenetAssigner
         var rng = new Random(Helper.MixSeeds(seed, faith.AzgaarId));
 
         // The faith's form-derived themes, resolved once. Candidate tenets sharing any of these
-        // themes get a ×FormBoost in the per-candidate weight (applied just like conflict).
+        // themes get a ×FaithFormThemeBoost in the per-candidate weight (applied just like conflict).
         Theme faithThemes = FormThemes.Of(faith.Form);
 
         if (faith.Parent == null)
@@ -148,10 +148,10 @@ public static class FaithTenetAssigner
         for (int i = 0; i < available.Count; i++)
         {
             // Theme boost: a candidate sharing any theme with the faith's form is multiplied by
-            // FormBoost (overlap → ×FormBoost; no overlap → ×1, never suppressed). Applied alongside
+            // FaithFormThemeBoost (overlap → ×FaithFormThemeBoost; no overlap → ×1, never suppressed). Applied alongside
             // conflict, exactly like the conflict check — the eval lambdas are untouched.
             float themeFactor = (available[i].Themes & faithThemes) != Theme.None
-                ? Converter.Settings.Instance.FormBoost
+                ? Converter.Settings.Instance.FaithFormThemeBoost
                 : 1f;
             double w = Blocks(available[i].Name, picked) ? 0d : available[i].Eval(in c) * themeFactor;
             if (w < 0) w = 0;
