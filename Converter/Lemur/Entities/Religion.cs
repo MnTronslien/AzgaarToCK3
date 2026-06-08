@@ -13,10 +13,10 @@ public class Faith
 
     // Azgaar fields
     public string Type { get; init; } = "";
-    // Azgaar deity-organisation form (e.g. "Shamanism", "Cult", "Polytheism"). Deserialized as-is:
-    // Azgaar already stores a Heresy's form as its parent's form, so a heresy gets the parent's
-    // form-themes for free via the data — no derivation here. Drives tenet theme boosting
-    // (see FormThemes / FaithTenetAssigner).
+    // Azgaar deity-organisation form (e.g. "Shamanism", "Cult", "Polytheism"). Deserialized as-is,
+    // no derivation. A heresy's form is the literal string "Heresy" (NOT its parent's form), which
+    // maps to Theme.None — so heresies get no form-theme boost, by design. Drives tenet theme
+    // boosting (see FormThemes / FaithTenetAssigner).
     public string Form { get; set; } = "";
     // true if Type == "Folk"
     public bool IsUnreformed => Type == "Folk";
