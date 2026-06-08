@@ -63,20 +63,7 @@ public static class TraditionData
     private const Ethos AnyE = Ethos.Any;
     private const Ethos NotBel = AnyE & ~Bel; // "not bellicose" → all 6 others favoured
 
-    // ── terrain gate helpers ─────────────────────────────────────────────────
-    // Returns a lambda passing (weight 1) iff the summed fraction of the listed terrains ≥ threshold.
-    private static TraditionWeight Gate(float threshold, params Ck3Terrain[] terrains) =>
-        (in CultureContext c) =>
-        {
-            float f = 0f;
-            foreach (var t in terrains) f += c.TerrainFractionOf(t);
-            return f >= threshold ? 1f : 0f;
-        };
-
-    // Coastal is the same shape over CoastalFraction.
-    private static TraditionWeight Coastal(float threshold) =>
-        (in CultureContext c) => c.CoastalFraction >= threshold ? 1f : 0f;
-
+    // ── terrain gate thresholds ──────────────────────────────────────────────
     // Illustrative thresholds (tune later). A culture passes a gate if a meaningful slice of its
     // land is the gated terrain — not "majority", since terrain is mixed and the gate is the only
     // hard filter. Coastal needs a higher bar (vanilla uses ≥50% coastal for the strong ones).
@@ -88,11 +75,11 @@ public static class TraditionData
         // ═══════════════════════════════════════════════════════════════════════
         // Base game — Combat (00_combat_traditions.txt)
         // ═══════════════════════════════════════════════════════════════════════
-        new("tradition_forest_fighters",        "warfare", Bel | Sto | Com, Gate(TERR_THRESHOLD, Ck3Terrain.Forest, Ck3Terrain.Taiga)),
-        new("tradition_mountaineers",           "warfare", Bel | Sto | Com, Gate(TERR_THRESHOLD, Ck3Terrain.Mountains, Ck3Terrain.DesertMountains)),
-        new("tradition_warriors_of_the_dry",    "warfare", Bel | Sto | Com, Gate(TERR_THRESHOLD, Ck3Terrain.Drylands, Ck3Terrain.Desert)),
-        new("tradition_highland_warriors",      "warfare", Bel | Sto | Com, Gate(TERR_THRESHOLD, Ck3Terrain.Hills)),
-        new("tradition_jungle_warriors",        "warfare", Bel | Sto | Com, Gate(TERR_THRESHOLD, Ck3Terrain.Jungle)),
+        new("tradition_forest_fighters",        "warfare", Bel | Sto | Com, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Forest, Ck3Terrain.Taiga)),
+        new("tradition_mountaineers",           "warfare", Bel | Sto | Com, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Mountains, Ck3Terrain.DesertMountains)),
+        new("tradition_warriors_of_the_dry",    "warfare", Bel | Sto | Com, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Drylands, Ck3Terrain.Desert)),
+        new("tradition_highland_warriors",      "warfare", Bel | Sto | Com, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Hills)),
+        new("tradition_jungle_warriors",        "warfare", Bel | Sto | Com, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Jungle)),
         new("tradition_winter_warriors",        "warfare", Bel | Sto | Com),
         new("tradition_only_the_strong",        "warfare", Bel | Sto),
         new("tradition_quarrelsome",            "warfare", Bel | Spi),
@@ -116,8 +103,8 @@ public static class TraditionData
         // ═══════════════════════════════════════════════════════════════════════
         // Base game — Men-at-arms / regional MaA (00_maa_traditions.txt)
         // ═══════════════════════════════════════════════════════════════════════
-        new("tradition_desert_ribat",               "warfare", Bel | Spi | Sto, Gate(TERR_THRESHOLD, Ck3Terrain.Drylands, Ck3Terrain.Desert)),
-        new("tradition_horn_mountain_skirmishing",  "warfare", Spi | Com, Gate(TERR_THRESHOLD, Ck3Terrain.Mountains, Ck3Terrain.DesertMountains)),
+        new("tradition_desert_ribat",               "warfare", Bel | Spi | Sto, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Drylands, Ck3Terrain.Desert)),
+        new("tradition_horn_mountain_skirmishing",  "warfare", Spi | Com, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Mountains, Ck3Terrain.DesertMountains)),
         new("tradition_mubarizuns",                 "warfare", Bel | Sto | Com),
         new("tradition_garuda_warriors",            "warfare", Bel | Sto),
         new("tradition_mobile_guards",              "warfare", Com),
@@ -131,25 +118,25 @@ public static class TraditionData
         new("tradition_burman_royal_army",          "warfare", Spi),
         new("tradition_chanson_de_geste",           "warfare", Bel | Sto | Cou),
         new("tradition_strong_kinship",             "warfare", Bel | Sto | Bur),
-        new("tradition_mountain_herding",           "warfare", Bel | Sto | Com, Gate(TERR_THRESHOLD, Ck3Terrain.Mountains, Ck3Terrain.DesertMountains)),
-        new("tradition_forest_wardens",             "warfare", Bel | Sto | Com, Gate(TERR_THRESHOLD, Ck3Terrain.Forest, Ck3Terrain.Taiga)),
-        new("tradition_upland_skirmishing",         "warfare", Com | Ega, Gate(TERR_THRESHOLD, Ck3Terrain.Hills)),
-        new("tradition_amharic_highlanders",        "warfare", Spi, Gate(TERR_THRESHOLD, Ck3Terrain.Hills)),
-        new("tradition_polders",                    "warfare", Com | Bur | Sto, Coastal(COAST_THRESHOLD)),
-        new("tradition_caucasian_wolves",           "warfare", Bel | Sto | Com, Gate(TERR_THRESHOLD, Ck3Terrain.Mountains, Ck3Terrain.DesertMountains)),
+        new("tradition_mountain_herding",           "warfare", Bel | Sto | Com, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Mountains, Ck3Terrain.DesertMountains)),
+        new("tradition_forest_wardens",             "warfare", Bel | Sto | Com, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Forest, Ck3Terrain.Taiga)),
+        new("tradition_upland_skirmishing",         "warfare", Com | Ega, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Hills)),
+        new("tradition_amharic_highlanders",        "warfare", Spi, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Hills)),
+        new("tradition_polders",                    "warfare", Com | Bur | Sto, (in CultureContext c) => c.CoastalAtLeast(COAST_THRESHOLD)),
+        new("tradition_caucasian_wolves",           "warfare", Bel | Sto | Com, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Mountains, Ck3Terrain.DesertMountains)),
 
         // ═══════════════════════════════════════════════════════════════════════
         // Base game — Realm (00_realm_traditions.txt)
         // ═══════════════════════════════════════════════════════════════════════
-        new("tradition_agrarian",                "economy", NotBel, Gate(TERR_THRESHOLD, Ck3Terrain.Farmlands, Ck3Terrain.Floodplains)),
-        new("tradition_pastoralists",            "economy", Bel | Sto | Com, Gate(TERR_THRESHOLD, Ck3Terrain.Plains, Ck3Terrain.Steppe)),
-        new("tradition_hill_dwellers",           "economy", NotBel, Gate(TERR_THRESHOLD, Ck3Terrain.Hills)),
-        new("tradition_forest_folk",             "economy", NotBel, Gate(TERR_THRESHOLD, Ck3Terrain.Forest, Ck3Terrain.Taiga)),
-        new("tradition_mountain_homes",          "economy", NotBel, Gate(TERR_THRESHOLD, Ck3Terrain.Mountains, Ck3Terrain.DesertMountains)),
-        new("tradition_dryland_dwellers",        "economy", NotBel, Gate(TERR_THRESHOLD, Ck3Terrain.Drylands, Ck3Terrain.Desert)),
-        new("tradition_jungle_dwellers",         "economy", NotBel, Gate(TERR_THRESHOLD, Ck3Terrain.Jungle)),
-        new("tradition_wetlanders",              "economy", NotBel, Gate(TERR_THRESHOLD, Ck3Terrain.Wetlands)),
-        new("tradition_maritime_mercantilism",   "economy", Ega | Sto | Bur, Coastal(COAST_THRESHOLD)),
+        new("tradition_agrarian",                "economy", NotBel, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Farmlands, Ck3Terrain.Floodplains)),
+        new("tradition_pastoralists",            "economy", Bel | Sto | Com, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Plains, Ck3Terrain.Steppe)),
+        new("tradition_hill_dwellers",           "economy", NotBel, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Hills)),
+        new("tradition_forest_folk",             "economy", NotBel, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Forest, Ck3Terrain.Taiga)),
+        new("tradition_mountain_homes",          "economy", NotBel, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Mountains, Ck3Terrain.DesertMountains)),
+        new("tradition_dryland_dwellers",        "economy", NotBel, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Drylands, Ck3Terrain.Desert)),
+        new("tradition_jungle_dwellers",         "economy", NotBel, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Jungle)),
+        new("tradition_wetlanders",              "economy", NotBel, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Wetlands)),
+        new("tradition_maritime_mercantilism",   "economy", Ega | Sto | Bur, (in CultureContext c) => c.CoastalAtLeast(COAST_THRESHOLD)),
         new("tradition_esteemed_hospitality",    "economy", Cou | Com | Spi),
         new("tradition_gardening",               "economy", Cou | Com | Spi),
         new("tradition_astute_diplomats",        "economy", NotBel),
@@ -175,21 +162,21 @@ public static class TraditionData
         new("tradition_equal_inheritance",       "economy", Ega),
         new("tradition_culture_blending",        "economy", Com | Ega),
         new("tradition_staunch_traditionalists", "economy", Com | Spi | Sto),
-        new("tradition_hidden_cities",           "economy", Bur, Gate(TERR_THRESHOLD, Ck3Terrain.Jungle)),
-        new("tradition_ancient_miners",          "economy", AnyE, Gate(TERR_THRESHOLD, Ck3Terrain.Mountains, Ck3Terrain.Hills, Ck3Terrain.DesertMountains), Special: true),
+        new("tradition_hidden_cities",           "economy", Bur, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Jungle)),
+        new("tradition_ancient_miners",          "economy", AnyE, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Mountains, Ck3Terrain.Hills, Ck3Terrain.DesertMountains), Special: true),
 
         // ═══════════════════════════════════════════════════════════════════════
         // Base game — Regional (00_regional_traditions.txt)
         // ═══════════════════════════════════════════════════════════════════════
-        new("tradition_mountaineer_ruralism",    "economy", Sto, Gate(TERR_THRESHOLD, Ck3Terrain.Mountains, Ck3Terrain.DesertMountains)),
+        new("tradition_mountaineer_ruralism",    "economy", Sto, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Mountains, Ck3Terrain.DesertMountains)),
         new("tradition_things",                  "civic", Bur | Bel),
         new("tradition_the_witenagemot",         "civic", Bur | Sto),
-        new("tradition_horse_lords",             "warfare", Bel | Com, Gate(TERR_THRESHOLD, Ck3Terrain.Steppe, Ck3Terrain.Plains)),
-        new("tradition_steppe_tolerance",        "civic", Bel | Ega | Com, Gate(TERR_THRESHOLD, Ck3Terrain.Steppe, Ck3Terrain.Plains)),
-        new("tradition_saharan_nomads",          "economy", Spi | Sto, Gate(TERR_THRESHOLD, Ck3Terrain.Desert, Ck3Terrain.Drylands)),
-        new("tradition_himalayan_settlers",      "economy", Spi | Com, Gate(TERR_THRESHOLD, Ck3Terrain.Mountains, Ck3Terrain.DesertMountains)),
-        new("tradition_desert_nomads",           "economy", Spi | Sto, Gate(TERR_THRESHOLD, Ck3Terrain.Desert, Ck3Terrain.Drylands)),
-        new("tradition_lords_of_the_elephant",   "warfare", Bel | Cou | Sto, Gate(TERR_THRESHOLD, Ck3Terrain.Jungle, Ck3Terrain.Drylands)),
+        new("tradition_horse_lords",             "warfare", Bel | Com, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Steppe, Ck3Terrain.Plains)),
+        new("tradition_steppe_tolerance",        "civic", Bel | Ega | Com, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Steppe, Ck3Terrain.Plains)),
+        new("tradition_saharan_nomads",          "economy", Spi | Sto, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Desert, Ck3Terrain.Drylands)),
+        new("tradition_himalayan_settlers",      "economy", Spi | Com, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Mountains, Ck3Terrain.DesertMountains)),
+        new("tradition_desert_nomads",           "economy", Spi | Sto, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Desert, Ck3Terrain.Drylands)),
+        new("tradition_lords_of_the_elephant",   "warfare", Bel | Cou | Sto, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Jungle, Ck3Terrain.Drylands)),
         new("tradition_visigothic_codes",        "civic", Ega),
         new("tradition_african_tolerance",       "civic", Ega | Com),
         new("tradition_byzantine_succession",    "civic", Cou | Com),
@@ -200,9 +187,9 @@ public static class TraditionData
         // ═══════════════════════════════════════════════════════════════════════
         // Base game — Ritual (00_ritual_traditions.txt)
         // ═══════════════════════════════════════════════════════════════════════
-        new("tradition_sacred_mountains",        "ritual", Spi, Gate(TERR_THRESHOLD, Ck3Terrain.Mountains, Ck3Terrain.DesertMountains)),
-        new("tradition_sacred_groves",           "ritual", Spi, Gate(TERR_THRESHOLD, Ck3Terrain.Forest, Ck3Terrain.Taiga, Ck3Terrain.Jungle)),
-        new("tradition_culinary_art",            "ritual", Cou | Com | Spi, Gate(TERR_THRESHOLD, Ck3Terrain.Farmlands, Ck3Terrain.Floodplains)),
+        new("tradition_sacred_mountains",        "ritual", Spi, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Mountains, Ck3Terrain.DesertMountains)),
+        new("tradition_sacred_groves",           "ritual", Spi, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Forest, Ck3Terrain.Taiga, Ck3Terrain.Jungle)),
+        new("tradition_culinary_art",            "ritual", Cou | Com | Spi, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Farmlands, Ck3Terrain.Floodplains)),
         new("tradition_festivities",             "ritual", Cou | Com | Sto),
         new("tradition_faith_bound",             "ritual", Spi),
         new("tradition_medicinal_plants",        "ritual", Bur | Sto),
@@ -222,9 +209,9 @@ public static class TraditionData
         // ═══════════════════════════════════════════════════════════════════════
         // Base game — Societal (00_societal_traditions.txt)
         // ═══════════════════════════════════════════════════════════════════════
-        new("tradition_seafaring",               "societal", Bel | Bur | Spi, Coastal(COAST_THRESHOLD)),
-        new("tradition_fishermen",               "societal", NotBel, Coastal(COAST_THRESHOLD)),
-        new("tradition_practiced_pirates",       "societal", Bel, Coastal(COAST_THRESHOLD)),
+        new("tradition_seafaring",               "societal", Bel | Bur | Spi, (in CultureContext c) => c.CoastalAtLeast(COAST_THRESHOLD)),
+        new("tradition_fishermen",               "societal", NotBel, (in CultureContext c) => c.CoastalAtLeast(COAST_THRESHOLD)),
+        new("tradition_practiced_pirates",       "societal", Bel, (in CultureContext c) => c.CoastalAtLeast(COAST_THRESHOLD)),
         new("tradition_xenophilic",              "societal", Com | Ega),
         new("tradition_hard_working",            "societal", Bel | Sto | Com),
         new("tradition_loyal_soldiers",          "societal", Bel | Sto | Com),
@@ -259,7 +246,7 @@ public static class TraditionData
         new("tradition_fp1_northern_stories",    "arts", Bel | Bur),
         new("tradition_fp1_trials_by_combat",    "warfare", Bur | Sto | Cou),
         new("tradition_fp1_the_right_to_prove",  "civic", Bel | Com | Ega),
-        new("tradition_fp1_coastal_warriors",    "warfare", Bel, Coastal(COAST_THRESHOLD)),
+        new("tradition_fp1_coastal_warriors",    "warfare", Bel, (in CultureContext c) => c.CoastalAtLeast(COAST_THRESHOLD)),
 
         // ═══════════════════════════════════════════════════════════════════════
         // DLC — FP2 Fate of Iberia
@@ -272,9 +259,9 @@ public static class TraditionData
         // ═══════════════════════════════════════════════════════════════════════
         // DLC — FP3 Legacy of Persia
         // ═══════════════════════════════════════════════════════════════════════
-        new("tradition_fp3_irrigation_experts",  "economy", Cou | Com | Ega, Gate(TERR_THRESHOLD, Ck3Terrain.Drylands, Ck3Terrain.Desert, Ck3Terrain.DesertMountains)),
-        new("tradition_fp3_pragmatic_creed",     "warfare", Bel | Com | Ega | Sto, Gate(TERR_THRESHOLD, Ck3Terrain.Mountains, Ck3Terrain.DesertMountains)),
-        new("tradition_fp3_frontier_warriors",   "warfare", Bel | Sto, Gate(TERR_THRESHOLD, Ck3Terrain.Steppe, Ck3Terrain.Drylands)),
+        new("tradition_fp3_irrigation_experts",  "economy", Cou | Com | Ega, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Drylands, Ck3Terrain.Desert, Ck3Terrain.DesertMountains)),
+        new("tradition_fp3_pragmatic_creed",     "warfare", Bel | Com | Ega | Sto, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Mountains, Ck3Terrain.DesertMountains)),
+        new("tradition_fp3_frontier_warriors",   "warfare", Bel | Sto, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Steppe, Ck3Terrain.Drylands)),
         new("tradition_fp3_beacon_of_learning",  "societal", Cou | Com | Spi),
         new("tradition_fp3_enlightened_magnates", "societal", Cou | Com | Spi),
         new("tradition_fp3_jirga",               "warfare", Com | Sto),
@@ -298,10 +285,10 @@ public static class TraditionData
         // ═══════════════════════════════════════════════════════════════════════
         // DLC — tgp pack (East/SE-Asia; heritage gate dropped, terrain kept where present)
         // ═══════════════════════════════════════════════════════════════════════
-        new("tradition_tgp_rice_cultivators",    "economy", Com | Bur | Sto, Gate(TERR_THRESHOLD, Ck3Terrain.TerracedHills, Ck3Terrain.Hills, Ck3Terrain.Farmlands)),
-        new("tradition_intensive_farming",       "economy", NotBel, Gate(TERR_THRESHOLD, Ck3Terrain.Farmlands, Ck3Terrain.Floodplains)),
-        new("tradition_tgp_mountain_island",     "warfare", Bel | Sto, Gate(TERR_THRESHOLD, Ck3Terrain.Mountains, Ck3Terrain.DesertMountains)),
-        new("tradition_maritime_way_of_life",    "economy", NotBel, Coastal(COAST_THRESHOLD)),
+        new("tradition_tgp_rice_cultivators",    "economy", Com | Bur | Sto, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.TerracedHills, Ck3Terrain.Hills, Ck3Terrain.Farmlands)),
+        new("tradition_intensive_farming",       "economy", NotBel, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Farmlands, Ck3Terrain.Floodplains)),
+        new("tradition_tgp_mountain_island",     "warfare", Bel | Sto, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Mountains, Ck3Terrain.DesertMountains)),
+        new("tradition_maritime_way_of_life",    "economy", NotBel, (in CultureContext c) => c.CoastalAtLeast(COAST_THRESHOLD)),
 
         // ═══════════════════════════════════════════════════════════════════════
         // DLC — mpo pack (nomad/steppe; heritage/gov gate dropped → flavor; taiga kept)
@@ -309,7 +296,7 @@ public static class TraditionData
         new("tradition_mpo_iron_cavalry",            "warfare", Bel | Sto),
         new("tradition_mpo_wolves_of_the_deep_steppe", "warfare", Bel | Com),
         new("tradition_devoted_horsemanship",        "warfare", Bel | Sto | Com),
-        new("tradition_mpo_northern_tribes",         "economy", Sto | Com, Gate(TERR_THRESHOLD, Ck3Terrain.Taiga)),
+        new("tradition_mpo_northern_tribes",         "economy", Sto | Com, (in CultureContext c) => c.TerrainAtLeast(TERR_THRESHOLD, Ck3Terrain.Taiga)),
 
         // ═══════════════════════════════════════════════════════════════════════
         // DLC — ce1
