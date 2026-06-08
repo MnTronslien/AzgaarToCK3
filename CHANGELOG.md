@@ -5,6 +5,7 @@
 
 ### Fixed
 - **No more inert "syncretism" tenets.** These only grant bonuses toward specific *vanilla* religions, which don't exist in a converted world — so they were wasted tenet slots. Faiths no longer receive them.
+- **Religions with several faiths are now named after the right one.** When you arranged a religion's faiths into a family tree in Azgaar, the converter named the religion after one of the child faiths instead of the parent at the top of the tree, and listed that parent last. Religions now take the name of their root faith.
 
 ---
 
