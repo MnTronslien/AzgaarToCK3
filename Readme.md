@@ -10,7 +10,7 @@
 
 - Sensible de jure and de facto hierarchies, ripe for gameplay!
 - Major rivers!
-- Functional custom religions, including holy sites!
+- Functional custom religions, including holy sites and tenets fitted to each faith!
 - Functional custom Cultures!
 - Deterministic conversion
 - No need to open the map editor

@@ -65,6 +65,17 @@ Good contained changes: adjusting a terrain threshold, tuning the ethos penalty,
 
 If you have a screenshot of "before / after" for a texture proposal, drop it in the PR — visual diffs are the most useful thing here.
 
+### Faith tenets
+
+Each faith's tenets are picked from a pool, weighted by the faith's type, by mutual exclusivity, and by the religion's form — see the [Faith tenets section in CONVERSION_RULES.md](docs/CONVERSION_RULES.md#faith-tenets) for what the rules do. The pieces:
+
+- **The pool** lives in `Converter/Lemur/TenetData.cs`: every tenet is a `(name, themes, eval)` entry, where the eval is an inline lambda returning a weight from the faith's type (and, for one tenet, terrain). The same file holds the central conflict graph (the directed `can_pick` edges plus the syncretism + gnosticism clique, symmetrised). Adding, re-classifying, or re-theming a tenet — or editing a conflict edge — is an edit here. Source data is `CK3_TENETS_CATALOG.md`.
+- **The selection logic** is in `Converter/Lemur/FaithTenetAssigner.cs`: the topological parent → child walk, the per-slot roulette draw, and the conflict / theme-boost wrapping.
+- **The tuning knobs** are `FaithFormThemeBoost` (form-theme multiplier, default 4), the `tenet_cthonic_redoubts` terrain threshold (`CthonicThreshold` in `TenetData.cs`), and `KindPenalty` (the unfavoured-type fraction, 0.3).
+- **The form → theme map** is in `Converter/Lemur/FormThemes.cs`; the per-faith land facts come from `Converter/Lemur/Fields/FaithContext.cs`.
+
+Good contained changes: adjusting the theme boost, tuning `KindPenalty`, fixing a tenet's favoured-type set, re-theming a tenet, or adding a conflict edge that should exist. The assigner logs each faith's type, form, themes, and chosen tenets per run, so you can see *why* a faith got what.
+
 ---
 
 ## Making changes

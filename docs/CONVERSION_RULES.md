@@ -18,7 +18,7 @@ But for the very best results some handcrafting is recommended.
 | **County** | County | **Inferred** counties are constructed by grouping baronies together. The algorithm targets equal population per county and respects duchy boundaries. The balance tries to mimic base CK3 where in populous urbanized parts of the world there are fewer baronies per county (ref Byzantium), but in sparsely populated areas of the world (Russia, Nordics) there are more baronies per county. All this while maintaining a decent ratio between duchies and counties. The county capital is the most populous barony, unless a barony is marked as the province or state capital in Azgaar — that takes precedence. |
 | **Empire** | Empire | **Inferred** — grouped by culture or faith, depending on the `EmpireFromCulture` setting. |
 | Culture | Culture | Name and lineage from Azgaar. Heritage, language, ethos and martial custom are selected for root cultures and mutated down the lineage (and merge-mutated for hybrids). Traditions are chosen to fit the culture's land and ethos rather than at random — see [Culture traditions](#culture-traditions). Culture also selects a "theme bundle" — a converter concept for namelist, clothing, genes and architecture. |
-| Religion | Faith + Religion group | Each root Azgaar religion becomes a religion group. Offshoot religions become faiths within their root religion's group. Tenets and doctrines are randomly selected for the base faith, and mutated slightly for new religions in the same group. |
+| Religion | Faith + Religion group | Each root Azgaar religion becomes a religion group. Offshoot religions become faiths within their root religion's group. Doctrines are picked per faith; tenets are weighted by the faith's type, by mutual exclusivity, and by the religion's form — see [Faith tenets](#faith-tenets). Child faiths inherit their parent's tenets and mutate slot-by-slot. |
 | Cell | — | Data basis for culture/religion distribution and province geometry. |
 
 
@@ -239,6 +239,22 @@ Everything else stays in the pool at normal odds, including flavourful regional 
 Inheritance is unchanged: a child culture copies its parent's traditions and only mutates a slot at a time, and hybrids blend both parents. Only *fresh* picks are filtered this way, so an inherited tradition that no longer matches the land (a forest people descended from desert nomads keeping a desert tradition) is kept on purpose as ancestral flavour.
 
 Selection is fully deterministic — the same seed produces the same traditions. Contributors can find where the pool, the terrain gates, and the ethos weighting live in [CONTRIBUTING.md](../CONTRIBUTING.md#culture-traditions).
+
+---
+
+## Faith tenets
+
+Each faith gets a fixed number of tenets (`TenetCount`, default 3). Instead of drawing them uniformly at random, the converter weights the pool by three things: the faith's type, mutual exclusivity, and the religion's form.
+
+- **Type is a soft nudge.** Each tenet favours a set of faith types (Folk, Organized, Cult, Heresy — taken 1:1 from Azgaar's `Faith.Type`). A tenet on a faith whose type it favours keeps full weight; on any other type it keeps a fraction (`KindPenalty`, 0.3) — less likely, not forbidden. So Organized faiths lean toward institutional tenets and Folk faiths toward ancestral ones, without the wrong flavour ever being impossible.
+- **Mutual exclusivity is a hard filter.** Tenets that conflict in CK3 (the pacifism/militancy web, the human-sacrifice chain, the syncretism + gnosticism group) can't both land on one faith. A candidate that conflicts with an already-picked tenet is dropped from that faith's draw.
+- **Form is a soft nudge.** A faith's Azgaar `form` string (Nature Worship, Shamanism, Dark Cult, and so on) maps to a set of themes. A candidate tenet whose themes overlap the faith's form themes is multiplied by `FaithFormThemeBoost` (default 4); a tenet that doesn't overlap is left at normal odds, never suppressed. A heresy's form maps to no themes, so it gets no boost.
+
+One tenet is also terrain-gated: `tenet_cthonic_redoubts` needs at least 20% of the faith's land in mountains or desert mountains, measured from the same per-barony terrain the converter already assigns (see [Province terrain](#province-terrain-gameplay)). The six `*_syncretism` tenets target vanilla religions and are inert in a full conversion, so they carry zero weight and never appear.
+
+Inheritance mirrors culture: a child faith copies its parent's tenets and only mutates a slot at a time (`DoctrineMutationRate`, 0.3). A mutated slot can't re-pick its previous tenet, and an inherited tenet that no longer fits is kept on purpose as ancestral flavour. If every candidate for a slot weighs zero, the slot falls back to a uniform pick over the legal, non-conflicting remainder.
+
+Selection is fully deterministic — the same seed produces the same tenets. Contributors can find where the pool, the conflict graph, and the weighting knobs live in [CONTRIBUTING.md](../CONTRIBUTING.md#faith-tenets).
 
 ---
 
