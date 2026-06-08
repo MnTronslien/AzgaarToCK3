@@ -193,9 +193,10 @@ public static class FaithTenetAssigner
     private static void LogSummary(Map map)
     {
         var sb = new System.Text.StringBuilder(
-            $"Assigned tenets to {map.Faiths.Count} faiths (faithId,name,type,tenets):");
+            $"Assigned tenets to {map.Faiths.Count} faiths (faithId,name,type,form,themes,tenets):");
         foreach (var f in map.Faiths.Values.OrderBy(f => f.AzgaarId))
-            sb.Append($"\n- {f.Name} (id {f.AzgaarId}): type={f.Type}, tenets=[{string.Join(", ", f.Tenets)}]");
+            sb.Append($"\n- {f.Name} (id {f.AzgaarId}): type={f.Type}, form=\"{f.Form}\", "
+                    + $"themes={FormThemes.Of(f.Form)}, tenets=[{string.Join(", ", f.Tenets)}]");
         Logger.Info(sb.ToString());
     }
 }

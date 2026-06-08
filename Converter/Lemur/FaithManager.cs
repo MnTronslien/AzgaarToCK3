@@ -67,12 +67,6 @@ public static class FaithManager
             }
         }
 
-        // Pass 2b: a Heresy inherits its parent's form (confirmed from Azgaar source — heresies do not
-        // carry their own form). Resolved after Parent links exist so the parent's form is available.
-        foreach (var faith in faiths.Values)
-            if (faith.Type == "Heresy" && faith.Parent != null)
-                faith.Form = faith.Parent.Form;
-
         // Pass 3: assign DOCTRINES in topological order (parents before children) so child faiths
         // can inherit and mutate from an already-assigned parent. TENETS are NOT assigned here —
         // they are deferred to FaithTenetAssigner (run after BaronyTerrainAssigner) so they can gate
