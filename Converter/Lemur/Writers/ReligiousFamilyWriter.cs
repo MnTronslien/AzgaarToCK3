@@ -66,6 +66,7 @@ public static class ReligiousFamilyWriter
         {
             "l_english:",
             $" {FamilyKey}:0 \"{worldName}\"",
+            $" {HostilityGroup}_name:0 \"{worldName}\"",
             $" {HostilityDoctrine}_name:0 \"{worldName}\"",
             $" {HostilityDoctrine}_desc:0 \"The native faiths of {worldName} regard one another, and all foreign faiths, as rivals.\"",
         }, Helper.Utf8Bom);
