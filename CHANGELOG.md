@@ -1,3 +1,13 @@
+# Unreleased
+
+### Changed
+- **Faith tenets now reflect each religion's character.** Like culture traditions in 1.6.0, a generated faith's tenets used to be drawn at random. Now the religion shapes them: its kind — folk, organized, cult, or heresy — steers which tenets suit it; mutually exclusive tenets never land together (no pacifist warmongers); and a religion's form pulls it toward matching flavour, so a nature-worship faith leans toward nature tenets and a dark cult toward blood and the occult. Folk and cult faiths now read distinctly from organized ones instead of all drawing from the same bag. The pull strength is tunable (`FaithFormThemeBoost`).
+
+### Fixed
+- **No more inert "syncretism" tenets.** These only grant bonuses toward specific *vanilla* religions, which don't exist in a converted world — so they were wasted tenet slots. Faiths no longer receive them.
+
+---
+
 # 1.6.0 — 2026-06-05
 
 This release is about cultural character. Until now every culture drew its traditions at random, so the desert nomads were as likely to end up seafarers as the coast-dwellers, and the cultural map read as noise. Now a culture's traditions follow from where it lives and what it values: the land it sits on decides which terrain-flavoured traditions it can take at all, and its ethos tilts the rest. Each people reads as its own thing instead of a random assortment.
