@@ -68,7 +68,7 @@ public static class FaithWriter
 
             lines.Add($"# {rootFaith.Name}");
             lines.Add($"{group.Key} = {{");
-            lines.Add("\tfamily = rf_other");
+            lines.Add($"\tfamily = {ReligiousFamilyWriter.FamilyKey}");
             if (anyUnreformed)
                 lines.Add("\tpagan_roots = yes");
             lines.Add("");

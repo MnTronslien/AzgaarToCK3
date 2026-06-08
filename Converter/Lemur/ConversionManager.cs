@@ -293,7 +293,10 @@ namespace Converter.Lemur
                 await ReligionWriter.Write(Settings.Instance.Ck3Directory, Settings.OutputDirectory);
             }
             if (w.Faiths)
+            {
+                await ReligiousFamilyWriter.Write(map, Settings.OutputDirectory);
                 await FaithWriter.Write(map, Settings.OutputDirectory);
+            }
             if (w.Cultures)
                 await CultureWriter.Write(map, Settings.OutputDirectory);
             if (w.GeographicalRegions)
