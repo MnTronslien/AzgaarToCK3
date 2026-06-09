@@ -4,15 +4,9 @@ using Converter.Lemur.Provinces;
 namespace Converter.Lemur.Fields;
 
 /// <summary>
-/// Builds a <see cref="FaithContext"/> per Azgaar religion from the canonical land the pipeline
-/// already computed: each barony's cells (bucketed by <c>cell.Religion</c>) and that barony's
-/// already-decided <see cref="Ck3Terrain"/>. Runs <b>after</b> baronies and terrain exist.
-/// Wasteland cells (cells with no barony) are skipped.
-///
-/// <para>Produces only the cached per-faith terrain distribution; the context reads the faith's
-/// type/doctrines/tenets directly from the live <see cref="Faith"/> it carries. Faiths with no land
-/// (zero-cell parents kept for doctrine inheritance) still get an entry with an empty distribution
-/// so the assigner can look them up.</para>
+/// Builds a <see cref="FaithContext"/> per Azgaar religion from already-computed land: each barony's
+/// cells (bucketed by <c>cell.Religion</c>) and the barony's <see cref="Ck3Terrain"/>. Runs after
+/// baronies and terrain exist; land-less faiths get an empty distribution.
 /// </summary>
 public static class FaithTerrainProfiler
 {

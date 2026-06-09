@@ -6,16 +6,10 @@ namespace Converter.Lemur;
 
 /// <summary>
 /// Assigns each faith its tenets via a weighted, topological draw (parent → child), deferred out of
-/// <c>FaithManager.Build</c> so it can read the canonical <c>Barony.Ck3Terrain</c> the pipeline
-/// already computed (exposed here as a per-faith <see cref="FaithContext"/>).
-///
-/// <para><b>Slot-fill.</b> A faith has <c>TenetCount</c> slots. One procedure fills the <i>open</i>
-/// slots; a root opens all of them, a child copies its parent's tenets and opens a slot only on a
-/// per-slot mutation roll. Each open slot is filled by a roulette over the candidate weights, where
-/// every candidate's weight is the implicit-conflict wrap of its eval:</para>
-/// <code>weight(E) = blocks(E.Name, faith.Tenets) ? 0 : E.Eval(in ctx)</code>
-/// <para>so a candidate conflicting with an already-picked tenet is zeroed before its eval matters.
-/// Each pick is appended to <c>faith.Tenets</c> so later slots in the same pass see it.</para>
+/// <c>FaithManager.Build</c> so it can read the canonical per-faith <see cref="FaithContext"/>.
+/// Slot-fill: a root opens all <c>TenetCount</c> slots; a child copies its parent's tenets and opens
+/// a slot only on a mutation roll. Each open slot is a roulette over candidate weights, with a
+/// candidate that conflicts with an already-picked tenet zeroed before its eval matters.
 /// </summary>
 public static class FaithTenetAssigner
 {
@@ -147,9 +141,8 @@ public static class FaithTenetAssigner
         double total = 0;
         for (int i = 0; i < available.Count; i++)
         {
-            // Theme boost: a candidate sharing any theme with the faith's form is multiplied by
-            // FaithFormThemeBoost (overlap → ×FaithFormThemeBoost; no overlap → ×1, never suppressed). Applied alongside
-            // conflict, exactly like the conflict check — the eval lambdas are untouched.
+            // Theme boost: a candidate sharing any theme with the faith's form is ×FaithFormThemeBoost
+            // (no overlap → ×1, never suppressed), applied alongside the conflict check.
             float themeFactor = (available[i].Themes & faithThemes) != Theme.None
                 ? Converter.Settings.Instance.FaithFormThemeBoost
                 : 1f;

@@ -1,44 +1,29 @@
 using Converter.Lemur.Entities;
 using Converter.Lemur.Fields;
 using Converter.Lemur.Provinces;
-using static Converter.Lemur.TenetData.FaithType;
+using static Converter.Lemur.TenetData.ReligionType;
 using static Converter.Lemur.TenetData.Theme;
 using static Converter.Lemur.Provinces.Ck3Terrain;
 
 namespace Converter.Lemur;
 
 /// <summary>
-/// Static data for the CK3 faith tenet pool. Collapsed to first principles, mirroring the splatmap's
-/// <c>Material(name, EvaluateRule)</c> shape: every tenet is a <see cref="TenetEntry"/> = a
-/// <b>name</b> + one <b>eval lambda</b> returning a weight in <c>[0, 1]</c>. All authored taste
-/// (type affinity, the lone terrain tenet, the syncretic duds) lives inside the lambda.
-///
-/// <para>Two things are deliberately NOT in the lambdas:</para>
-/// <list type="bullet">
-/// <item><b>Mutual exclusivity</b> — a universal rule, applied implicitly by the assigner against the
-/// central symmetric <see cref="ConflictGraph"/> (built once from the catalog's <c>can_pick</c>
-/// edges). No eval contains a conflict check.</item>
-/// <item><b>Theism (Poly/Mono)</b> — dropped entirely: no tenet's <c>can_pick</c> gates on it.</item>
-/// </list>
-///
-/// Source data: <c>CK3_TENETS_CATALOG.md</c> (extracted from <c>30_core_tenets.txt</c>, CK3 1.19).
+/// CK3 faith tenet pool. Each tenet is a <see cref="TenetEntry"/>: a name + one eval lambda returning
+/// a weight in <c>[0, 1]</c>. Mutual exclusivity is not in the lambdas — the assigner applies the
+/// central <see cref="ConflictGraph"/>. Source: <c>CK3_TENETS_CATALOG.md</c> (CK3 1.19).
 /// </summary>
 public static class TenetData
 {
-    /// <summary>The one soft magnitude: an unfavoured-type tenet keeps this fraction of its weight.</summary>
-    public const float KindPenalty = 0.3f;
+    /// <summary>Soft magnitude: an unfavoured-type tenet keeps this fraction of its weight.</summary>
+    public const float TypeMismatchPenalty = 0.3f;
 
     /// <summary>The lone terrain tenet's threshold (cthonic_redoubts; mountains + desert mountains).</summary>
     public const float CthonicThreshold = 0.20f;
 
-    /// <summary>
-    /// A faith's type, 1:1 with Azgaar's <c>Faith.Type</c>. <c>[Flags]</c> so a tenet's favoured
-    /// <i>set</i> is expressible (<c>Folk | Cult</c>); a faith's own type is a single value.
-    /// <b><see cref="Heresy"/> is a first-class peer</b> — equal standing with Folk/Organized/Cult,
-    /// no parent/derivation resolution.
-    /// </summary>
+    /// <summary>A faith's type, 1:1 with Azgaar's <c>Faith.Type</c>. <c>[Flags]</c> so a tenet's
+    /// favoured <i>set</i> is expressible (<c>Folk | Cult</c>); Heresy is a peer, not derived.</summary>
     [Flags]
-    public enum FaithType
+    public enum ReligionType
     {
         None      = 0,
         Folk      = 1,
@@ -48,12 +33,9 @@ public static class TenetData
         Any       = 15,
     }
 
-    /// <summary>
-    /// A tenet's thematic tags, baked from <c>tenet_distribution.csv</c> (column <c>themes</c>).
-    /// <c>[Flags]</c> so a tenet's tag <i>set</i> is expressible (<c>Occult | Scholarly</c>); a faith's
-    /// form maps to a tag set too (<see cref="FormThemes"/>), and the assigner boosts a candidate when
-    /// the two sets overlap. Mirrors <see cref="FaithType"/>'s shape. Duds / blank → <see cref="None"/>.
-    /// </summary>
+    /// <summary>A tenet's thematic tags (from <c>tenet_distribution.csv</c>). <c>[Flags]</c> so a tag
+    /// <i>set</i> is expressible; a faith's form maps to a tag set too and the assigner boosts on
+    /// overlap. Duds / blank → <see cref="None"/>.</summary>
     [Flags]
     public enum Theme
     {
@@ -79,15 +61,14 @@ public static class TenetData
     /// <summary>A tenet: its key + baked theme tags + one eval lambda. Nothing else.</summary>
     public record TenetEntry(string Name, Theme Themes, TenetEval Eval);
 
-    /// <summary>Literal parse of <c>Faith.Type</c> → <see cref="FaithType"/>. Heresy is its own peer
-    /// value; there is no parent resolution.</summary>
-    public static FaithType ParseType(Faith faith) => faith.Type switch
+    /// <summary>Literal parse of <c>Faith.Type</c> → <see cref="ReligionType"/>.</summary>
+    public static ReligionType ParseType(Faith faith) => faith.Type switch
     {
         "Folk"      => Folk,
         "Organized" => Organized,
         "Cult"      => Cult,
         "Heresy"    => Heresy,
-        _           => FaithType.None,
+        _           => ReligionType.None,
     };
 
     public static readonly TenetEntry[] All =
