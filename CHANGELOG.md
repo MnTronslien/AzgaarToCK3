@@ -1,4 +1,6 @@
-# Unreleased
+# 1.7.0 — 2026-06-09
+
+After 1.6.0 gave each culture its own character, this release does the same for religion. A generated faith's tenets used to be drawn at random, and every faith was filed under a single tolerant grouping, so the religious map read as undifferentiated. Now a faith's tenets follow from what kind of religion it is, all generated faiths belong to a world-family named after your map, and faiths of different traditions treat one another as rivals.
 
 ### Added
 - **Generated faiths share a world, and treat other faiths as rivals.** Every faith the converter creates is gathered under a single religious family named after your map's world. Faiths of different generated traditions now regard one another, and the faiths of the outside world, as rivals rather than kin, giving the religious map friction instead of blanket tolerance.

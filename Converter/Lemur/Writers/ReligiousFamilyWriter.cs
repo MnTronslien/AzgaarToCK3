@@ -4,12 +4,9 @@ using L = Converter.Lemur.Entities;
 
 namespace Converter.Lemur.Writers;
 
-// Emits a converter-owned religion family (rf_lemurconverter) so every generated faith shares one
-// family, named after the Azgaar world — the universal faith family of all peoples in this world.
-// Hostility is vanilla abrahamic_hostility_doctrine (same_religion=2, same_family=3, others=3) so
-// generated faiths read as rivals; that doctrine is applied per-religion by FaithWriter (the family
-// field is display-only — the working doctrine must sit in the canonical hostility_group, which the
-// vanilla one already does). See PLAN_religious_families.md.
+// Emits the converter-owned religion family (rf_lemurconverter), named after the Azgaar world, that
+// every generated faith belongs to. Hostility uses vanilla abrahamic_hostility_doctrine, applied
+// per-religion by FaithWriter. See PLAN_religious_families.md.
 public static class ReligiousFamilyWriter
 {
     public const string FamilyKey = "rf_lemurconverter";

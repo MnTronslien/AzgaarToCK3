@@ -8,35 +8,21 @@ using static Converter.Lemur.Provinces.Ck3Terrain;
 namespace Converter.Lemur;
 
 /// <summary>
-/// Static data for the CK3 faith tenet pool. Collapsed to first principles, mirroring the splatmap's
-/// <c>Material(name, EvaluateRule)</c> shape: every tenet is a <see cref="TenetEntry"/> = a
-/// <b>name</b> + one <b>eval lambda</b> returning a weight in <c>[0, 1]</c>. All authored taste
-/// (type affinity, the lone terrain tenet, the syncretic duds) lives inside the lambda.
-///
-/// <para>Two things are deliberately NOT in the lambdas:</para>
-/// <list type="bullet">
-/// <item><b>Mutual exclusivity</b> — a universal rule, applied implicitly by the assigner against the
-/// central symmetric <see cref="ConflictGraph"/> (built once from the catalog's <c>can_pick</c>
-/// edges). No eval contains a conflict check.</item>
-/// <item><b>Theism (Poly/Mono)</b> — dropped entirely: no tenet's <c>can_pick</c> gates on it.</item>
-/// </list>
-///
-/// Source data: <c>CK3_TENETS_CATALOG.md</c> (extracted from <c>30_core_tenets.txt</c>, CK3 1.19).
+/// CK3 faith tenet pool. Each tenet is a <see cref="TenetEntry"/>: a name + one eval lambda returning
+/// a weight in <c>[0, 1]</c>. Mutual exclusivity is not in the lambdas — the assigner applies the
+/// central <see cref="ConflictGraph"/>. Hand-transcribed from <c>CK3_TENETS_CATALOG.md</c> (CK3 1.19);
+/// not auto-synced if base-game tenets change.
 /// </summary>
 public static class TenetData
 {
-    /// <summary>The one soft magnitude: an unfavoured-type tenet keeps this fraction of its weight.</summary>
-    public const float KindPenalty = 0.3f;
+    /// <summary>Soft magnitude: an unfavoured-type tenet keeps this fraction of its weight.</summary>
+    public const float TypeMismatchPenalty = 0.3f;
 
     /// <summary>The lone terrain tenet's threshold (cthonic_redoubts; mountains + desert mountains).</summary>
     public const float CthonicThreshold = 0.20f;
 
-    /// <summary>
-    /// A faith's type, 1:1 with Azgaar's <c>Faith.Type</c>. <c>[Flags]</c> so a tenet's favoured
-    /// <i>set</i> is expressible (<c>Folk | Cult</c>); a faith's own type is a single value.
-    /// <b><see cref="Heresy"/> is a first-class peer</b> — equal standing with Folk/Organized/Cult,
-    /// no parent/derivation resolution.
-    /// </summary>
+    /// <summary>A faith's type, 1:1 with Azgaar's <c>Faith.Type</c>. <c>[Flags]</c> so a tenet's
+    /// favoured <i>set</i> is expressible (<c>Folk | Cult</c>); Heresy is a peer, not derived.</summary>
     [Flags]
     public enum FaithType
     {
@@ -48,12 +34,9 @@ public static class TenetData
         Any       = 15,
     }
 
-    /// <summary>
-    /// A tenet's thematic tags, baked from <c>tenet_distribution.csv</c> (column <c>themes</c>).
-    /// <c>[Flags]</c> so a tenet's tag <i>set</i> is expressible (<c>Occult | Scholarly</c>); a faith's
-    /// form maps to a tag set too (<see cref="FormThemes"/>), and the assigner boosts a candidate when
-    /// the two sets overlap. Mirrors <see cref="FaithType"/>'s shape. Duds / blank → <see cref="None"/>.
-    /// </summary>
+    /// <summary>A tenet's thematic tags (from <c>tenet_distribution.csv</c>). <c>[Flags]</c> so a tag
+    /// <i>set</i> is expressible; a faith's form maps to a tag set too and the assigner boosts on
+    /// overlap. Duds / blank → <see cref="None"/>.</summary>
     [Flags]
     public enum Theme
     {
@@ -79,8 +62,7 @@ public static class TenetData
     /// <summary>A tenet: its key + baked theme tags + one eval lambda. Nothing else.</summary>
     public record TenetEntry(string Name, Theme Themes, TenetEval Eval);
 
-    /// <summary>Literal parse of <c>Faith.Type</c> → <see cref="FaithType"/>. Heresy is its own peer
-    /// value; there is no parent resolution.</summary>
+    /// <summary>Literal parse of <c>Faith.Type</c> → <see cref="FaithType"/>.</summary>
     public static FaithType ParseType(Faith faith) => faith.Type switch
     {
         "Folk"      => Folk,
@@ -92,9 +74,6 @@ public static class TenetData
 
     public static readonly TenetEntry[] All =
     [
-        // ═══════════════════════════════════════════════════════════════════════
-        // Organized / Abrahamic-flavoured
-        // ═══════════════════════════════════════════════════════════════════════
         new("tenet_aniconism",                      Institutional,                 (in FaithContext c) => c.Favoured(Organized)),
         new("tenet_alexandrian_catechism",          Scholarly,                     (in FaithContext c) => c.Favoured(Organized)),
         new("tenet_armed_pilgrimages",              Martial | Institutional,       (in FaithContext c) => c.Favoured(Organized | Cult)),
@@ -123,9 +102,6 @@ public static class TenetData
         new("tenet_harmonious_society",             Communal | Institutional,      (in FaithContext c) => c.Favoured(Organized)),
         new("tenet_preservation",                   Institutional | Communal,      (in FaithContext c) => c.Favoured(Organized | Folk)),
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // Pacifism / militancy (exclusivity web is applied by the assigner, not here)
-        // ═══════════════════════════════════════════════════════════════════════
         new("tenet_pacifism",               Pacific,            (in FaithContext c) => c.Favoured(Organized)),
         new("tenet_dharmic_pacifism",       Pacific | Dharmic,  (in FaithContext c) => c.Favoured(Organized | Cult)),
         new("tenet_warmonger",              Martial,            (in FaithContext c) => c.Favoured(Folk | Cult)),
@@ -135,9 +111,6 @@ public static class TenetData
         new("tenet_fp3_fedayeen",           Martial | Occult,   (in FaithContext c) => c.Favoured(Cult | Organized)),
         new("tenet_sacred_destruction",     Martial,            (in FaithContext c) => c.Favoured(Folk | Cult)),
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // Folk / pagan / dharmic flavour
-        // ═══════════════════════════════════════════════════════════════════════
         new("tenet_carnal_exaltation",   Hedonistic,             (in FaithContext c) => c.Favoured(Cult | Folk)),
         new("tenet_communal_identity",   Communal,               (in FaithContext c) => c.Favoured(Any)),
         new("tenet_divine_marriage",     Ancestral,              (in FaithContext c) => c.Favoured(Folk | Cult)),
@@ -163,10 +136,6 @@ public static class TenetData
         new("tenet_extinction_of_dharma",Martial | Dharmic,      (in FaithContext c) => c.Favoured(Cult)),
         new("tenet_cranial_trophies",    Sacrificial | Martial,  (in FaithContext c) => c.Favoured(Folk | Cult)),
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // Formerly terrain-gated (🗺️). Only cthonic_redoubts keeps terrain; the other
-        // 7 become plain type-favoured entries (a desert faith may still revere nature).
-        // ═══════════════════════════════════════════════════════════════════════
         new("tenet_pastoral_isolation",  Nature | Communal,  (in FaithContext c) => c.Favoured(Folk)),
         new("tenet_sanctity_of_nature",  Nature,             (in FaithContext c) => c.Favoured(Folk)),
         new("tenet_sun_worship",         Nature,             (in FaithContext c) => c.Favoured(Folk)),
@@ -177,11 +146,7 @@ public static class TenetData
         new("tenet_mountain_worship",    Nature,             (in FaithContext c) => c.Favoured(Folk)),
         new("tenet_takamin",             Nature,             (in FaithContext c) => c.Favoured(Folk)),
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // 💀 Syncretic duds — inert in a full conversion (target vanilla religions). Weight 0
-        // always; kept in the pool so the zero self-documents WHY they never appear. Blank themes
-        // in the CSV ⇒ Theme.None (no boost can ever fire on a dud).
-        // ═══════════════════════════════════════════════════════════════════════
+        // Syncretic duds: target vanilla religions, so weight 0 — kept so the zero self-documents why.
         new("tenet_sinitic_syncretism",    Theme.None, (in FaithContext c) => 0f),
         new("tenet_eastern_syncretism",    Theme.None, (in FaithContext c) => 0f),
         new("tenet_unreformed_syncretism", Theme.None, (in FaithContext c) => 0f),
@@ -190,10 +155,10 @@ public static class TenetData
         new("tenet_jewish_syncretism",     Theme.None, (in FaithContext c) => 0f),
     ];
 
-    // ── Central symmetric conflict graph ───────────────────────────────────────
-    // Built once from the catalog's can_pick edges (the syncretism clique + the pacifism/militancy
-    // web etc.) and symmetrised so A⊥B ⟺ B⊥A regardless of fill order. The assigner reads this;
-    // no eval does. One table to diff against 30_core_tenets.txt.
+    // Central symmetric conflict graph. Hand-transcribed from CK3_TENETS_CATALOG.md / 30_core_tenets.txt
+    // (the syncretism clique + the pacifism/militancy web) — sourced from there, NOT auto-derived, so it
+    // won't track base-game tenet additions/removals/changes. Symmetrised (A⊥B ⟺ B⊥A); the assigner
+    // reads it, no eval does.
 
     // Directed edges as authored in the catalog; ConflictGraph symmetrises them.
     private static readonly (string, string[])[] ConflictEdges =

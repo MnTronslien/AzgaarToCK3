@@ -3,13 +3,9 @@ using static Converter.Lemur.TenetData.Theme;
 namespace Converter.Lemur;
 
 /// <summary>
-/// Maps an Azgaar religion <c>form</c> string to a baked <see cref="TenetData.Theme"/> set. A faith
-/// whose form has themes biases its tenet draw toward tenets sharing any of those themes (see
-/// <see cref="FaithTenetAssigner"/>, which folds in <see cref="Converter.Settings.FaithFormThemeBoost"/> on overlap).
-///
-/// <para>Deity-count labels (Polytheism / Monotheism / Dualism / Syncretism / Pantheism / Non-theism /
-/// Deism / Henotheism) are deliberately absent ⇒ <see cref="TenetData.Theme.None"/> — they are a later
-/// doctrine signal, not a tenet boost. Any unmapped form returns <see cref="TenetData.Theme.None"/>.</para>
+/// Maps an Azgaar religion <c>form</c> to a <see cref="TenetData.Theme"/> set that biases the faith's
+/// tenet draw (see <see cref="FaithTenetAssigner"/>). Unmapped forms (incl. deity-count labels like
+/// Monotheism) → <see cref="TenetData.Theme.None"/>. Conversion rules: docs/CONVERSION_RULES.md#faith-tenets.
 /// </summary>
 public static class FormThemes
 {
