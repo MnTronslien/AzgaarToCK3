@@ -4,6 +4,7 @@
 - **Generated faiths share a world, and treat other faiths as rivals.** Every faith the converter creates is gathered under a single religious family named after your map's world. Faiths of different generated traditions now regard one another, and the faiths of the outside world, as rivals rather than kin, giving the religious map friction instead of blanket tolerance.
 
 ### Changed
+- **Rivers are drawn with a width gradient.** Rivers used to be one uniform width. Now each river runs narrow at its source and widens toward its mouth, and bigger rivers (carrying more flow) are drawn wider than small creeks — so the river map reads with the same source-to-mouth swelling and relative scale you'd expect from the terrain.
 - **Faith tenets now reflect each religion's character.** Like culture traditions in 1.6.0, a generated faith's tenets used to be drawn at random. Now the religion shapes them: its kind — folk, organized, cult, or heresy — steers which tenets suit it; mutually exclusive tenets never land together (no pacifist warmongers); and a religion's form pulls it toward matching flavour, so a nature-worship faith leans toward nature tenets and a dark cult toward blood and the occult. Folk and cult faiths now read distinctly from organized ones instead of all drawing from the same bag. The pull strength is tunable (`FaithFormThemeBoost`).
 
 ### Fixed
