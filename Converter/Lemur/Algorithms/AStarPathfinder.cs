@@ -18,6 +18,7 @@ public class AStarPathfinder
     private readonly bool _selfAvoid;
     private readonly int _selfAvoidLookback;
     private readonly IReadOnlySet<Point>? _selfAvoidSeed;
+    private readonly bool _exemptGoal;
 
     /// <summary>
     /// Create a pathfinder for a 2D grid.
@@ -51,7 +52,8 @@ public class AStarPathfinder
         Func<Point, int>? countAdjacentBlue = null,
         bool selfAvoid = false,
         int selfAvoidLookback = 24,
-        IReadOnlySet<Point>? selfAvoidSeed = null)
+        IReadOnlySet<Point>? selfAvoidSeed = null,
+        bool exemptGoal = true)
     {
         _width = width;
         _height = height;
@@ -62,6 +64,7 @@ public class AStarPathfinder
         _selfAvoid = selfAvoid;
         _selfAvoidLookback = selfAvoidLookback;
         _selfAvoidSeed = selfAvoidSeed;
+        _exemptGoal = exemptGoal;
     }
 
     /// <summary>
@@ -198,8 +201,15 @@ public class AStarPathfinder
         {
             if (!IsInBounds(neighbor)) continue;
 
-            // Pass 2: adjacency-to-blue check (destination always bypasses this)
-            if (_countAdjacentBlue != null && neighbor != goal)
+            // exemptGoal lets the goal touch ANOTHER river (Pass 2) — used only for the deliberate
+            // tributary-into-parent connection. It does NOT exempt self-avoidance: a path may never
+            // touch its OWN earlier body, even at the goal, or the junction marker ends up adjacent
+            // to two of its own pixels (a degree-3 red). So Pass 2 respects exemptGoal; self-avoid
+            // always applies.
+            bool goalExempt = _exemptGoal && neighbor == goal;
+
+            // Pass 2: adjacency-to-blue check
+            if (_countAdjacentBlue != null && !goalExempt)
             {
                 if (_countAdjacentBlue(neighbor) > 0)
                     continue;  // Would create touching rivers — skip
@@ -207,7 +217,7 @@ public class AStarPathfinder
 
             // Self-avoid: skip if this step would touch the path's own earlier pixels —
             // either within this A* call (recentAncestors) or from a prior segment (seed).
-            if (neighbor != goal && SelfTouches(neighbor, point, recentAncestors))
+            if (SelfTouches(neighbor, point, recentAncestors))
                 continue;
 
             yield return neighbor;
@@ -228,14 +238,16 @@ public class AStarPathfinder
             {
                 if (!IsInBounds(neighbor)) continue;
 
-                // Pass 2: adjacency-to-blue check (destination always bypasses this)
-                if (_countAdjacentBlue != null && neighbor != goal)
+                bool goalExempt = _exemptGoal && neighbor == goal;
+
+                // Pass 2: adjacency-to-blue check
+                if (_countAdjacentBlue != null && !goalExempt)
                 {
                     if (_countAdjacentBlue(neighbor) > 0)
                         continue;
                 }
 
-                if (neighbor != goal && SelfTouches(neighbor, point, recentAncestors))
+                if (SelfTouches(neighbor, point, recentAncestors))
                     continue;
 
                 yield return neighbor;

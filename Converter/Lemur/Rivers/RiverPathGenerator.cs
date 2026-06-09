@@ -64,7 +64,10 @@ public static class RiverPathGenerator
                 // Seed self-avoid with the pixels committed so far so this segment cannot loop back
                 // and touch the previous segment's tail across the seam.
                 segment = FindOrthogonalPath(from, to, image, excludeFromPass2: from,
-                    selfAvoidSeed: new HashSet<Point>(completePath));
+                    selfAvoidSeed: new HashSet<Point>(completePath),
+                    exemptGoal: false);   // an ordinary control point must not be reached by touching
+                                          // another river (or this river's own course) — only the
+                                          // deliberate tributary-into-parent connection may do that
             }
 
             if (segment != null && segment.Count > 0)
@@ -92,13 +95,23 @@ public static class RiverPathGenerator
                 // when `to` is inside the terminal cell (pre-skipped or genuinely failed).
                 if (terminalCellCheck != null && terminalCellCheck(to.X, to.Y))
                 {
-                    // Run permissive A* — all pixels passable, no Pass 2 (existing mechanism).
-                    // Still seed self-avoid so the mouth approach can't double back onto the
-                    // strict tail it starts from — that seam was the source of the 2×2 blobs.
+                    // Route into the terminal (ocean/lake) cell. Prefer a Pass-2 path that still
+                    // avoids OTHER rivers — two mouths emptying into the same coast must not run
+                    // alongside each other — with the goal exempt so it can reach the open-water
+                    // target. Only if that's blocked do we fall back to fully permissive routing
+                    // (the original behaviour). Either way self-avoid stops it doubling onto its tail.
+                    // Route into the terminal cell while still avoiding OTHER rivers (Pass-2 on).
+                    // The goal sits in open water, so Pass-2 — which only counts river pixels, not
+                    // land/sea — reaches it normally; it's rejected only when the goal is adjacent to
+                    // another river (two mouths meeting at the same coast). exemptGoal stays false so
+                    // that case fails here and the river truncates a pixel short of the water below,
+                    // rather than being forced onto its neighbour. No permissive fallback: fully
+                    // permissive routing is exactly what let the mouths run alongside each other.
+                    var seed = new HashSet<Point>(completePath);
                     var permPath = FindOrthogonalPath(
                         completePath[^1], to, image,
-                        excludeFromPass2: completePath[^1], permissive: true,
-                        selfAvoidSeed: new HashSet<Point>(completePath));
+                        excludeFromPass2: completePath[^1], permissive: false,
+                        selfAvoidSeed: seed, exemptGoal: false);
 
                     if (permPath != null && permPath.Count > 1)
                     {
@@ -166,14 +179,16 @@ public static class RiverPathGenerator
                     }
                 }
 
-                // Fallback failed or not a tributary - add destination and log
-                if (to != completePath[^1])
-                {
-                    completePath.Add(to);
-                }
+                // Strict A* failed and no terminal/tributary handler applied. Previously we jammed
+                // the raw destination point in here — but that bypasses BOTH the self-avoid and the
+                // Pass-2 adjacency guards, so it routinely landed orthogonally adjacent to the
+                // river's own body (or another river), producing degree-3 violations and a visible
+                // gap. Strict A* only fails when the start is boxed in (every clean route blocked),
+                // i.e. the river physically cannot continue without touching something. End it at the
+                // last cleanly-pathed pixel instead of forcing an invalid one.
                 failedSegments++;
-
-                Logger.Debug($"  WARNING: A* failed for {riverName} segment {i}: ({from.X},{from.Y}) → ({to.X},{to.Y})");
+                Logger.Debug($"  WARNING: A* failed for {riverName} segment {i}: ({from.X},{from.Y}) → ({to.X},{to.Y}) — truncating river at last clean pixel ({completePath[^1].X},{completePath[^1].Y})");
+                break;
             }
         }
 
@@ -201,7 +216,7 @@ public static class RiverPathGenerator
     /// A pixel to exclude from Pass 2 adjacency counts. Pass the segment's <c>from</c> pixel
     /// here so that A* can still leave the (now-blue) segment start without all neighbours blocked.
     /// </param>
-    internal static List<Point>? FindOrthogonalPath(Point from, Point to, MagickImage image, Point? excludeFromPass2 = null, bool permissive = false, IReadOnlySet<Point>? selfAvoidSeed = null)
+    internal static List<Point>? FindOrthogonalPath(Point from, Point to, MagickImage image, Point? excludeFromPass2 = null, bool permissive = false, IReadOnlySet<Point>? selfAvoidSeed = null, bool exemptGoal = true)
     {
         // If points are the same, return empty
         if (from == to)
@@ -275,7 +290,10 @@ public static class RiverPathGenerator
             allowDiagonal: false,
             countAdjacentBlue: permissive ? null : CountAdjacent,
             selfAvoid: true,
-            selfAvoidSeed: selfAvoidSeed
+            selfAvoidLookback: int.MaxValue,   // walk the whole in-segment chain; a river can loop
+                                               // back on itself well past a fixed window (seen at 35px)
+            selfAvoidSeed: selfAvoidSeed,
+            exemptGoal: exemptGoal
         );
 
         // Calculate max iterations based on distance
