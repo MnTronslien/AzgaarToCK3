@@ -8,6 +8,13 @@ namespace Converter.Lemur.Rivers
     public static class RiverImageGenerator
     {
         /// <summary>
+        /// The river-body shade we draw. CK3 palette index 11 (#000064) — the widest/darkest
+        /// shade. All neighbour-detection in the river pipeline keys off this single colour, so
+        /// it is the one source of truth: change it here and the whole pipeline follows.
+        /// </summary>
+        public static readonly MagickColor RiverBodyColor = new MagickColor(0, 0, 100);
+
+        /// <summary>
         /// Creates the base rivers image: hot-pink background with white land polygons.
         /// Caller is responsible for disposing the returned image.
         /// </summary>
@@ -127,7 +134,7 @@ namespace Converter.Lemur.Rivers
             int drawnCount = 0;
             int skippedCount = 0;
 
-            var riverColor = new MagickColor(0, 225, 255);  // #00e1ff  CK3 palette index 3 (thinnest minor river)
+            var riverColor = RiverBodyColor;  // #000064  CK3 palette index 11 (widest/darkest)
             var sourceColor = new MagickColor(0, 255, 0); // Green  – source marker (start of every river)
             var junctionColor = new MagickColor(255, 0, 0); // Red – tributary junction (end of tributaries)
 
@@ -408,7 +415,7 @@ namespace Converter.Lemur.Rivers
             int maxRadius)
         {
             bool IsRiverColor(IMagickColor<byte> c) =>
-                (c.R == 0   && c.G == 225 && c.B == 255) ||   // blue  – river body (#00e1ff)
+                (c.R == RiverBodyColor.R && c.G == RiverBodyColor.G && c.B == RiverBodyColor.B) ||   // river body (#000064)
                 (c.R == 255 && c.G == 0   && c.B == 0)   ||   // red   – junction marker
                 (c.R == 0   && c.G == 255 && c.B == 0);        // green – source marker
 
@@ -459,7 +466,7 @@ namespace Converter.Lemur.Rivers
                 foreach (var n in Neighbors(current))
                 {
                     var c = ColorAt(n);
-                    if (c != null && c.R == 0 && c.G == 225 && c.B == 255 &&
+                    if (c != null && c.R == RiverBodyColor.R && c.G == RiverBodyColor.G && c.B == RiverBodyColor.B &&
                         !tributaryPixels.Contains(n))
                     {
                         return current;

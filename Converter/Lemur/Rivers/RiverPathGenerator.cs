@@ -208,7 +208,7 @@ public static class RiverPathGenerator
             return new List<Point> { from };
 
         // Create passability function that avoids existing river pixels
-        var blueColor = new MagickColor(0, 225, 255);
+        var blueColor = RiverImageGenerator.RiverBodyColor;
         var greenColor = new MagickColor(0, 255, 0);
         var redColor = new MagickColor(255, 0, 0);
 
@@ -295,7 +295,7 @@ public static class RiverPathGenerator
     internal static int CountAdjacentRiverPixels(Point p, MagickImage image, Point? exclude = null)
     {
         return CountAdjacentMatchingPixels(p, image, exclude,
-            new MagickColor(0, 225, 255),  // blue  – river body (#00e1ff)
+            RiverImageGenerator.RiverBodyColor,  // river body (#000064)
             new MagickColor(255, 0, 0),    // red   – tributary junction
             new MagickColor(0, 255, 0));   // green – river source
     }
@@ -311,7 +311,7 @@ public static class RiverPathGenerator
     /// </param>
     internal static int CountAdjacentBluePixels(Point p, MagickImage image, Point? exclude = null)
     {
-        return CountAdjacentMatchingPixels(p, image, exclude, new MagickColor(0, 225, 255));
+        return CountAdjacentMatchingPixels(p, image, exclude, RiverImageGenerator.RiverBodyColor);
     }
 
     private static int CountAdjacentMatchingPixels(Point p, MagickImage image,
