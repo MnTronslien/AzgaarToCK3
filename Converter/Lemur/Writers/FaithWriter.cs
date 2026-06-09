@@ -68,7 +68,10 @@ public static class FaithWriter
 
             lines.Add($"# {rootFaith.Name}");
             lines.Add($"{group.Key} = {{");
-            lines.Add("\tfamily = rf_other");
+            lines.Add($"\tfamily = {ReligiousFamilyWriter.FamilyKey}");
+            // Hostility doctrine must be set explicitly (the family field is display-only); applies
+            // to every faith in the religion so generated faiths treat each other as rivals.
+            lines.Add($"\tdoctrine = {ReligiousFamilyWriter.HostilityDoctrine}");
             if (anyUnreformed)
                 lines.Add("\tpagan_roots = yes");
             lines.Add("");

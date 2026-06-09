@@ -282,6 +282,8 @@ Each Azgaar religion becomes a faith with its own doctrine set and holy sites. C
 |---------------------------|--------------------------|
 | ![Ormlarism faith tab](images/ck3_religion_tab.png) | ![Ormlarism holy sites](images/ck3_holy_sites.png) |
 
+**Religious family.** All generated faiths share one CK3 religious family named after your world (e.g. an `Oncynthia` family) — CK3 nests faiths as family → religion → faith. They carry the vanilla Abrahamic hostility doctrine, so different generated faiths regard one another, and any foreign faith, as rivals.
+
 ---
 
 ## Major Rivers
