@@ -38,6 +38,11 @@ public static class FaithWriter
         Logger.Info($"Wrote {faiths.Count} faiths in {byReligion.Count} religion containers.");
     }
 
+    // Names the religion after its tree root (Parent == null), not the lowest-id faith.
+    private static Faith RootOf(IGrouping<string, Faith> group) =>
+        group.FirstOrDefault(f => f.Parent == null)
+        ?? group.OrderBy(f => f.AzgaarId).First();
+
     // ─────────────────────────────────────────────────────────────────────────
     // File 1: common/religion/religion_types/lemur_religions.txt
     // (CK3 1.19 renamed religions/ to religion_types/)
@@ -58,12 +63,14 @@ public static class FaithWriter
         foreach (var group in byReligion)
         {
             var sortedFaiths = group.OrderBy(f => f.AzgaarId).ToList();
-            var rootFaith = sortedFaiths[0];
+            var rootFaith = RootOf(group);
             bool anyUnreformed = sortedFaiths.Any(f => f.IsUnreformed);
 
             lines.Add($"# {rootFaith.Name}");
             lines.Add($"{group.Key} = {{");
-            lines.Add("\tfamily = rf_other");
+            lines.Add($"\tfamily = {ReligiousFamilyWriter.FamilyKey}");
+            // Set per religion: the family's hostility_doctrine field is display-only.
+            lines.Add($"\tdoctrine = {ReligiousFamilyWriter.HostilityDoctrine}");
             if (anyUnreformed)
                 lines.Add("\tpagan_roots = yes");
             lines.Add("");
@@ -171,7 +178,7 @@ public static class FaithWriter
         foreach (var group in byReligion)
         {
             var sortedFaiths = group.OrderBy(f => f.AzgaarId).ToList();
-            var rootFaith = sortedFaiths[0];
+            var rootFaith = RootOf(group);
 
             // Religion container name, adjective, and description
             cultureById.TryGetValue(rootFaith.OriginalCultureId, out var cultureName);

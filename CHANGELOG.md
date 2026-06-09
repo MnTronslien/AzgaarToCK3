@@ -1,3 +1,20 @@
+# 1.7.0 — 2026-06-09
+
+After 1.6.0 gave each culture its own character, this release does the same for religion. A generated faith's tenets used to be drawn at random, and every faith was filed under a single tolerant grouping, so the religious map read as undifferentiated. Now a faith's tenets follow from what kind of religion it is, all generated faiths belong to a world-family named after your map, and faiths of different traditions treat one another as rivals.
+
+### Added
+- **Generated faiths share a world, and treat other faiths as rivals.** Every faith the converter creates is gathered under a single religious family named after your map's world. Faiths of different generated traditions now regard one another, and the faiths of the outside world, as rivals rather than kin, giving the religious map friction instead of blanket tolerance.
+
+### Changed
+- **Faith tenets now reflect each religion's character.** Like culture traditions in 1.6.0, a generated faith's tenets used to be drawn at random. Now the religion shapes them: its kind — folk, organized, cult, or heresy — steers which tenets suit it; mutually exclusive tenets never land together (no pacifist warmongers); and a religion's form pulls it toward matching flavour, so a nature-worship faith leans toward nature tenets and a dark cult toward blood and the occult. Folk and cult faiths now read distinctly from organized ones instead of all drawing from the same bag. The pull strength is tunable (`FaithFormThemeBoost`).
+
+### Fixed
+- **No more inert "syncretism" tenets.** These only grant bonuses toward specific *vanilla* religions, which don't exist in a converted world — so they were wasted tenet slots. Faiths no longer receive them.
+- **Religions with several faiths are now named after the right one.** When you arranged a religion's faiths into a family tree in Azgaar, the converter named the religion after one of the child faiths instead of the parent at the top of the tree, and listed that parent last. Religions now take the name of their root faith.
+- **Generated faiths no longer reference a religious family CK3 removed.** They were assigned `rf_other`, a family that no longer exists in CK3 1.19, which logged a load error for each one and left faiths without a family. They now belong to the converter's own world-named family.
+
+---
+
 # 1.6.0 — 2026-06-05
 
 This release is about cultural character. Until now every culture drew its traditions at random, so the desert nomads were as likely to end up seafarers as the coast-dwellers, and the cultural map read as noise. Now a culture's traditions follow from where it lives and what it values: the land it sits on decides which terrain-flavoured traditions it can take at all, and its ethos tilts the rest. Each people reads as its own thing instead of a random assortment.
