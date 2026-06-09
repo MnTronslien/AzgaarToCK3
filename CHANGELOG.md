@@ -1,3 +1,19 @@
+# 1.7.0 — 2026-06-09
+
+### Added
+- form-driven theme boosting for tenet selection
+- converter-owned religion family rf_lemurconverter
+
+### Fixed
+- deserialize Form plainly, drop heresy special-case
+- emit lemur_hostility_group_name loc key
+- apply hostility doctrine explicitly per religion (was inert)
+
+### Changed
+- inline tradition gate lambdas to match splatmap pattern
+
+---
+
 # Unreleased
 
 ### Added
