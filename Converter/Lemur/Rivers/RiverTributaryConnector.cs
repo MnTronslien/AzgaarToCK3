@@ -60,7 +60,8 @@ public static class RiverTributaryConnector
             intendedDestination,
             image,
             excludeFromPass2: lastValidPixel,
-            permissive: true);
+            permissive: true,
+            selfAvoidSeed: tributaryPixels);
 
         if (permissivePath == null)
         {
@@ -116,7 +117,8 @@ public static class RiverTributaryConnector
                     var strictPath = RiverPathGenerator.FindOrthogonalPath(
                         intermediatePoint,
                         connectionPoint.Value,
-                        image);
+                        image,
+                        selfAvoidSeed: intermediateSet);
 
                     if (strictPath == null || strictPath.Count == 0)
                     {
@@ -157,7 +159,8 @@ public static class RiverTributaryConnector
             lastValidPixel,
             origConnectionPoint.Value,
             image,
-            excludeFromPass2: lastValidPixel);
+            excludeFromPass2: lastValidPixel,
+            selfAvoidSeed: tributaryPixels);
 
         if (pathToConnection == null || pathToConnection.Count == 0)
         {

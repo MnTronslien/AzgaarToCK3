@@ -61,7 +61,10 @@ public static class RiverPathGenerator
                 // Exclude `from` from Pass 2 adjacency counts — when this is not the first segment,
                 // `from` was just drawn blue by the previous segment's callback and would otherwise
                 // cause all four of its neighbours to be blocked by Pass 2.
-                segment = FindOrthogonalPath(from, to, image, excludeFromPass2: from);
+                // Seed self-avoid with the pixels committed so far so this segment cannot loop back
+                // and touch the previous segment's tail across the seam.
+                segment = FindOrthogonalPath(from, to, image, excludeFromPass2: from,
+                    selfAvoidSeed: new HashSet<Point>(completePath));
             }
 
             if (segment != null && segment.Count > 0)
@@ -90,9 +93,12 @@ public static class RiverPathGenerator
                 if (terminalCellCheck != null && terminalCellCheck(to.X, to.Y))
                 {
                     // Run permissive A* — all pixels passable, no Pass 2 (existing mechanism).
+                    // Still seed self-avoid so the mouth approach can't double back onto the
+                    // strict tail it starts from — that seam was the source of the 2×2 blobs.
                     var permPath = FindOrthogonalPath(
                         completePath[^1], to, image,
-                        excludeFromPass2: completePath[^1], permissive: true);
+                        excludeFromPass2: completePath[^1], permissive: true,
+                        selfAvoidSeed: new HashSet<Point>(completePath));
 
                     if (permPath != null && permPath.Count > 1)
                     {
@@ -195,7 +201,7 @@ public static class RiverPathGenerator
     /// A pixel to exclude from Pass 2 adjacency counts. Pass the segment's <c>from</c> pixel
     /// here so that A* can still leave the (now-blue) segment start without all neighbours blocked.
     /// </param>
-    internal static List<Point>? FindOrthogonalPath(Point from, Point to, MagickImage image, Point? excludeFromPass2 = null, bool permissive = false)
+    internal static List<Point>? FindOrthogonalPath(Point from, Point to, MagickImage image, Point? excludeFromPass2 = null, bool permissive = false, IReadOnlySet<Point>? selfAvoidSeed = null)
     {
         // If points are the same, return empty
         if (from == to)
@@ -257,12 +263,19 @@ public static class RiverPathGenerator
 
         // Create pathfinder with orthogonal-only movement and two-pass filtering.
         // permissive mode disables Pass 2 (adjacency check) so A* can run alongside rivers.
+        // selfAvoid is ALWAYS on: it keeps a path from looping against itself into a 2×2 block
+        // (a degree-3 pixel CK3 rejects). The in-progress path is invisible to Pass 2, so this is
+        // the only guard against self-touch — and it must hold in permissive mode too, where the
+        // terminal-cell mouth approach is drawn (that path was the sole source of the 2×2 blobs).
+        // It is orthogonal to Pass 2: it never blocks approaching another river, only oneself.
         var pathfinder = new AStarPathfinder(
             (int)image.Width,
             (int)image.Height,
             IsPassable,
             allowDiagonal: false,
-            countAdjacentBlue: permissive ? null : CountAdjacent
+            countAdjacentBlue: permissive ? null : CountAdjacent,
+            selfAvoid: true,
+            selfAvoidSeed: selfAvoidSeed
         );
 
         // Calculate max iterations based on distance
