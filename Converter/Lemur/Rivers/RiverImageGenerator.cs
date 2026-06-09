@@ -51,38 +51,19 @@ namespace Converter.Lemur.Rivers
         /// </summary>
         private static async Task SaveRiversImage(MagickImage riversImage, string debugFileName)
         {
-            // Force PNG palette type (color-type 1 = indexed/palette) before mapping.
-            // This ensures CK3's expected 8-bit indexed format regardless of how many
-            // unique colors are present (e.g. blank rivers image with only 2 colors).
-            riversImage.Settings.SetDefine("png:color-type", "1");
-
-            string[] colormap = [
-                "#00FF00",
-                "#FF0000",
-                "#FFFC00",
-                "#00E1FF",
-                "#00C8FF",
-                "#0096FF",
-                "#0064FF",
-                "#0000FF",
-                "#0000E1",
-                "#0000C8",
-                "#000096",
-                "#000064",
-                "#005500",
-                "#007D00",
-                "#009E00",
-                "#18CE00",
-                "#FF0080",
-                "#FFFFFF",
-            ];
-            riversImage.Map(colormap.Select(n => new MagickColor(n)));
-            Logger.Info($"  Applied hardcoded CK3 rivers colormap ({colormap.Length} entries).");
+            // CK3 reads rivers.png by PALETTE INDEX against a fixed table — index N has a meaning
+            // (0=source, 1=merge, 2=split, 3–11 river widths thin→wide, 254=sea, 255=land); the RGB
+            // values are only for editor display. ImageMagick can't emit a fixed 256-entry palette
+            // (it compacts/reorders the colour set, and can't hold the duplicate filler entries), so
+            // our pixels ended up on the wrong indices and CK3 ignored the rivers. Convert each pixel
+            // to its CK3 index and write the indexed PNG ourselves with the exact 256-entry palette.
+            int w = (int)riversImage.Width, h = (int)riversImage.Height;
+            var indices = BuildIndexBuffer(riversImage, w, h);
 
             var outputPath = Helper.GetPath(Settings.OutputDirectory, "map_data", "rivers.png");
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
-            await riversImage.WriteAsync(outputPath);
-            Logger.Info($"\nRivers image saved to '{outputPath}'");
+            IndexedPng.Write(outputPath, indices, w, h, Ck3RiverPalette());
+            Logger.Info($"\nRivers image saved to '{outputPath}' (CK3 index-correct 8-bit palette).");
 
             if (Settings.Instance.GenerateDebugImages)
             {
@@ -95,10 +76,80 @@ namespace Converter.Lemur.Rivers
                     GetDebugFolderName(),
                     debugFileName);
                 Directory.CreateDirectory(Path.GetDirectoryName(debugPath)!);
-                await riversImage.WriteAsync(debugPath);
+                IndexedPng.Write(debugPath, indices, w, h, Ck3RiverPalette());
                 ImageUtility.RegisterGeneratedImage(debugPath);
                 Logger.Debug($"Saved rivers image to '{debugPath}'");
             }
+        }
+
+        /// <summary>
+        /// Maps each RGB pixel of the drawn rivers image to its CK3 palette index. Pixels we draw are
+        /// exact palette members (land, sea, the river-body shade, green source, red junction); any
+        /// stray colour falls back to land (255) and is counted so it can't silently corrupt output.
+        /// </summary>
+        private static byte[] BuildIndexBuffer(MagickImage image, int w, int h)
+        {
+            // RGB → index for every meaningful CK3 entry (the 16 head colours + sea + land).
+            var pal = Ck3RiverPalette();
+            var rgbToIndex = new Dictionary<int, byte>();
+            void Add(int i) => rgbToIndex[(pal[i].R << 16) | (pal[i].G << 8) | pal[i].B] = (byte)i;
+            for (int i = 0; i < 16; i++) Add(i);
+            Add(254); Add(255);
+
+            var indices = new byte[w * h];
+            int unknown = 0;
+            using (var pixels = image.GetPixels())
+            {
+                byte[] data = pixels.GetValues()!;
+                int ch = data.Length / (w * h);
+                for (int i = 0; i < w * h; i++)
+                {
+                    int o = i * ch;
+                    int key = (data[o] << 16) | (data[o + 1] << 8) | data[o + 2];
+                    if (rgbToIndex.TryGetValue(key, out var idx)) indices[i] = idx;
+                    else { indices[i] = 255; unknown++; }   // land fallback
+                }
+            }
+            if (unknown > 0)
+                Logger.Warning($"  rivers.png: {unknown} pixel(s) had an off-palette colour, written as land (255).");
+            return indices;
+        }
+
+        /// <summary>
+        /// CK3's canonical rivers.png palette, in the exact index order the engine expects (verified
+        /// against the shipped game/map_data/rivers.png PLTE). The index — not the RGB — is what CK3
+        /// renders from: 0 source, 1 merge, 2 split, 3–11 river widths (thin→wide), 12–15 reserved
+        /// greens, 254 sea, 255 land; 16–253 are filler (#020001). Returns one entry per index 0–255.
+        /// </summary>
+        private static MagickColor[] Ck3RiverPalette()
+        {
+            var pal = new MagickColor[256];
+            (byte r, byte g, byte b)[] head =
+            [
+                (0, 255, 0),    // 0  source (green)
+                (255, 0, 0),    // 1  merge / tributary junction (red)
+                (255, 252, 0),  // 2  split (yellow)
+                (0, 225, 255),  // 3  river width 1 (thinnest)
+                (0, 200, 255),  // 4
+                (0, 150, 255),  // 5
+                (0, 100, 255),  // 6
+                (0, 0, 255),    // 7
+                (0, 0, 225),    // 8
+                (0, 0, 200),    // 9
+                (0, 0, 150),    // 10
+                (0, 0, 100),    // 11 river width 9 (widest) — the shade we draw
+                (0, 85, 0),     // 12
+                (0, 125, 0),    // 13
+                (0, 158, 0),    // 14
+                (24, 206, 0),   // 15
+            ];
+            for (int i = 0; i < head.Length; i++)
+                pal[i] = new MagickColor(head[i].r, head[i].g, head[i].b);
+            for (int i = head.Length; i < 254; i++)
+                pal[i] = new MagickColor(2, 0, 1);       // filler, matches vanilla
+            pal[254] = new MagickColor(255, 0, 128);     // sea
+            pal[255] = new MagickColor(255, 255, 255);   // land
+            return pal;
         }
 
         /// <summary>
