@@ -12,7 +12,24 @@ namespace Converter.Lemur.Rivers
         /// shade. All neighbour-detection in the river pipeline keys off this single colour, so
         /// it is the one source of truth: change it here and the whole pipeline follows.
         /// </summary>
-        public static readonly MagickColor RiverBodyColor = new MagickColor(0, 0, 100);
+        /// The nine CK3 river-body shades, palette indices 3–11, thinnest→widest. The shade is the
+        /// rendered river width; we ramp along it source→mouth (see <see cref="ApplyWidthGradient"/>).
+        public static readonly MagickColor[] RiverShades =
+        [
+            new MagickColor(0, 225, 255), // 3  thinnest
+            new MagickColor(0, 200, 255), // 4
+            new MagickColor(0, 150, 255), // 5
+            new MagickColor(0, 100, 255), // 6
+            new MagickColor(0,   0, 255), // 7
+            new MagickColor(0,   0, 225), // 8
+            new MagickColor(0,   0, 200), // 9
+            new MagickColor(0,   0, 150), // 10
+            new MagickColor(0,   0, 100), // 11 widest
+        ];
+
+        /// Default river shade used while pathfinding draws the trail (widest); the per-pixel width
+        /// gradient is applied as a final recolour pass once each river's full path is known.
+        public static readonly MagickColor RiverBodyColor = RiverShades[^1];
 
         /// <summary>
         /// Creates the base rivers image: hot-pink background with white land polygons.
@@ -413,6 +430,11 @@ namespace Converter.Lemur.Rivers
             }
 
             // Convert to 8-bit indexed PNG with the exact CK3 palette and save
+            // Repaint each river with a source→mouth width gradient before saving (data-driven,
+            // single write pass). Drawing above used one shade so the topology/adjacency logic stays
+            // simple; the shade detail is enriched here now that every river's full path is known.
+            ApplyWidthGradient(riversImage, riverActualPixels);
+
             await SaveRiversImage(riversImage, "7_rivers.png");
         }
 
@@ -538,6 +560,66 @@ namespace Converter.Lemur.Rivers
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Repaints each drawn river with a width gradient: thin at the source, widening toward the
+        /// mouth. The mouth shade is scaled by the river's discharge on a log scale across the map's
+        /// range — so small creeks stay thin and great rivers reach the widest shade, and a tributary
+        /// (lower discharge) is thinner than the trunk it joins. CK3 renders the shade as the river's
+        /// width (palette index 3=thin … 11=wide). Azgaar's per-river width/sourceWidth fields are
+        /// unreliable (often ~0), so discharge — its flow-volume metric — is the size signal.
+        ///
+        /// Pure data → one write pass: the ordered pixel list and discharge are already in memory, so
+        /// no image reads are needed. The green source and red junction markers are left untouched.
+        /// </summary>
+        private static void ApplyWidthGradient(
+            MagickImage image,
+            List<(River river, List<Point> actualPixels, bool connectedAsTributary)> rivers)
+        {
+            // Discharge range across the drawn (minor) rivers → log scale (discharge is heavy-tailed).
+            double dMin = double.MaxValue, dMax = double.MinValue;
+            foreach (var (r, pts, _) in rivers)
+                if (pts.Count >= 2)
+                {
+                    double d = Math.Max(1.0, r.Discharge);
+                    dMin = Math.Min(dMin, d);
+                    dMax = Math.Max(dMax, d);
+                }
+            if (rivers.Count == 0 || dMin == double.MaxValue) return;
+            if (dMax <= dMin) dMax = dMin + 1;            // degenerate guard (all equal discharge)
+
+            double lnMin = Math.Log(dMin), lnSpan = Math.Log(dMax) - lnMin;
+            const double SourceFraction = 0.3;            // a river's source is ~30% of its mouth width
+            int top = RiverShades.Length - 1;             // 8 (= palette index 11)
+
+            using var px = image.GetPixelsUnsafe();
+            foreach (var (river, pts, connectedAsTributary) in rivers)
+            {
+                if (pts.Count < 2) continue;
+
+                double t = (Math.Log(Math.Max(1.0, river.Discharge)) - lnMin) / lnSpan;
+                int mouthIdx = Math.Clamp((int)Math.Round(t * top), 0, top);
+                int srcIdx = Math.Clamp((int)Math.Round(mouthIdx * SourceFraction), 0, mouthIdx);
+
+                // pts run source→mouth. Skip the marker endpoint: green source at [0] for a normal
+                // river, red junction at [^1] for a tributary — recolouring those would erase them.
+                int first = connectedAsTributary ? 0 : 1;
+                int last = connectedAsTributary ? pts.Count - 2 : pts.Count - 1;
+                int denom = pts.Count - 1;
+                for (int i = first; i <= last; i++)
+                {
+                    double f = denom > 0 ? (double)i / denom : 1.0;
+                    int idx = Math.Clamp((int)Math.Round(srcIdx + f * (mouthIdx - srcIdx)), 0, top);
+                    var c = RiverShades[idx];
+                    var pix = px[pts[i].X, pts[i].Y];
+                    if (pix == null) continue;
+                    pix.SetChannel(0, c.R);
+                    pix.SetChannel(1, c.G);
+                    pix.SetChannel(2, c.B);
+                }
+            }
+            Logger.Info($"  Applied width gradient across {RiverShades.Length} shades (discharge {dMin:F0}–{dMax:F0}).");
         }
 
         private static string GetDebugFolderName() => ImageUtility.GetDebugFolderName();
