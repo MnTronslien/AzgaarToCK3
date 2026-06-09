@@ -12,7 +12,7 @@ internal class Program
         int? minDuchiesPerKingdom = null, int? minKingdomsPerEmpire = null,
         bool noRivers = false, bool noWipe = false, string? svgPath = null, string? inputDir = null,
         int? seed = null, int? tenetCount = null, float? doctrineMutationRate = null, string? outputDir = null,
-        string? dumpCellsPath = null)
+        string? dumpCellsPath = null, bool riversOnly = false)
     {
         Logger.Title();
 
@@ -147,6 +147,13 @@ internal class Program
             await Converter.Lemur.ConversionManager.DumpCellsAfterRivers(dumpCellsPath);
             return;
         }
+        // --rivers-only: draw rivers.png and exit, skipping the rest of the pipeline (fast iteration)
+        if (riversOnly)
+        {
+            SettingsManager.Configure();
+            await Converter.Lemur.ConversionManager.DrawRiversOnly(noRivers);
+            return;
+        }
 
         Console.Write("Start conversion? ");
         if (YesNo())
@@ -200,6 +207,7 @@ internal class Program
             bool noImages = false;
             bool noRivers = false;
             bool noWipe = false;
+            bool riversOnly = false;
             bool? empireFromCulture = null;
             int? minDuchiesPerKingdom = null;
             int? minKingdomsPerEmpire = null;
@@ -230,6 +238,10 @@ internal class Program
                 else if (args[i] == "--no-rivers")
                 {
                     noRivers = true;
+                }
+                else if (args[i] == "--rivers-only")
+                {
+                    riversOnly = true;
                 }
                 else if ((args[i] == "--input-dir" || args[i] == "-d") && i + 1 < args.Length)
                 {
@@ -410,7 +422,7 @@ internal class Program
                 return;
             }
 
-            await Run(jsonPath, geojsonPath, riversGeojsonPath, logLevel, noImages, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire, noRivers, noWipe, svgPath, inputDir, seed, tenetCount, doctrineMutationRate, outputDir, dumpCellsPath);
+            await Run(jsonPath, geojsonPath, riversGeojsonPath, logLevel, noImages, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire, noRivers, noWipe, svgPath, inputDir, seed, tenetCount, doctrineMutationRate, outputDir, dumpCellsPath, riversOnly);
         }
         catch (Exception ex)
         {
@@ -530,6 +542,7 @@ internal class Program
         Console.WriteLine();
         Console.WriteLine("Conversion Options:");
         Console.WriteLine("  --no-rivers                      Skip river drawing; write a blank rivers.png (runtime only, not saved)");
+        Console.WriteLine("  --rivers-only                    Draw only rivers.png and exit (skips the rest of the pipeline; fast iteration)");
         Console.WriteLine("  --svg, -s <path>                 Path to Azgaar SVG export for flatmap.dds (optional; fallback uses cell biome colors)");
         Console.WriteLine("  --log-level <verbose|debug|info|warning|error>  Set log verbosity (default: info)");
         Console.WriteLine("  --no-images                      Suppress debug image generation (provinces.png and rivers.png still written)");
