@@ -25,13 +25,13 @@ public readonly struct FaithContext
     }
 
     /// <summary>The faith's own (single) type, parsed literally from <c>Faith.Type</c>.</summary>
-    public ReligionType Type => ParseType(_faith);
+    public FaithType Type => ParseType(_faith);
 
     /// <summary>True when the faith's type is in <paramref name="set"/>.</summary>
-    public bool IsType(ReligionType set) => (Type & set) != ReligionType.None;
+    public bool IsType(FaithType set) => (Type & set) != FaithType.None;
 
     /// <summary>Soft type affinity: <c>1</c> if favoured, else <see cref="TypeMismatchPenalty"/> (0.3).</summary>
-    public float Favoured(ReligionType set) => IsType(set) ? 1f : TypeMismatchPenalty;
+    public float Favoured(FaithType set) => IsType(set) ? 1f : TypeMismatchPenalty;
 
     /// <summary>Hard {0,1}: 1 iff the summed fraction of the listed terrains is ≥ <paramref name="thr"/>.</summary>
     public float TerrainAtLeast(float thr, params Ck3Terrain[] terrains)

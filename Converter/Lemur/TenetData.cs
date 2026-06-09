@@ -1,7 +1,7 @@
 using Converter.Lemur.Entities;
 using Converter.Lemur.Fields;
 using Converter.Lemur.Provinces;
-using static Converter.Lemur.TenetData.ReligionType;
+using static Converter.Lemur.TenetData.FaithType;
 using static Converter.Lemur.TenetData.Theme;
 using static Converter.Lemur.Provinces.Ck3Terrain;
 
@@ -23,7 +23,7 @@ public static class TenetData
     /// <summary>A faith's type, 1:1 with Azgaar's <c>Faith.Type</c>. <c>[Flags]</c> so a tenet's
     /// favoured <i>set</i> is expressible (<c>Folk | Cult</c>); Heresy is a peer, not derived.</summary>
     [Flags]
-    public enum ReligionType
+    public enum FaithType
     {
         None      = 0,
         Folk      = 1,
@@ -61,14 +61,14 @@ public static class TenetData
     /// <summary>A tenet: its key + baked theme tags + one eval lambda. Nothing else.</summary>
     public record TenetEntry(string Name, Theme Themes, TenetEval Eval);
 
-    /// <summary>Literal parse of <c>Faith.Type</c> → <see cref="ReligionType"/>.</summary>
-    public static ReligionType ParseType(Faith faith) => faith.Type switch
+    /// <summary>Literal parse of <c>Faith.Type</c> → <see cref="FaithType"/>.</summary>
+    public static FaithType ParseType(Faith faith) => faith.Type switch
     {
         "Folk"      => Folk,
         "Organized" => Organized,
         "Cult"      => Cult,
         "Heresy"    => Heresy,
-        _           => ReligionType.None,
+        _           => FaithType.None,
     };
 
     public static readonly TenetEntry[] All =
