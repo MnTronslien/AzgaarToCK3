@@ -1,3 +1,13 @@
+# Unreleased
+
+### Fixed
+- **Rivers now appear in-game.** Rivers were drawn with the right colours but the wrong palette indexing, so the game didn't recognise them and the map came up with no rivers at all. The river map is now written with CK3's exact indexed palette, and rivers render again. Each river is also a clean, single-width line free of the stray-width artefacts earlier versions could leave at bends and junctions.
+
+### Changed
+- **Rivers are drawn with a width gradient.** Rivers used to be one uniform width. Now each river runs narrow at its source and widens toward its mouth, and bigger rivers (carrying more flow) are drawn wider than small creeks — so the river map reads with the same source-to-mouth swelling and relative scale you'd expect from the terrain.
+
+---
+
 # 1.7.0 — Creed & Conviction — 2026-06-09
 
 After 1.6.0 gave each culture its own character, this release does the same for religion. A generated faith's tenets used to be drawn at random, and every faith was filed under a single tolerant grouping, so the religious map read as undifferentiated. Now a faith's tenets follow from what kind of religion it is, all generated faiths belong to a world-family named after your map, and faiths of different traditions treat one another as rivals.

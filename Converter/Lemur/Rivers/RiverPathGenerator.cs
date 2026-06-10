@@ -61,7 +61,13 @@ public static class RiverPathGenerator
                 // Exclude `from` from Pass 2 adjacency counts — when this is not the first segment,
                 // `from` was just drawn blue by the previous segment's callback and would otherwise
                 // cause all four of its neighbours to be blocked by Pass 2.
-                segment = FindOrthogonalPath(from, to, image, excludeFromPass2: from);
+                // Seed self-avoid with the pixels committed so far so this segment cannot loop back
+                // and touch the previous segment's tail across the seam.
+                segment = FindOrthogonalPath(from, to, image, excludeFromPass2: from,
+                    selfAvoidSeed: new HashSet<Point>(completePath),
+                    exemptGoal: false);   // an ordinary control point must not be reached by touching
+                                          // another river (or this river's own course) — only the
+                                          // deliberate tributary-into-parent connection may do that
             }
 
             if (segment != null && segment.Count > 0)
@@ -89,28 +95,36 @@ public static class RiverPathGenerator
                 // when `to` is inside the terminal cell (pre-skipped or genuinely failed).
                 if (terminalCellCheck != null && terminalCellCheck(to.X, to.Y))
                 {
-                    // Run permissive A* — all pixels passable, no Pass 2 (existing mechanism).
-                    var permPath = FindOrthogonalPath(
+                    // Route into the terminal cell while still avoiding OTHER rivers (Pass-2 on).
+                    // The goal sits in open water, so Pass-2 — which only counts river pixels, not
+                    // land/sea — reaches it normally; it's rejected only when the goal is adjacent to
+                    // another river (two mouths meeting at the same coast). exemptGoal stays false so
+                    // that case fails here and the river truncates a pixel short of the water below
+                    // (handled by the failure path), rather than being forced onto its neighbour —
+                    // fully permissive routing was exactly what let the mouths run alongside each other.
+                    var seed = new HashSet<Point>(completePath);
+                    var terminalPath = FindOrthogonalPath(
                         completePath[^1], to, image,
-                        excludeFromPass2: completePath[^1], permissive: true);
+                        excludeFromPass2: completePath[^1], permissive: false,
+                        selfAvoidSeed: seed, exemptGoal: false);
 
-                    if (permPath != null && permPath.Count > 1)
+                    if (terminalPath != null && terminalPath.Count > 1)
                     {
                         // Find the Nth pixel inside the terminal cell (N = maxOffshorePixels).
                         // Trim everything after — no pixels are ever erased.
-                        int terminalCount = 0, trimIdx = permPath.Count - 1;
-                        for (int k = 1; k < permPath.Count; k++)
+                        int terminalCount = 0, trimIdx = terminalPath.Count - 1;
+                        for (int k = 1; k < terminalPath.Count; k++)
                         {
-                            if (terminalCellCheck(permPath[k].X, permPath[k].Y))
+                            if (terminalCellCheck(terminalPath[k].X, terminalPath[k].Y))
                             {
                                 terminalCount++;
                                 if (terminalCount == maxOffshorePixels) { trimIdx = k; break; }
                             }
                         }
 
-                        var trimmedPermPath = permPath.Take(trimIdx + 1).ToList();
-                        int startIdx = trimmedPermPath[0] == completePath[^1] ? 1 : 0;
-                        var newPixels = trimmedPermPath.Skip(startIdx).ToList();
+                        var trimmedPath = terminalPath.Take(trimIdx + 1).ToList();
+                        int startIdx = trimmedPath[0] == completePath[^1] ? 1 : 0;
+                        var newPixels = trimmedPath.Skip(startIdx).ToList();
 
                         foreach (var p in newPixels) completePath.Add(p);
                         successfulSegments++;
@@ -160,14 +174,16 @@ public static class RiverPathGenerator
                     }
                 }
 
-                // Fallback failed or not a tributary - add destination and log
-                if (to != completePath[^1])
-                {
-                    completePath.Add(to);
-                }
+                // Strict A* failed and no terminal/tributary handler applied. Previously we jammed
+                // the raw destination point in here — but that bypasses BOTH the self-avoid and the
+                // Pass-2 adjacency guards, so it routinely landed orthogonally adjacent to the
+                // river's own body (or another river), producing degree-3 violations and a visible
+                // gap. Strict A* only fails when the start is boxed in (every clean route blocked),
+                // i.e. the river physically cannot continue without touching something. End it at the
+                // last cleanly-pathed pixel instead of forcing an invalid one.
                 failedSegments++;
-
-                Logger.Debug($"  WARNING: A* failed for {riverName} segment {i}: ({from.X},{from.Y}) → ({to.X},{to.Y})");
+                Logger.Debug($"  WARNING: A* failed for {riverName} segment {i}: ({from.X},{from.Y}) → ({to.X},{to.Y}) — truncating river at last clean pixel ({completePath[^1].X},{completePath[^1].Y})");
+                break;
             }
         }
 
@@ -195,14 +211,14 @@ public static class RiverPathGenerator
     /// A pixel to exclude from Pass 2 adjacency counts. Pass the segment's <c>from</c> pixel
     /// here so that A* can still leave the (now-blue) segment start without all neighbours blocked.
     /// </param>
-    internal static List<Point>? FindOrthogonalPath(Point from, Point to, MagickImage image, Point? excludeFromPass2 = null, bool permissive = false)
+    internal static List<Point>? FindOrthogonalPath(Point from, Point to, MagickImage image, Point? excludeFromPass2 = null, bool permissive = false, IReadOnlySet<Point>? selfAvoidSeed = null, bool exemptGoal = true)
     {
         // If points are the same, return empty
         if (from == to)
             return new List<Point> { from };
 
         // Create passability function that avoids existing river pixels
-        var blueColor = new MagickColor(0, 225, 255);
+        var blueColor = RiverImageGenerator.RiverBodyColor;
         var greenColor = new MagickColor(0, 255, 0);
         var redColor = new MagickColor(255, 0, 0);
 
@@ -257,12 +273,20 @@ public static class RiverPathGenerator
 
         // Create pathfinder with orthogonal-only movement and two-pass filtering.
         // permissive mode disables Pass 2 (adjacency check) so A* can run alongside rivers.
+        // selfAvoid is ALWAYS on: it keeps a path from looping against itself into a 2×2 block
+        // (a degree-3 pixel CK3 rejects). The in-progress path is invisible to Pass 2, so this is
+        // the only guard against self-touch — and it must hold in permissive mode too, where the
+        // terminal-cell mouth approach is drawn (that path was the sole source of the 2×2 blobs).
+        // It is orthogonal to Pass 2: it never blocks approaching another river, only oneself.
         var pathfinder = new AStarPathfinder(
             (int)image.Width,
             (int)image.Height,
             IsPassable,
             allowDiagonal: false,
-            countAdjacentBlue: permissive ? null : CountAdjacent
+            countAdjacentBlue: permissive ? null : CountAdjacent,
+            selfAvoid: true,
+            selfAvoidSeed: selfAvoidSeed,
+            exemptGoal: exemptGoal
         );
 
         // Calculate max iterations based on distance
@@ -282,7 +306,7 @@ public static class RiverPathGenerator
     internal static int CountAdjacentRiverPixels(Point p, MagickImage image, Point? exclude = null)
     {
         return CountAdjacentMatchingPixels(p, image, exclude,
-            new MagickColor(0, 225, 255),  // blue  – river body (#00e1ff)
+            RiverImageGenerator.RiverBodyColor,  // river body (#000064)
             new MagickColor(255, 0, 0),    // red   – tributary junction
             new MagickColor(0, 255, 0));   // green – river source
     }
@@ -298,7 +322,7 @@ public static class RiverPathGenerator
     /// </param>
     internal static int CountAdjacentBluePixels(Point p, MagickImage image, Point? exclude = null)
     {
-        return CountAdjacentMatchingPixels(p, image, exclude, new MagickColor(0, 225, 255));
+        return CountAdjacentMatchingPixels(p, image, exclude, RiverImageGenerator.RiverBodyColor);
     }
 
     private static int CountAdjacentMatchingPixels(Point p, MagickImage image,
