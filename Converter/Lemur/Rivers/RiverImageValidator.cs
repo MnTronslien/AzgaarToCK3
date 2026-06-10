@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Linq;
 using ImageMagick;
 
 namespace Converter.Lemur.Rivers;
@@ -6,24 +7,18 @@ namespace Converter.Lemur.Rivers;
 /// <summary>
 /// Validates a CK3 rivers.png image against the game's structural requirements:
 /// 1. Must be an 8-bit indexed (palette) PNG.
-/// 2. Must contain only valid CK3 palette colors.
-/// 3. River marker pixels must have the correct number of orthogonal river-body neighbours.
+/// 2. Palette must be in CK3's exact index order (CK3 reads rivers by palette INDEX, not RGB — a
+///    scrambled/compacted order renders the rivers invisible even though the colours look right).
+/// 3. Must contain only valid CK3 palette colors.
+/// 4. River marker pixels must have the correct number of orthogonal river-body neighbours.
+/// (The index-order check — #2 — only runs through the file-path overload, which can read the PLTE.)
 /// </summary>
 public static class RiverImageValidator
 {
-    // CK3 palette indices 3–11: the 9 valid river-body shades (thinnest → widest)
+    // The 9 valid river-body shades (palette indices 3–11, thinnest→widest), taken from the single
+    // canonical palette so the validator and generator can never disagree on what counts as a river.
     private static readonly (byte R, byte G, byte B)[] RiverBodyColors =
-    [
-        (0, 225, 255),  // #00e1ff  index  3 — thinnest
-        (0, 200, 255),  // #00c8ff  index  4
-        (0, 150, 255),  // #0096ff  index  5
-        (0, 100, 255),  // #0064ff  index  6
-        (0,   0, 255),  // #0000ff  index  7
-        (0,   0, 225),  // #0000e1  index  8
-        (0,   0, 200),  // #0000c8  index  9
-        (0,   0, 150),  // #000096  index 10
-        (0,   0, 100),  // #000064  index 11 — widest
-    ];
+        RiverImageGenerator.RiverShades.Select(c => (c.R, c.G, c.B)).ToArray();
 
     private enum PixelClass { Blue, Green, Red, Yellow, Skip, Invalid }
 
@@ -102,7 +97,8 @@ public static class RiverImageValidator
     }
 
     /// <summary>
-    /// Overload that loads the image from a file path.
+    /// Overload that loads the image from a file path. Also checks the palette INDEX ORDER, which
+    /// the <see cref="MagickImage"/> overload cannot (it needs the raw PLTE chunk from the file).
     /// </summary>
     public static bool ValidateRivers(
         string imagePath,
@@ -116,11 +112,94 @@ public static class RiverImageValidator
             return false;
         }
 
+        // Palette index order — the failure mode that makes rivers invisible in-game.
+        string? paletteMsg = ValidatePaletteOrder(imagePath);
+
         using var image = new MagickImage(imagePath);
-        return ValidateRivers(image, out invalidPixels, out message);
+        bool pixelsOk = ValidateRivers(image, out invalidPixels, out string? imageMsg);
+
+        // Surface the palette problem first (it's the more fundamental "won't render" issue).
+        message = (paletteMsg, imageMsg) switch
+        {
+            (not null, not null) => $"{paletteMsg}; {imageMsg}",
+            (not null, null)     => paletteMsg,
+            _                    => imageMsg
+        };
+        return paletteMsg == null && pixelsOk;
     }
 
     // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Checks that the PNG's palette matches CK3's canonical index order at every index the engine
+    /// actually reads (0–15: markers + the 9 river widths + reserved greens; 254 = sea; 255 = land).
+    /// Filler indices 16–253 are never referenced by the engine, so they are not checked. Returns a
+    /// description of the first mismatches, or <c>null</c> if the order is correct.
+    /// </summary>
+    private static string? ValidatePaletteOrder(string imagePath)
+    {
+        var palette = ReadPngPalette(imagePath);
+        if (palette == null)
+            return "no PLTE chunk found — not an 8-bit indexed PNG (CK3 reads rivers by palette index).";
+
+        var canonical = RiverImageGenerator.Ck3RiverPalette;
+        var meaningful = Enumerable.Range(0, 16).Append(254).Append(255);
+        var bad = new List<string>();
+
+        foreach (int i in meaningful)
+        {
+            if (i >= palette.Length)
+            {
+                bad.Add($"index {i} missing (palette has only {palette.Length} entries)");
+                continue;
+            }
+            var (r, g, b) = palette[i];
+            var c = canonical[i];
+            if (r != c.R || g != c.G || b != c.B)
+                bad.Add($"index {i} is #{r:X2}{g:X2}{b:X2}, expected #{c.R:X2}{c.G:X2}{c.B:X2}");
+        }
+
+        if (bad.Count == 0)
+            return null;
+
+        string detail = string.Join("; ", bad.Take(6)) + (bad.Count > 6 ? $"; +{bad.Count - 6} more" : "");
+        return $"palette index order is wrong (CK3 reads rivers by index, not RGB — a scrambled or "
+             + $"compacted palette makes rivers invisible): {detail}";
+    }
+
+    /// <summary>
+    /// Reads the raw PLTE (palette) chunk from a PNG, in file order — i.e. exactly the index→colour
+    /// table CK3 reads. Returns null if the file has no PLTE chunk (truecolour / not indexed).
+    /// </summary>
+    private static (byte r, byte g, byte b)[]? ReadPngPalette(string path)
+    {
+        byte[] d;
+        try { d = File.ReadAllBytes(path); }
+        catch { return null; }
+        if (d.Length < 8) return null;
+
+        int pos = 8; // skip the 8-byte PNG signature
+        while (pos + 8 <= d.Length)
+        {
+            int len = (d[pos] << 24) | (d[pos + 1] << 16) | (d[pos + 2] << 8) | d[pos + 3];
+            string type = System.Text.Encoding.ASCII.GetString(d, pos + 4, 4);
+            int dataStart = pos + 8;
+
+            if (type == "PLTE")
+            {
+                if (len % 3 != 0 || dataStart + len > d.Length) return null;
+                int n = len / 3;
+                var pal = new (byte, byte, byte)[n];
+                for (int i = 0; i < n; i++)
+                    pal[i] = (d[dataStart + i * 3], d[dataStart + i * 3 + 1], d[dataStart + i * 3 + 2]);
+                return pal;
+            }
+            if (type == "IDAT" || type == "IEND") break; // PLTE always precedes image data
+
+            pos = dataStart + len + 4; // advance past chunk data + 4-byte CRC
+        }
+        return null;
+    }
 
     private static PixelClass Classify(byte r, byte g, byte b)
     {

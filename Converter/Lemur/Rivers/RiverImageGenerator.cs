@@ -141,9 +141,11 @@ namespace Converter.Lemur.Rivers
         /// against the shipped game/map_data/rivers.png PLTE). The index — not the RGB — is what CK3
         /// renders from: 0 source, 1 merge, 2 split, 3–11 river widths (thin→wide, = <see cref="RiverShades"/>),
         /// 12–15 reserved greens, 254 sea, 255 land; 16–253 are filler (#020001). One entry per index 0–255.
-        /// Built once — the palette is a fixed contract.
+        /// Built once — the palette is a fixed contract. Exposed so the validator can check that a
+        /// rivers.png carries this exact index order (CK3 reads by index; a scrambled order renders
+        /// the rivers invisible even when the RGB values are right).
         /// </summary>
-        private static readonly MagickColor[] Ck3RiverPalette = BuildCk3RiverPalette();
+        internal static readonly MagickColor[] Ck3RiverPalette = BuildCk3RiverPalette();
 
         private static MagickColor[] BuildCk3RiverPalette()
         {
