@@ -1,8 +1,6 @@
 # 1.7.1 — 2026-06-10
 
----
-
-# Unreleased
+A maintenance release that repairs the long-broken rivers feature: rivers render in-game again, and they read better while we were in there.
 
 ### Fixed
 - **Rivers now appear in-game.** Rivers were drawn with the right colours but the wrong palette indexing, so the game didn't recognise them and the map came up with no rivers at all. The river map is now written with CK3's exact indexed palette, and rivers render again. Each river is also a clean, single-width line free of the stray-width artefacts earlier versions could leave at bends and junctions.
