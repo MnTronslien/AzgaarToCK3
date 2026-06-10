@@ -184,71 +184,36 @@ public class AStarPathfinder
     /// </summary>
     private IEnumerable<Point> GetNeighbors(Point point, Point goal, HashSet<Point>? recentAncestors)
     {
-        // Orthogonal neighbors (4-connected)
-        var orthogonal = new[]
+        // A candidate is allowed if it is in bounds and clears both adjacency guards.
+        // exemptGoal lets the goal touch ANOTHER river (Pass 2) — used only for the deliberate
+        // tributary-into-parent connection. It never exempts self-avoidance: a path may not touch
+        // its OWN earlier body even at the goal, or the junction marker ends up adjacent to two of
+        // its own pixels (a degree-3 red). So Pass 2 respects exemptGoal; self-avoid always applies.
+        bool Allowed(Point n)
         {
-            new Point(point.X, point.Y - 1), // Up
-            new Point(point.X, point.Y + 1), // Down
-            new Point(point.X - 1, point.Y), // Left
-            new Point(point.X + 1, point.Y)  // Right
-        };
-
-        foreach (var neighbor in orthogonal)
-        {
-            if (!IsInBounds(neighbor)) continue;
-
-            // exemptGoal lets the goal touch ANOTHER river (Pass 2) — used only for the deliberate
-            // tributary-into-parent connection. It does NOT exempt self-avoidance: a path may never
-            // touch its OWN earlier body, even at the goal, or the junction marker ends up adjacent
-            // to two of its own pixels (a degree-3 red). So Pass 2 respects exemptGoal; self-avoid
-            // always applies.
-            bool goalExempt = _exemptGoal && neighbor == goal;
-
-            // Pass 2: adjacency-to-blue check
-            if (_countAdjacentBlue != null && !goalExempt)
-            {
-                if (_countAdjacentBlue(neighbor) > 0)
-                    continue;  // Would create touching rivers — skip
-            }
-
-            // Self-avoid: skip if this step would touch the path's own earlier pixels —
-            // either within this A* call (recentAncestors) or from a prior segment (seed).
-            if (SelfTouches(neighbor, point, recentAncestors))
-                continue;
-
-            yield return neighbor;
+            if (!IsInBounds(n)) return false;
+            bool goalExempt = _exemptGoal && n == goal;
+            if (_countAdjacentBlue != null && !goalExempt && _countAdjacentBlue(n) > 0)
+                return false;  // Pass 2: would run alongside another river
+            return !SelfTouches(n, point, recentAncestors);  // would touch the path's own earlier pixels
         }
 
-        // Diagonal neighbors (8-connected) - only if allowed
+        // Orthogonal neighbours (4-connected)
+        foreach (var n in new[]
+        {
+            new Point(point.X, point.Y - 1), new Point(point.X, point.Y + 1),
+            new Point(point.X - 1, point.Y), new Point(point.X + 1, point.Y)
+        })
+            if (Allowed(n)) yield return n;
+
+        // Diagonal neighbours (8-connected) — only if allowed
         if (_allowDiagonal)
-        {
-            var diagonal = new[]
+            foreach (var n in new[]
             {
-                new Point(point.X - 1, point.Y - 1), // Top-left
-                new Point(point.X + 1, point.Y - 1), // Top-right
-                new Point(point.X - 1, point.Y + 1), // Bottom-left
-                new Point(point.X + 1, point.Y + 1)  // Bottom-right
-            };
-
-            foreach (var neighbor in diagonal)
-            {
-                if (!IsInBounds(neighbor)) continue;
-
-                bool goalExempt = _exemptGoal && neighbor == goal;
-
-                // Pass 2: adjacency-to-blue check
-                if (_countAdjacentBlue != null && !goalExempt)
-                {
-                    if (_countAdjacentBlue(neighbor) > 0)
-                        continue;
-                }
-
-                if (SelfTouches(neighbor, point, recentAncestors))
-                    continue;
-
-                yield return neighbor;
-            }
-        }
+                new Point(point.X - 1, point.Y - 1), new Point(point.X + 1, point.Y - 1),
+                new Point(point.X - 1, point.Y + 1), new Point(point.X + 1, point.Y + 1)
+            })
+                if (Allowed(n)) yield return n;
     }
 
     /// <summary>
@@ -265,9 +230,8 @@ public class AStarPathfinder
     }
 
     /// <summary>
-    /// True if <paramref name="candidate"/> is orthogonally adjacent to any path pixel in
-    /// <paramref name="recentAncestors"/> other than its immediate predecessor <paramref name="from"/>.
-    /// That adjacency is exactly what turns a 1-wide trail into a 2×2 block.
+    /// True if <paramref name="candidate"/> is orthogonally adjacent to any pixel in
+    /// <paramref name="pathPixels"/> other than its immediate predecessor <paramref name="from"/>.
     /// </summary>
     private static bool TouchesSet(Point candidate, Point from, IReadOnlySet<Point> pathPixels)
     {

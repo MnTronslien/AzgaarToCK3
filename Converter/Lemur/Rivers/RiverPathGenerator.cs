@@ -95,41 +95,36 @@ public static class RiverPathGenerator
                 // when `to` is inside the terminal cell (pre-skipped or genuinely failed).
                 if (terminalCellCheck != null && terminalCellCheck(to.X, to.Y))
                 {
-                    // Route into the terminal (ocean/lake) cell. Prefer a Pass-2 path that still
-                    // avoids OTHER rivers — two mouths emptying into the same coast must not run
-                    // alongside each other — with the goal exempt so it can reach the open-water
-                    // target. Only if that's blocked do we fall back to fully permissive routing
-                    // (the original behaviour). Either way self-avoid stops it doubling onto its tail.
                     // Route into the terminal cell while still avoiding OTHER rivers (Pass-2 on).
                     // The goal sits in open water, so Pass-2 — which only counts river pixels, not
                     // land/sea — reaches it normally; it's rejected only when the goal is adjacent to
                     // another river (two mouths meeting at the same coast). exemptGoal stays false so
-                    // that case fails here and the river truncates a pixel short of the water below,
-                    // rather than being forced onto its neighbour. No permissive fallback: fully
-                    // permissive routing is exactly what let the mouths run alongside each other.
+                    // that case fails here and the river truncates a pixel short of the water below
+                    // (handled by the failure path), rather than being forced onto its neighbour —
+                    // fully permissive routing was exactly what let the mouths run alongside each other.
                     var seed = new HashSet<Point>(completePath);
-                    var permPath = FindOrthogonalPath(
+                    var terminalPath = FindOrthogonalPath(
                         completePath[^1], to, image,
                         excludeFromPass2: completePath[^1], permissive: false,
                         selfAvoidSeed: seed, exemptGoal: false);
 
-                    if (permPath != null && permPath.Count > 1)
+                    if (terminalPath != null && terminalPath.Count > 1)
                     {
                         // Find the Nth pixel inside the terminal cell (N = maxOffshorePixels).
                         // Trim everything after — no pixels are ever erased.
-                        int terminalCount = 0, trimIdx = permPath.Count - 1;
-                        for (int k = 1; k < permPath.Count; k++)
+                        int terminalCount = 0, trimIdx = terminalPath.Count - 1;
+                        for (int k = 1; k < terminalPath.Count; k++)
                         {
-                            if (terminalCellCheck(permPath[k].X, permPath[k].Y))
+                            if (terminalCellCheck(terminalPath[k].X, terminalPath[k].Y))
                             {
                                 terminalCount++;
                                 if (terminalCount == maxOffshorePixels) { trimIdx = k; break; }
                             }
                         }
 
-                        var trimmedPermPath = permPath.Take(trimIdx + 1).ToList();
-                        int startIdx = trimmedPermPath[0] == completePath[^1] ? 1 : 0;
-                        var newPixels = trimmedPermPath.Skip(startIdx).ToList();
+                        var trimmedPath = terminalPath.Take(trimIdx + 1).ToList();
+                        int startIdx = trimmedPath[0] == completePath[^1] ? 1 : 0;
+                        var newPixels = trimmedPath.Skip(startIdx).ToList();
 
                         foreach (var p in newPixels) completePath.Add(p);
                         successfulSegments++;
