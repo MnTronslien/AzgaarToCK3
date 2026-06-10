@@ -16,7 +16,6 @@ public class AStarPathfinder
     private readonly bool _allowDiagonal;
     private readonly Func<Point, int>? _countAdjacentBlue;
     private readonly bool _selfAvoid;
-    private readonly int _selfAvoidLookback;
     private readonly IReadOnlySet<Point>? _selfAvoidSeed;
     private readonly bool _exemptGoal;
 
@@ -36,7 +35,6 @@ public class AStarPathfinder
     /// a single path can loop against itself at a tight turn and form a 2×2 block — a pixel with 3
     /// orthogonal river neighbours, which CK3 rejects. Straight runs and single L-turns are unaffected.
     /// </param>
-    /// <param name="selfAvoidLookback">How many ancestors to consider for the self-avoid check. A 2×2 loop spans 3 steps; a generous default covers any realistic tight detour while bounding cost.</param>
     /// <param name="selfAvoidSeed">
     /// Pixels already committed by earlier segments of the same path. The ancestor walk only sees the
     /// current A* call, so when a fresh call (e.g. a fallback/terminal segment) starts at the previous
@@ -51,7 +49,6 @@ public class AStarPathfinder
         bool allowDiagonal = false,
         Func<Point, int>? countAdjacentBlue = null,
         bool selfAvoid = false,
-        int selfAvoidLookback = 24,
         IReadOnlySet<Point>? selfAvoidSeed = null,
         bool exemptGoal = true)
     {
@@ -62,7 +59,6 @@ public class AStarPathfinder
         _heuristic = heuristic ?? ManhattanDistance;
         _countAdjacentBlue = countAdjacentBlue;
         _selfAvoid = selfAvoid;
-        _selfAvoidLookback = selfAvoidLookback;
         _selfAvoidSeed = selfAvoidSeed;
         _exemptGoal = exemptGoal;
     }
@@ -122,14 +118,14 @@ public class AStarPathfinder
 
             closedSet.Add(current.Position);
 
-            // Self-avoid: collect this node's recent ancestors (strictly before it) so a candidate
-            // touching the in-progress path can be rejected. Skipped entirely when not self-avoiding.
+            // Self-avoid: collect this node's ancestors (strictly before it) so a candidate touching
+            // the in-progress path can be rejected. The whole chain is walked — a river can loop back
+            // on itself well past any fixed window (seen at 35px). Skipped when not self-avoiding.
             HashSet<Point>? recentAncestors = null;
             if (_selfAvoid)
             {
                 recentAncestors = new HashSet<Point>();
-                var a = current.Parent;
-                for (int back = 0; a != null && back < _selfAvoidLookback; back++, a = a.Parent)
+                for (var a = current.Parent; a != null; a = a.Parent)
                     recentAncestors.Add(a.Position);
             }
 

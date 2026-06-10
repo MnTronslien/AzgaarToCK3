@@ -290,8 +290,6 @@ public static class RiverPathGenerator
             allowDiagonal: false,
             countAdjacentBlue: permissive ? null : CountAdjacent,
             selfAvoid: true,
-            selfAvoidLookback: int.MaxValue,   // walk the whole in-segment chain; a river can loop
-                                               // back on itself well past a fixed window (seen at 35px)
             selfAvoidSeed: selfAvoidSeed,
             exemptGoal: exemptGoal
         );
