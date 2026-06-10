@@ -8,6 +8,31 @@ namespace Converter.Lemur.Rivers
     public static class RiverImageGenerator
     {
         /// <summary>
+        /// The nine CK3 river-body shades, palette indices 3–11, thinnest→widest. The shade is the
+        /// rendered river width; we ramp along it source→mouth (see <see cref="ApplyWidthGradient"/>).
+        /// </summary>
+        public static readonly MagickColor[] RiverShades =
+        [
+            new MagickColor(0, 225, 255), // 3  thinnest
+            new MagickColor(0, 200, 255), // 4
+            new MagickColor(0, 150, 255), // 5
+            new MagickColor(0, 100, 255), // 6
+            new MagickColor(0,   0, 255), // 7
+            new MagickColor(0,   0, 225), // 8
+            new MagickColor(0,   0, 200), // 9
+            new MagickColor(0,   0, 150), // 10
+            new MagickColor(0,   0, 100), // 11 widest
+        ];
+
+        /// <summary>
+        /// The single river-body shade we draw with while pathfinding lays the trail (the widest,
+        /// index 11). All draw-time neighbour-detection keys off this one colour; the per-pixel width
+        /// gradient across <see cref="RiverShades"/> is applied as a final recolour pass once each
+        /// river's full path is known.
+        /// </summary>
+        public static readonly MagickColor RiverBodyColor = RiverShades[^1];
+
+        /// <summary>
         /// Creates the base rivers image: hot-pink background with white land polygons.
         /// Caller is responsible for disposing the returned image.
         /// </summary>
@@ -44,38 +69,19 @@ namespace Converter.Lemur.Rivers
         /// </summary>
         private static async Task SaveRiversImage(MagickImage riversImage, string debugFileName)
         {
-            // Force PNG palette type (color-type 1 = indexed/palette) before mapping.
-            // This ensures CK3's expected 8-bit indexed format regardless of how many
-            // unique colors are present (e.g. blank rivers image with only 2 colors).
-            riversImage.Settings.SetDefine("png:color-type", "1");
-
-            string[] colormap = [
-                "#00FF00",
-                "#FF0000",
-                "#FFFC00",
-                "#00E1FF",
-                "#00C8FF",
-                "#0096FF",
-                "#0064FF",
-                "#0000FF",
-                "#0000E1",
-                "#0000C8",
-                "#000096",
-                "#000064",
-                "#005500",
-                "#007D00",
-                "#009E00",
-                "#18CE00",
-                "#FF0080",
-                "#FFFFFF",
-            ];
-            riversImage.Map(colormap.Select(n => new MagickColor(n)));
-            Logger.Info($"  Applied hardcoded CK3 rivers colormap ({colormap.Length} entries).");
+            // CK3 reads rivers.png by PALETTE INDEX against a fixed table — index N has a meaning
+            // (0=source, 1=merge, 2=split, 3–11 river widths thin→wide, 254=sea, 255=land); the RGB
+            // values are only for editor display. ImageMagick can't emit a fixed 256-entry palette
+            // (it compacts/reorders the colour set, and can't hold the duplicate filler entries), so
+            // our pixels ended up on the wrong indices and CK3 ignored the rivers. Convert each pixel
+            // to its CK3 index and write the indexed PNG ourselves with the exact 256-entry palette.
+            int w = (int)riversImage.Width, h = (int)riversImage.Height;
+            var indices = BuildIndexBuffer(riversImage, w, h);
 
             var outputPath = Helper.GetPath(Settings.OutputDirectory, "map_data", "rivers.png");
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
-            await riversImage.WriteAsync(outputPath);
-            Logger.Info($"\nRivers image saved to '{outputPath}'");
+            IndexedPng.Write(outputPath, indices, w, h, Ck3RiverPalette);
+            Logger.Info($"\nRivers image saved to '{outputPath}' (CK3 index-correct 8-bit palette).");
 
             if (Settings.Instance.GenerateDebugImages)
             {
@@ -88,10 +94,75 @@ namespace Converter.Lemur.Rivers
                     GetDebugFolderName(),
                     debugFileName);
                 Directory.CreateDirectory(Path.GetDirectoryName(debugPath)!);
-                await riversImage.WriteAsync(debugPath);
+                IndexedPng.Write(debugPath, indices, w, h, Ck3RiverPalette);
                 ImageUtility.RegisterGeneratedImage(debugPath);
                 Logger.Debug($"Saved rivers image to '{debugPath}'");
             }
+        }
+
+        /// <summary>
+        /// Maps each RGB pixel of the drawn rivers image to its CK3 palette index. Pixels we draw are
+        /// exact palette members (land, sea, the river-body shade, green source, red junction); any
+        /// stray colour falls back to land (255) and is counted so it can't silently corrupt output.
+        /// </summary>
+        private static byte[] BuildIndexBuffer(MagickImage image, int w, int h)
+        {
+            // RGB → index, derived straight from the palette: every non-filler entry is a colour we
+            // might have drawn, so the index layout lives only in Ck3RiverPalette, not here too.
+            var rgbToIndex = new Dictionary<int, byte>();
+            for (int i = 0; i < Ck3RiverPalette.Length; i++)
+            {
+                var c = Ck3RiverPalette[i];
+                if (c.R == 2 && c.G == 0 && c.B == 1) continue;   // filler (#020001) — never drawn
+                rgbToIndex[(c.R << 16) | (c.G << 8) | c.B] = (byte)i;
+            }
+
+            var indices = new byte[w * h];
+            int unknown = 0;
+            using (var pixels = image.GetPixels())
+            {
+                byte[] data = pixels.GetValues()!;
+                int ch = data.Length / (w * h);
+                for (int i = 0; i < w * h; i++)
+                {
+                    int o = i * ch;
+                    int key = (data[o] << 16) | (data[o + 1] << 8) | data[o + 2];
+                    if (rgbToIndex.TryGetValue(key, out var idx)) indices[i] = idx;
+                    else { indices[i] = 255; unknown++; }   // land fallback
+                }
+            }
+            if (unknown > 0)
+                Logger.Warning($"  rivers.png: {unknown} pixel(s) had an off-palette colour, written as land (255).");
+            return indices;
+        }
+
+        /// <summary>
+        /// CK3's canonical rivers.png palette, in the exact index order the engine expects (verified
+        /// against the shipped game/map_data/rivers.png PLTE). The index — not the RGB — is what CK3
+        /// renders from: 0 source, 1 merge, 2 split, 3–11 river widths (thin→wide, = <see cref="RiverShades"/>),
+        /// 12–15 reserved greens, 254 sea, 255 land; 16–253 are filler (#020001). One entry per index 0–255.
+        /// Built once — the palette is a fixed contract. Exposed so the validator can check that a
+        /// rivers.png carries this exact index order (CK3 reads by index; a scrambled order renders
+        /// the rivers invisible even when the RGB values are right).
+        /// </summary>
+        internal static readonly MagickColor[] Ck3RiverPalette = BuildCk3RiverPalette();
+
+        private static MagickColor[] BuildCk3RiverPalette()
+        {
+            var pal = new MagickColor[256];
+            for (int i = 0; i < 256; i++) pal[i] = new MagickColor(2, 0, 1);  // filler, matches vanilla
+            pal[0] = new MagickColor(0, 255, 0);    // source (green)
+            pal[1] = new MagickColor(255, 0, 0);    // merge / tributary junction (red)
+            pal[2] = new MagickColor(255, 252, 0);  // split (yellow)
+            for (int i = 0; i < RiverShades.Length; i++)
+                pal[3 + i] = RiverShades[i];        // 3–11 river widths thin→wide (single source: RiverShades)
+            pal[12] = new MagickColor(0, 85, 0);
+            pal[13] = new MagickColor(0, 125, 0);
+            pal[14] = new MagickColor(0, 158, 0);
+            pal[15] = new MagickColor(24, 206, 0);
+            pal[254] = new MagickColor(255, 0, 128);     // sea
+            pal[255] = new MagickColor(255, 255, 255);   // land
+            return pal;
         }
 
         /// <summary>
@@ -127,7 +198,7 @@ namespace Converter.Lemur.Rivers
             int drawnCount = 0;
             int skippedCount = 0;
 
-            var riverColor = new MagickColor(0, 225, 255);  // #00e1ff  CK3 palette index 3 (thinnest minor river)
+            var riverColor = RiverBodyColor;  // #000064  CK3 palette index 11 (widest/darkest)
             var sourceColor = new MagickColor(0, 255, 0); // Green  – source marker (start of every river)
             var junctionColor = new MagickColor(255, 0, 0); // Red – tributary junction (end of tributaries)
 
@@ -354,7 +425,12 @@ namespace Converter.Lemur.Rivers
                 }
             }
 
-            // Convert to 8-bit indexed PNG with the exact CK3 palette and save
+            // Repaint each river with a source→mouth width gradient before saving (data-driven,
+            // single write pass). Drawing above used one shade so the topology/adjacency logic stays
+            // simple; the shade detail is enriched here now that every river's full path is known.
+            ApplyWidthGradient(riversImage, riverActualPixels);
+
+            // SaveRiversImage converts to the 8-bit indexed PNG with CK3's exact palette and writes it.
             await SaveRiversImage(riversImage, "7_rivers.png");
         }
 
@@ -408,7 +484,7 @@ namespace Converter.Lemur.Rivers
             int maxRadius)
         {
             bool IsRiverColor(IMagickColor<byte> c) =>
-                (c.R == 0   && c.G == 225 && c.B == 255) ||   // blue  – river body (#00e1ff)
+                (c.R == RiverBodyColor.R && c.G == RiverBodyColor.G && c.B == RiverBodyColor.B) ||   // river body (#000064)
                 (c.R == 255 && c.G == 0   && c.B == 0)   ||   // red   – junction marker
                 (c.R == 0   && c.G == 255 && c.B == 0);        // green – source marker
 
@@ -459,7 +535,7 @@ namespace Converter.Lemur.Rivers
                 foreach (var n in Neighbors(current))
                 {
                     var c = ColorAt(n);
-                    if (c != null && c.R == 0 && c.G == 225 && c.B == 255 &&
+                    if (c != null && c.R == RiverBodyColor.R && c.G == RiverBodyColor.G && c.B == RiverBodyColor.B &&
                         !tributaryPixels.Contains(n))
                     {
                         return current;
@@ -480,6 +556,69 @@ namespace Converter.Lemur.Rivers
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Repaints each drawn river with a width gradient: thin at the source, widening toward the
+        /// mouth. The mouth shade is scaled by the river's discharge on a log scale across the map's
+        /// range — so small creeks stay thin and great rivers reach the widest shade, and a tributary
+        /// (lower discharge) is thinner than the trunk it joins. CK3 renders the shade as the river's
+        /// width (palette index 3=thin … 11=wide). Azgaar's per-river width/sourceWidth fields are
+        /// unreliable (often ~0), so discharge — its flow-volume metric — is the size signal.
+        ///
+        /// Pure data → one write pass: the ordered pixel list and discharge are already in memory, so
+        /// no image reads are needed. The green source and red junction markers are left untouched.
+        /// </summary>
+        private static void ApplyWidthGradient(
+            MagickImage image,
+            List<(River river, List<Point> actualPixels, bool connectedAsTributary)> rivers)
+        {
+            // Discharge range across the drawn (minor) rivers → log scale (discharge is heavy-tailed).
+            double dMin = double.MaxValue, dMax = double.MinValue;
+            foreach (var (r, pts, _) in rivers)
+                if (pts.Count >= 2)
+                {
+                    double d = Math.Max(1.0, r.Discharge);
+                    dMin = Math.Min(dMin, d);
+                    dMax = Math.Max(dMax, d);
+                }
+            if (rivers.Count == 0 || dMin == double.MaxValue) return;
+            if (dMax <= dMin) dMax = dMin + 1;            // degenerate guard (all equal discharge)
+
+            double lnMin = Math.Log(dMin), lnSpan = Math.Log(dMax) - lnMin;
+            const double SourceFraction = 0.3;            // a river's source is ~30% of its mouth width
+            int top = RiverShades.Length - 1;             // 8 (= palette index 11)
+
+            using var px = image.GetPixelsUnsafe();
+            foreach (var (river, pts, connectedAsTributary) in rivers)
+            {
+                if (pts.Count < 2) continue;
+
+                double t = (Math.Log(Math.Max(1.0, river.Discharge)) - lnMin) / lnSpan;
+                int mouthIdx = Math.Clamp((int)Math.Round(t * top), 0, top);
+                int srcIdx = Math.Clamp((int)Math.Round(mouthIdx * SourceFraction), 0, mouthIdx);
+
+                // pts run source→mouth. Skip whichever endpoint holds a marker so we don't recolour
+                // it away: a normal river has its green source at [0]; a tributary has its red
+                // junction at [^1].
+                bool skipSource = !connectedAsTributary;   // green source pixel at [0]
+                bool skipJunction = connectedAsTributary;  // red junction pixel at [^1]
+                int first = skipSource ? 1 : 0;
+                int last = skipJunction ? pts.Count - 2 : pts.Count - 1;
+                int denom = pts.Count - 1;
+                for (int i = first; i <= last; i++)
+                {
+                    double f = denom > 0 ? (double)i / denom : 1.0;
+                    int idx = Math.Clamp((int)Math.Round(srcIdx + f * (mouthIdx - srcIdx)), 0, top);
+                    var c = RiverShades[idx];
+                    var pix = px[pts[i].X, pts[i].Y];
+                    if (pix == null) continue;
+                    pix.SetChannel(0, c.R);
+                    pix.SetChannel(1, c.G);
+                    pix.SetChannel(2, c.B);
+                }
+            }
+            Logger.Info($"  Applied width gradient across {RiverShades.Length} shades (discharge {dMin:F0}–{dMax:F0}).");
         }
 
         private static string GetDebugFolderName() => ImageUtility.GetDebugFolderName();

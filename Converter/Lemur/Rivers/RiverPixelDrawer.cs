@@ -57,9 +57,4 @@ public static class RiverPixelDrawer
 
         return drawnPixels;
     }
-
-    private static bool ColorsMatch(IMagickColor<byte> a, IMagickColor<byte> b)
-    {
-        return a.R == b.R && a.G == b.G && a.B == b.B;
-    }
 }

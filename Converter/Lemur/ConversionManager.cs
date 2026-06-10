@@ -44,6 +44,36 @@ namespace Converter.Lemur
             Logger.Info($"Dumped {map.Cells!.Count} cells → {outputPath}");
         }
 
+        /// <summary>
+        /// Fast path for iterating on rivers.png alone: load the Azgaar data, link cells to burgs,
+        /// draw rivers.png, and exit — skipping duchy/barony/county generation, the heightmap, and
+        /// every other writer. rivers.png only needs the cell land polygons and the river graph, so
+        /// this turns a multi-minute full conversion into a seconds-long loop for river work.
+        /// </summary>
+        public static async Task DrawRiversOnly(bool noRivers = false)
+        {
+            var map = await InitializeMapWithAzgaarData();
+            Logger.Info($"{map} has been loaded.");
+
+            LinkCellsToBurgs(map);
+
+            var skipReason = GetRiversSkipReason(noRivers);
+            if (skipReason != null)
+            {
+                Logger.Info($"Rivers skipped: {skipReason} — writing a blank rivers.png.");
+                await RiverImageGenerator.DrawBlankRiversImage(map);
+            }
+            else
+            {
+                map.Rivers = RiverLoader.LoadRivers(map.JsonMap, Settings.Instance.MajorRiverThreshold);
+                await RiverImageGenerator.DrawRiversImage(
+                    map.Rivers, Settings.Instance.MajorRiverThreshold, map);
+            }
+
+            var outPath = Helper.GetPath(Settings.OutputDirectory, "map_data", "rivers.png");
+            Logger.Info($"rivers-only: rivers.png written to '{outPath}' (pipeline skipped).");
+        }
+
         public async static Task Run(bool noRivers = false)
         {
             var map = await InitializeMapWithAzgaarData();

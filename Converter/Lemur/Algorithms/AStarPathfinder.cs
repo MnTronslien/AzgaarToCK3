@@ -15,6 +15,9 @@ public class AStarPathfinder
     private readonly Func<Point, bool> _isPassable;
     private readonly bool _allowDiagonal;
     private readonly Func<Point, int>? _countAdjacentBlue;
+    private readonly bool _selfAvoid;
+    private readonly IReadOnlySet<Point>? _selfAvoidSeed;
+    private readonly bool _exemptGoal;
 
     /// <summary>
     /// Create a pathfinder for a 2D grid.
@@ -25,13 +28,29 @@ public class AStarPathfinder
     /// <param name="heuristic">Distance heuristic (default: Manhattan distance for orthogonal)</param>
     /// <param name="allowDiagonal">Allow diagonal movement (default: false for CK3 rivers)</param>
     /// <param name="countAdjacentBlue">Optional Pass 2 filter: returns the number of blue pixels adjacent to a point. Candidates with count > 0 are discarded (destination always bypasses this check).</param>
+    /// <param name="selfAvoid">
+    /// When true, a candidate is discarded if it is orthogonally adjacent to an *earlier* pixel of
+    /// the path being built (other than the immediate predecessor). The in-progress path is invisible
+    /// to <paramref name="countAdjacentBlue"/> (that only sees already-drawn pixels), so without this
+    /// a single path can loop against itself at a tight turn and form a 2×2 block — a pixel with 3
+    /// orthogonal river neighbours, which CK3 rejects. Straight runs and single L-turns are unaffected.
+    /// </param>
+    /// <param name="selfAvoidSeed">
+    /// Pixels already committed by earlier segments of the same path. The ancestor walk only sees the
+    /// current A* call, so when a fresh call (e.g. a fallback/terminal segment) starts at the previous
+    /// segment's tail, it would otherwise loop back and touch that tail — a 2×2 across the segment seam.
+    /// Seeding them here forbids that adjacency (the start pixel itself is always exempt).
+    /// </param>
     public AStarPathfinder(
         int width,
         int height,
         Func<Point, bool> isPassable,
         Func<Point, Point, int>? heuristic = null,
         bool allowDiagonal = false,
-        Func<Point, int>? countAdjacentBlue = null)
+        Func<Point, int>? countAdjacentBlue = null,
+        bool selfAvoid = false,
+        IReadOnlySet<Point>? selfAvoidSeed = null,
+        bool exemptGoal = true)
     {
         _width = width;
         _height = height;
@@ -39,6 +58,9 @@ public class AStarPathfinder
         _allowDiagonal = allowDiagonal;
         _heuristic = heuristic ?? ManhattanDistance;
         _countAdjacentBlue = countAdjacentBlue;
+        _selfAvoid = selfAvoid;
+        _selfAvoidSeed = selfAvoidSeed;
+        _exemptGoal = exemptGoal;
     }
 
     /// <summary>
@@ -96,8 +118,19 @@ public class AStarPathfinder
 
             closedSet.Add(current.Position);
 
+            // Self-avoid: collect this node's ancestors (strictly before it) so a candidate touching
+            // the in-progress path can be rejected. The whole chain is walked — a river can loop back
+            // on itself well past any fixed window (seen at 35px). Skipped when not self-avoiding.
+            HashSet<Point>? recentAncestors = null;
+            if (_selfAvoid)
+            {
+                recentAncestors = new HashSet<Point>();
+                for (var a = current.Parent; a != null; a = a.Parent)
+                    recentAncestors.Add(a.Position);
+            }
+
             // Explore neighbors
-            foreach (var neighbor in GetNeighbors(current.Position, goal))
+            foreach (var neighbor in GetNeighbors(current.Position, goal, recentAncestors))
             {
                 // Skip if already evaluated
                 if (closedSet.Contains(neighbor))
@@ -149,56 +182,68 @@ public class AStarPathfinder
     /// Pass 2: if countAdjacentBlue is set, discard candidates adjacent to blue pixels unless they are the goal.
     /// If allowDiagonal is true, also includes diagonal neighbors.
     /// </summary>
-    private IEnumerable<Point> GetNeighbors(Point point, Point goal)
+    private IEnumerable<Point> GetNeighbors(Point point, Point goal, HashSet<Point>? recentAncestors)
     {
-        // Orthogonal neighbors (4-connected)
-        var orthogonal = new[]
+        // A candidate is allowed if it is in bounds and clears both adjacency guards.
+        // exemptGoal lets the goal touch ANOTHER river (Pass 2) — used only for the deliberate
+        // tributary-into-parent connection. It never exempts self-avoidance: a path may not touch
+        // its OWN earlier body even at the goal, or the junction marker ends up adjacent to two of
+        // its own pixels (a degree-3 red). So Pass 2 respects exemptGoal; self-avoid always applies.
+        bool Allowed(Point n)
         {
-            new Point(point.X, point.Y - 1), // Up
-            new Point(point.X, point.Y + 1), // Down
-            new Point(point.X - 1, point.Y), // Left
-            new Point(point.X + 1, point.Y)  // Right
-        };
-
-        foreach (var neighbor in orthogonal)
-        {
-            if (!IsInBounds(neighbor)) continue;
-
-            // Pass 2: adjacency-to-blue check (destination always bypasses this)
-            if (_countAdjacentBlue != null && neighbor != goal)
-            {
-                if (_countAdjacentBlue(neighbor) > 0)
-                    continue;  // Would create touching rivers — skip
-            }
-
-            yield return neighbor;
+            if (!IsInBounds(n)) return false;
+            bool goalExempt = _exemptGoal && n == goal;
+            if (_countAdjacentBlue != null && !goalExempt && _countAdjacentBlue(n) > 0)
+                return false;  // Pass 2: would run alongside another river
+            return !SelfTouches(n, point, recentAncestors);  // would touch the path's own earlier pixels
         }
 
-        // Diagonal neighbors (8-connected) - only if allowed
+        // Orthogonal neighbours (4-connected)
+        foreach (var n in new[]
+        {
+            new Point(point.X, point.Y - 1), new Point(point.X, point.Y + 1),
+            new Point(point.X - 1, point.Y), new Point(point.X + 1, point.Y)
+        })
+            if (Allowed(n)) yield return n;
+
+        // Diagonal neighbours (8-connected) — only if allowed
         if (_allowDiagonal)
-        {
-            var diagonal = new[]
+            foreach (var n in new[]
             {
-                new Point(point.X - 1, point.Y - 1), // Top-left
-                new Point(point.X + 1, point.Y - 1), // Top-right
-                new Point(point.X - 1, point.Y + 1), // Bottom-left
-                new Point(point.X + 1, point.Y + 1)  // Bottom-right
-            };
+                new Point(point.X - 1, point.Y - 1), new Point(point.X + 1, point.Y - 1),
+                new Point(point.X - 1, point.Y + 1), new Point(point.X + 1, point.Y + 1)
+            })
+                if (Allowed(n)) yield return n;
+    }
 
-            foreach (var neighbor in diagonal)
-            {
-                if (!IsInBounds(neighbor)) continue;
+    /// <summary>
+    /// True if <paramref name="candidate"/> is orthogonally adjacent to a path pixel it must not
+    /// touch — one of the current call's recent ancestors, or a seed pixel from an earlier segment —
+    /// other than its immediate predecessor <paramref name="from"/>. That adjacency is exactly what
+    /// turns a 1-wide trail into a 2×2 block, whether the touch is within one A* call or across a seam.
+    /// </summary>
+    private bool SelfTouches(Point candidate, Point from, HashSet<Point>? recentAncestors)
+    {
+        if (recentAncestors != null && TouchesSet(candidate, from, recentAncestors)) return true;
+        if (_selfAvoidSeed != null && TouchesSet(candidate, from, _selfAvoidSeed)) return true;
+        return false;
+    }
 
-                // Pass 2: adjacency-to-blue check (destination always bypasses this)
-                if (_countAdjacentBlue != null && neighbor != goal)
-                {
-                    if (_countAdjacentBlue(neighbor) > 0)
-                        continue;
-                }
-
-                yield return neighbor;
-            }
-        }
+    /// <summary>
+    /// True if <paramref name="candidate"/> is orthogonally adjacent to any pixel in
+    /// <paramref name="pathPixels"/> other than its immediate predecessor <paramref name="from"/>.
+    /// </summary>
+    private static bool TouchesSet(Point candidate, Point from, IReadOnlySet<Point> pathPixels)
+    {
+        var up    = new Point(candidate.X, candidate.Y - 1);
+        var down  = new Point(candidate.X, candidate.Y + 1);
+        var left  = new Point(candidate.X - 1, candidate.Y);
+        var right = new Point(candidate.X + 1, candidate.Y);
+        if (up    != from && pathPixels.Contains(up))    return true;
+        if (down  != from && pathPixels.Contains(down))  return true;
+        if (left  != from && pathPixels.Contains(left))  return true;
+        if (right != from && pathPixels.Contains(right)) return true;
+        return false;
     }
 
     /// <summary>
