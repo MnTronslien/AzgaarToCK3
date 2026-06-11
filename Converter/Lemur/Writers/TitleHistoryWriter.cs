@@ -19,10 +19,14 @@ public static class TitleHistoryWriter
 
             foreach (var kingdom in empire.Kingdoms)
             {
-                // Kingdom liege = its de facto liege (an empire) for a vassal king; null for independent kings
-                // and for an emperor's own kingdom (same holder), preserving prior output where unset.
+                // Kingdom liege = its de facto liege (an empire) for a vassal king; null for independent kings.
+                // Suppress a self-liege: the emperor's own (suzerain) kingdom is held by the same character as
+                // its empire, so no liege line is needed — CK3 nests it under the higher title automatically.
                 if (kingdom.Holder != null)
-                    sb.AppendLine(TitleEntry(kingdom.Ck3_Id(), kingdom.Holder.Id, liege: kingdom.DeFactoLiege?.Ck3_Id(), governmentKey: kingdom.Government?.Key));
+                {
+                    var kLiege = kingdom.DeFactoLiege is { } kl && kl.Holder != kingdom.Holder ? kl.Ck3_Id() : null;
+                    sb.AppendLine(TitleEntry(kingdom.Ck3_Id(), kingdom.Holder.Id, liege: kLiege, governmentKey: kingdom.Government?.Key));
+                }
 
                 foreach (var duchy in kingdom.Duchies)
                 {
