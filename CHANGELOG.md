@@ -1,3 +1,10 @@
+# Unreleased
+
+### Added
+- **Empires inferred from diplomacy.** When an Azgaar map author marked one state as the suzerain of another in the diplomacy table, that overlordship is now carried into the mod: the senior state's realm is raised to an empire and the junior state's ruler starts as its vassal. Suzerain chains collapse so everyone answers to the one ruler at the top. When two suzerains would land in the same culture/religion empire, each is given their own empire title so neither relationship is dropped. Maps with no declared vassalage are unchanged — empires stay unheld exactly as before.
+
+---
+
 # 1.7.1 — 2026-06-10
 
 A maintenance release that repairs the long-broken rivers feature: rivers render in-game again, and they read better while we were in there.
