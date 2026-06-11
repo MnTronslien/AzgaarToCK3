@@ -85,8 +85,24 @@ internal class Program
 
         if (string.IsNullOrWhiteSpace(Settings.Instance.ModName))
         {
-            Logger.Info("Name your mod: ");
-            Settings.Instance.ModName = Console.ReadLine()!;
+            if (!string.IsNullOrWhiteSpace(Settings.OutputDirectoryOverride))
+            {
+                // -o given: name the mod after the output folder rather than prompting, so scripted runs
+                // (which pass -o) never block on Console.ReadLine.
+                Settings.Instance.ModName = Path.GetFileName(Settings.OutputDirectoryOverride.TrimEnd('/', '\\'));
+                Logger.Info($"ModName not set; using output-dir name '{Settings.Instance.ModName}'.");
+            }
+            else if (Console.IsInputRedirected)
+            {
+                // Non-interactive (piped/CI/background) with no -o: fall back to a default instead of hanging.
+                Settings.Instance.ModName = "LemurConverter";
+                Logger.Info($"ModName not set and input is redirected; defaulting to '{Settings.Instance.ModName}'.");
+            }
+            else
+            {
+                Logger.Info("Name your mod: ");
+                Settings.Instance.ModName = Console.ReadLine()!;
+            }
         }
 
         // Resolve inputs from --input-dir / InputDirectory if set
