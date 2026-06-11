@@ -57,6 +57,13 @@ namespace Converter.Lemur.Entities
 
         public List<HolySite> HolySites { get; set; } = new();
 
+        /// <summary>
+        /// Resolved suzerain/vassal structure from the Azgaar diplomacy table (see <see cref="DiplomacyResolver"/>).
+        /// Built after GenerateKingdoms; read by MergeTinyKingdoms (root protection) and EmpireDeFactoBuilder.
+        /// Null when diplomacy hasn't been resolved (e.g. the rivers-only / cell-dump fast paths).
+        /// </summary>
+        public DiplomacyResult? Diplomacy { get; set; }
+
         public override string ToString()
         {
             // Return the name of the map and the number of cells in the packed map

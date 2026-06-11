@@ -4,12 +4,12 @@ using Converter.Lemur.Entities;
 /// <summary>
 /// Creates and assigns characters to titles using a top-down de facto drill-down.
 ///
-/// Algorithm:
-///   Phase 1 — For each de facto tree root (DeFactoLiege == null, highest tier first),
-///              drill down through de facto children to one county. The root holder also
-///              holds every intermediate title along the drill-down path.
-///   Phase 2 — Assign holders to any remaining titles that appear in county de facto chains
-///              but were not reached by Phase 1 (e.g. vassal duchies the king didn't drill into).
+/// Passes (each assigns the head of every realm at its tier the higher passes didn't already claim):
+///   Empire + roots — de facto roots, highest tier first: diplomacy empires (emperor holds the empire +
+///                    his CapitalKingdom's chain), then independent kingdoms, then independent duchies.
+///   Kingdom pass   — vassal kingdoms under an empire (DeFactoLiege set) → their own kings.
+///   Duchy pass     — remaining holderless duchies in county de facto chains → dukes.
+///   County pass    — remaining holderless counties → counts.
 ///
 /// Counties without holders are left for CK3 to auto-spawn at game start.
 /// </summary>
@@ -19,7 +19,9 @@ public static class CharacterFactory
     {
         var claimed = new HashSet<County>();
 
-        // Phase 1: de facto roots, top-down (kingdoms before independent duchies)
+        // Empire + independent-realm pass: de facto roots, top-down (empires, then independent kingdoms,
+        // then independent duchies). An empire root drills only into its CapitalKingdom, so the emperor
+        // holds the empire + his own kingdom's capital chain; vassal kingdoms are left for the kingdom pass.
         var roots = CollectRoots(map);
         foreach (var root in roots)
         {
@@ -33,7 +35,21 @@ public static class CharacterFactory
             DrillDown(root, pool, map, claimed);
         }
 
-        // Phase 2: remaining titles in county de facto chains that Phase 1 didn't reach
+        // Kingdom pass: vassal kingdoms under an empire (DeFactoLiege set) the root pass didn't hold —
+        // each gets its own king (a de facto vassal of the emperor). No-op on maps without diplomacy empires.
+        foreach (var kingdom in map.Kingdoms
+                     .Where(k => k.Holder == null && k.DeFactoLiege != null && k.Duchies.Any(d => d.Counties.Count > 0)))
+        {
+            var pool = CollectCountiesUnder(kingdom).Where(c => !claimed.Contains(c)).ToList();
+            if (pool.Count == 0)
+            {
+                Logger.Warning($"[CharacterFactory] {kingdom.Ck3_Id()} has no available counties — skipping.");
+                continue;
+            }
+            DrillDown(kingdom, pool, map, claimed);
+        }
+
+        // Duchy pass: remaining titles in county de facto chains that the passes above didn't reach
         var duchiesNeedingHolders = map.Empires!
             .SelectMany(e => e.Kingdoms)
             .SelectMany(k => k.Duchies)
@@ -54,7 +70,7 @@ public static class CharacterFactory
             DrillDown(duchy, pool, map, claimed);
         }
 
-        // Phase 3: explicit counts for all remaining holder-less counties.
+        // County pass: explicit counts for all remaining holder-less counties.
         // CK3 does not auto-spawn counts from liege-only history entries — without an
         // explicit holder the county falls to the nearest titled holder up the de jure chain.
         var allCounties = map.Empires!
@@ -67,7 +83,8 @@ public static class CharacterFactory
 
         var allTitles = map.Empires!.SelectMany(e => e.Kingdoms).ToList();
         Logger.Info($"Created {map.Characters.Count} characters " +
-                    $"({allTitles.Count(k => k.Holder != null)} kings, " +
+                    $"({map.Empires!.Count(e => e.Holder != null)} emperors, " +
+                    $"{allTitles.Count(k => k.Holder != null)} kings, " +
                     $"{allTitles.SelectMany(k => k.Duchies).Count(d => d.Holder != null)} dukes, " +
                     $"{allTitles.SelectMany(k => k.Duchies).SelectMany(d => d.Counties).Count(c => c.Holder != null)} counts)");
 
@@ -117,14 +134,19 @@ public static class CharacterFactory
     }
 
     /// <summary>
-    /// Returns de facto tree roots (DeFactoLiege == null) ordered highest tier first.
-    /// Currently: kingdoms, then independent duchies.
-    /// When DeFactoHierarchyBuilder sets kingdom.DeFactoLiege = empire, empires will
-    /// automatically appear as roots here and be processed before kingdoms.
+    /// Returns de facto tree roots (DeFactoLiege == null) ordered highest tier first:
+    /// diplomacy-driven empires, then independent kingdoms, then independent duchies.
+    /// An empire is a root only when EmpireDeFactoBuilder gave it a CapitalKingdom (it heads a de facto
+    /// realm) — ordinary holderless culture/religion empires are skipped, avoiding empty-pool noise.
     /// </summary>
     private static IEnumerable<ITitle> CollectRoots(Map map)
     {
-        // Kingdoms whose DeFactoLiege is null are roots (no empire de facto hierarchy yet)
+        // Empire roots: diplomacy empires that head a de facto realm (have a suzerain/capital kingdom).
+        var empires = map.Empires!
+            .Where(e => e.CapitalKingdom != null)
+            .Cast<ITitle>();
+
+        // Independent kingdoms (DeFactoLiege == null — i.e. not a vassal under an empire)
         var kingdoms = map.Empires!
             .SelectMany(e => e.Kingdoms)
             .Where(k => k.DeFactoLiege == null && k.Duchies.Any(d => d.Counties.Count > 0))
@@ -137,7 +159,7 @@ public static class CharacterFactory
             .Where(d => d.DeFactoLiege == null && d.Counties.Count > 0)
             .Cast<ITitle>();
 
-        return kingdoms.Concat(independentDuchies);
+        return empires.Concat(kingdoms).Concat(independentDuchies);
     }
 
     /// <summary>
@@ -153,12 +175,14 @@ public static class CharacterFactory
     }
 
     /// <summary>
-    /// Returns the immediate de facto children of a title.
-    /// Generalised: adding kingdom→empire in DeFactoHierarchyBuilder will automatically
-    /// make this work for empire roots without any changes here.
+    /// Returns the immediate de facto children of a title for the drill-down pool.
+    /// An empire's only drill-child is its CapitalKingdom (the emperor's own demesne kingdom); its vassal
+    /// kingdoms / absorbed-duchy vassals are deliberately NOT returned here — the emperor must not drill into
+    /// and absorb a vassal's counties. Those vassals get their own rulers via the kingdom/duchy passes.
     /// </summary>
     private static IEnumerable<ITitle> GetDeFactoChildren(ITitle title) => title switch
     {
+        Empire  e  => e.CapitalKingdom is { } ck ? new ITitle[] { ck } : Enumerable.Empty<ITitle>(),
         Kingdom k  => k.Duchies.Where(d => !d.IsAbsorbed && d.DeFactoLiege == k).Cast<ITitle>(),
         Duchy   d  => d.Counties.Where(c => c.DeFactoLiege == d).Cast<ITitle>(),
         _          => Enumerable.Empty<ITitle>()

@@ -12,12 +12,17 @@ public static class TitleHistoryWriter
 
         foreach (var empire in map.Empires!)
         {
-            // Emperors are never assigned (de jure only)
+            // Emperor: assigned only for diplomacy-driven empires (CharacterFactory's empire pass). Holderless
+            // culture/religion shells emit nothing. Government inherited from the suzerain kingdom.
+            if (empire.Holder != null)
+                sb.AppendLine(TitleEntry(empire.Ck3_Id(), empire.Holder.Id, liege: null, governmentKey: empire.Government?.Key));
 
             foreach (var kingdom in empire.Kingdoms)
             {
+                // Kingdom liege = its de facto liege (an empire) for a vassal king; null for independent kings
+                // and for an emperor's own kingdom (same holder), preserving prior output where unset.
                 if (kingdom.Holder != null)
-                    sb.AppendLine(TitleEntry(kingdom.Ck3_Id(), kingdom.Holder.Id, liege: null, governmentKey: kingdom.Government?.Key));
+                    sb.AppendLine(TitleEntry(kingdom.Ck3_Id(), kingdom.Holder.Id, liege: kingdom.DeFactoLiege?.Ck3_Id(), governmentKey: kingdom.Government?.Key));
 
                 foreach (var duchy in kingdom.Duchies)
                 {
