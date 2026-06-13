@@ -41,7 +41,10 @@ public static class Helper
     {
         double xRatio = (double)Entities.Map.MapWidth / map.JsonMap.info.width;
         double yRatio = (double)Entities.Map.MapHeight / map.JsonMap.info.height;
-        return new(c.X * xRatio, Entities.Map.MapHeight - c.Y * yRatio);
+        // Z = c.Y * yRatio (NO MapHeight flip): equals GeoToWorld(CanvasToGeo(c)).Z, so burg locators
+        // share the centroid/geo orientation (north = high Z). The old `MapHeight - c.Y*yRatio` mirrored
+        // burg-based locators (building/special/siege) about the equator vs the centroid-based ones.
+        return new(c.X * xRatio, c.Y * yRatio);
     }
 
     /// <summary>
