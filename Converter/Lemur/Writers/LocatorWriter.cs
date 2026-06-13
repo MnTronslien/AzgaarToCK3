@@ -38,8 +38,8 @@ public static class LocatorWriter
         var sb = StartLocatorFile("buildings", "building_layer", clampToWaterLevel: true);
         foreach (var barony in map.Baronies!)
         {
-            var p = Helper.BurgToPixel(barony.burg.Position.X, barony.burg.Position.Y, map);
-            AppendInstance(sb, id++, p.X, p.Y);
+            var p = Helper.BurgToWorld(barony.burg.Position, map);
+            AppendInstance(sb, id++, p.X, p.Z);
         }
         return ("building_locators.txt", EndLocatorFile(sb));
     }
@@ -198,19 +198,19 @@ public static class LocatorWriter
     /// </summary>
     internal static (double x, double z) BurgNudgedTowardCentroid(L.Barony barony, L.Map map)
     {
-        var burg = Helper.BurgToPixel(barony.burg.Position.X, barony.burg.Position.Y, map);
+        var burg = Helper.BurgToWorld(barony.burg.Position, map);
         var (cx, cz) = ComputeCentroid(barony.Cells, map);
 
         double dx = cx - burg.X;
-        double dz = cz - burg.Y;
+        double dz = cz - burg.Z;
         double length = Math.Sqrt(dx * dx + dz * dz);
 
         if (length < 5)
-            return (burg.X, burg.Y);
+            return (burg.X, burg.Z);
 
         dx /= length;
         dz /= length;
-        return (burg.X + dx * 20, burg.Y + dz * 20);
+        return (burg.X + dx * 20, burg.Z + dz * 20);
     }
 
     /// <summary>
@@ -219,11 +219,11 @@ public static class LocatorWriter
     /// </summary>
     internal static (double x, double z) PerpendicularTowardCentroid(L.Barony barony, L.Map map)
     {
-        var burg = Helper.BurgToPixel(barony.burg.Position.X, barony.burg.Position.Y, map);
+        var burg = Helper.BurgToWorld(barony.burg.Position, map);
         var (cx, cz) = ComputeCentroid(barony.Cells, map);
 
         double dx = cx - burg.X;
-        double dz = cz - burg.Y;
+        double dz = cz - burg.Z;
         double length = Math.Sqrt(dx * dx + dz * dz);
 
         if (length < 5)
@@ -246,8 +246,9 @@ public static class LocatorWriter
         foreach (var cell in cells.OrderBy(c => c.Id))
             foreach (var vertex in cell.GeoDataCoordinates)
             {
-                sumX += (vertex[0] - map.XOffset) * map.XRatio;
-                sumZ += (vertex[1] - map.YOffset) * map.YRatio; // geo lat increases northward = CK3 world Z, no flip needed
+                var w = Helper.GeoToWorld(new GeoPoint(vertex[0], vertex[1]), map); // world Z, north = high (no flip)
+                sumX += w.X;
+                sumZ += w.Z;
                 count++;
             }
 

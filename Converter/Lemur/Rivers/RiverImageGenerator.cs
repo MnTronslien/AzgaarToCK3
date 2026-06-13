@@ -56,7 +56,7 @@ namespace Converter.Lemur.Rivers
                     .StrokeColor(landColor)
                     .FillColor(landColor)
                     .Polygon(cell.GeoDataCoordinates.Select(n =>
-                        Helper.GeoToPixel(n[0], n[1], map)));
+                        Helper.GeoToImage(new GeoPoint(n[0], n[1]), map).ToMagickPoint()));
             }
             image.Draw(drawables);
 
@@ -218,7 +218,7 @@ namespace Converter.Lemur.Rivers
                 var controlPoints = new List<PointD>();
                 foreach (var coord in river.ControlPoints)
                 {
-                    var pixel = Helper.GeoToPixel(coord[0], coord[1], map);
+                    var pixel = Helper.GeoToImage(new GeoPoint(coord[0], coord[1]), map).ToMagickPoint();
                     controlPoints.Add(pixel);
                 }
 
@@ -240,7 +240,7 @@ namespace Converter.Lemur.Rivers
                 if (needsTerminalTrim && terminalCell != null)
                 {
                     var poly = terminalCell.GeoDataCoordinates
-                        .Select(c => Helper.GeoToPixel(c[0], c[1], map))
+                        .Select(c => Helper.GeoToImage(new GeoPoint(c[0], c[1]), map).ToMagickPoint())
                         .ToArray();
                     int bx0 = (int)poly.Min(p => p.X), by0 = (int)poly.Min(p => p.Y);
                     int bx1 = (int)poly.Max(p => p.X), by1 = (int)poly.Max(p => p.Y);

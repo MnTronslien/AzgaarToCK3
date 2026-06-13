@@ -172,8 +172,8 @@ namespace Converter.Lemur.Rivers
                 if (poly == null) continue;
 
                 // Burg positions are canvas pixels; the cell polygon is geo. Compare in geo space.
-                var (burgLon, burgLat) = Helper.CanvasToGeo(cell.Burg.Position.X, cell.Burg.Position.Y, map);
-                var burgPt = GeoFactory.CreatePoint(new Coordinate(burgLon, burgLat));
+                var burgGeo = Helper.CanvasToGeo(cell.Burg.Position, map);
+                var burgPt = GeoFactory.CreatePoint(new Coordinate(burgGeo.Lon, burgGeo.Lat));
 
                 if (poly.Contains(burgPt)) continue; // still inside — nothing to do
 
@@ -198,8 +198,7 @@ namespace Converter.Lemur.Rivers
                     geoX = boundaryPt.X + dx / distToCentroid * epsilon;
                     geoY = boundaryPt.Y + dy / distToCentroid * epsilon;
                 }
-                var (nudgedX, nudgedY) = Helper.GeoToCanvas(geoX, geoY, map);
-                cell.Burg.Position = new System.Numerics.Vector2((float)nudgedX, (float)nudgedY);
+                cell.Burg.Position = Helper.GeoToCanvas(new GeoPoint(geoX, geoY), map);
 
                 Logger.Debug($"  Burg '{cell.Burg.Name}' nudged into cell {cell.Id} after river carving.");
                 count++;
@@ -295,8 +294,8 @@ namespace Converter.Lemur.Rivers
                     bool burgInTiny = false;
                     if (cell.Burg != null && pieces.Count == 2)
                     {
-                        var (bLon, bLat) = Helper.CanvasToGeo(cell.Burg.Position.X, cell.Burg.Position.Y, map);
-                        var burgPt = GeoFactory.CreatePoint(new Coordinate(bLon, bLat));
+                        var bGeo = Helper.CanvasToGeo(cell.Burg.Position, map);
+                        var burgPt = GeoFactory.CreatePoint(new Coordinate(bGeo.Lon, bGeo.Lat));
                         burgInTiny = tinyPiece.Contains(burgPt) || tinyPiece.Distance(burgPt) < 1e-6;
                     }
 
@@ -341,8 +340,8 @@ namespace Converter.Lemur.Rivers
 
                             if (cell.Burg != null && !burgAssigned)
                             {
-                                var (bLon, bLat) = Helper.CanvasToGeo(cell.Burg.Position.X, cell.Burg.Position.Y, map);
-                                var burgPt = GeoFactory.CreatePoint(new Coordinate(bLon, bLat));
+                                var bGeo = Helper.CanvasToGeo(cell.Burg.Position, map);
+                                var burgPt = GeoFactory.CreatePoint(new Coordinate(bGeo.Lon, bGeo.Lat));
                                 if (pieces[k].Contains(burgPt) || pieces[k].Distance(burgPt) < 1e-6)
                                 {
                                     newCell.Burg      = cell.Burg;
