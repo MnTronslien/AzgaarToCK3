@@ -171,12 +171,13 @@ namespace Converter.Lemur.Rivers
                 var poly = CellToPolygon(cell);
                 if (poly == null) continue;
 
-                var burgPt = GeoFactory.CreatePoint(
-                    new Coordinate(cell.Burg.Position.X, cell.Burg.Position.Y));
+                // Burg positions are canvas pixels; the cell polygon is geo. Compare in geo space.
+                var (burgLon, burgLat) = Helper.CanvasToGeo(cell.Burg.Position.X, cell.Burg.Position.Y, map);
+                var burgPt = GeoFactory.CreatePoint(new Coordinate(burgLon, burgLat));
 
                 if (poly.Contains(burgPt)) continue; // still inside — nothing to do
 
-                // Nearest point on the cell boundary
+                // Nearest point on the cell boundary (geo space)
                 var nearest = DistanceOp.NearestPoints(burgPt, poly.ExteriorRing);
                 var boundaryPt = nearest[1];
 
@@ -185,20 +186,20 @@ namespace Converter.Lemur.Rivers
                 double dy = centroid.Y - boundaryPt.Y;
                 double distToCentroid = Math.Sqrt(dx * dx + dy * dy);
 
+                // Compute the nudged point in geo space, then convert back to canvas for storage.
+                double geoX, geoY;
                 if (distToCentroid < 1e-10)
                 {
-                    // Degenerate cell — move straight to centroid
-                    cell.Burg.Position = new System.Numerics.Vector2((float)centroid.X, (float)centroid.Y);
+                    geoX = centroid.X; geoY = centroid.Y; // degenerate cell — move straight to centroid
                 }
                 else
                 {
                     double epsilon = Math.Min(0.5, distToCentroid * 0.5);
-                    double nx = dx / distToCentroid;
-                    double ny = dy / distToCentroid;
-                    cell.Burg.Position = new System.Numerics.Vector2(
-                        (float)(boundaryPt.X + nx * epsilon),
-                        (float)(boundaryPt.Y + ny * epsilon));
+                    geoX = boundaryPt.X + dx / distToCentroid * epsilon;
+                    geoY = boundaryPt.Y + dy / distToCentroid * epsilon;
                 }
+                var (nudgedX, nudgedY) = Helper.GeoToCanvas(geoX, geoY, map);
+                cell.Burg.Position = new System.Numerics.Vector2((float)nudgedX, (float)nudgedY);
 
                 Logger.Debug($"  Burg '{cell.Burg.Name}' nudged into cell {cell.Id} after river carving.");
                 count++;
@@ -294,8 +295,8 @@ namespace Converter.Lemur.Rivers
                     bool burgInTiny = false;
                     if (cell.Burg != null && pieces.Count == 2)
                     {
-                        var burgPt = GeoFactory.CreatePoint(
-                            new Coordinate(cell.Burg.Position.X, cell.Burg.Position.Y));
+                        var (bLon, bLat) = Helper.CanvasToGeo(cell.Burg.Position.X, cell.Burg.Position.Y, map);
+                        var burgPt = GeoFactory.CreatePoint(new Coordinate(bLon, bLat));
                         burgInTiny = tinyPiece.Contains(burgPt) || tinyPiece.Distance(burgPt) < 1e-6;
                     }
 
@@ -340,8 +341,8 @@ namespace Converter.Lemur.Rivers
 
                             if (cell.Burg != null && !burgAssigned)
                             {
-                                var burgPt = GeoFactory.CreatePoint(
-                                    new Coordinate(cell.Burg.Position.X, cell.Burg.Position.Y));
+                                var (bLon, bLat) = Helper.CanvasToGeo(cell.Burg.Position.X, cell.Burg.Position.Y, map);
+                                var burgPt = GeoFactory.CreatePoint(new Coordinate(bLon, bLat));
                                 if (pieces[k].Contains(burgPt) || pieces[k].Distance(burgPt) < 1e-6)
                                 {
                                     newCell.Burg      = cell.Burg;

@@ -41,6 +41,30 @@ public static class Helper
         return new PointD(x * xRatio, Entities.Map.MapHeight - y * yRatio);
     }
 
+    /// <summary>
+    /// Azgaar burg canvas pixels (burg.Position space) → Azgaar geo (lon, lat), the space cell
+    /// GeoDataCoordinates live in. Burg positions and cell geometry are in DIFFERENT spaces;
+    /// use this before comparing a burg against a cell polygon. Defined as inverse-BurgToPixel
+    /// then inverse-GeoToPixel so it round-trips exactly with GeoToCanvas regardless of axis flips.
+    /// </summary>
+    public static (double lon, double lat) CanvasToGeo(float x, float y, Entities.Map map)
+    {
+        double ck3X = x * (double)Entities.Map.MapWidth / map.JsonMap.info.width;
+        double ck3Y = Entities.Map.MapHeight - y * (double)Entities.Map.MapHeight / map.JsonMap.info.height;
+        double lon = ck3X / map.XRatio + map.XOffset;
+        double lat = (Entities.Map.MapHeight - ck3Y) / map.YRatio + map.YOffset;
+        return (lon, lat);
+    }
+
+    /// <summary>Azgaar geo (lon, lat) → Azgaar burg canvas pixels. Inverse of <see cref="CanvasToGeo"/>.</summary>
+    public static (double x, double y) GeoToCanvas(double lon, double lat, Entities.Map map)
+    {
+        var p = GeoToPixel((float)lon, (float)lat, map);
+        double x = p.X * map.JsonMap.info.width / (double)Entities.Map.MapWidth;
+        double y = (Entities.Map.MapHeight - p.Y) * map.JsonMap.info.height / (double)Entities.Map.MapHeight;
+        return (x, y);
+    }
+
     public static string GeoToString(float[][] geo)
     {
         return $"({geo[0][0]} , {geo[0][1]})";
