@@ -3,6 +3,11 @@
 ### Added
 - **Empires inferred from diplomacy.** When an Azgaar map author marked one state as the suzerain of another in the diplomacy table, that overlordship is now carried into the mod: the senior state's realm is raised to an empire and the junior state's ruler starts as its vassal. Suzerain chains collapse so everyone answers to the one ruler at the top. When two suzerains would land in the same culture/religion empire, each is given their own empire title so neither relationship is dropped. Maps with no declared vassalage are unchanged — empires stay unheld exactly as before.
 
+### Fixed
+- **Derived cultures no longer spawn people with no culture.** Cultures created by blending or splitting from a parent weren't being recorded as existing at the start date, so any character or province that belonged to one came up cultureless. They're now declared correctly and populate as expected.
+- **Town and building icons are visible again.** Settlement and building markers on the map weren't being drawn; they now render in their right place.
+- **No more characters named "{" or "}".** A few generated characters could take stray punctuation as their name when the converter read certain vanilla name lists. Those names are now parsed cleanly.
+
 ---
 
 # 1.7.1 — 2026-06-10
