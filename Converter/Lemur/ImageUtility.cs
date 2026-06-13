@@ -94,7 +94,7 @@ namespace Converter.Lemur
                         .StrokeWidth(2)
                         .StrokeColor(MagickColors.Black)
                         .FillOpacity(new Percentage(0))
-                        .Polygon(cell.GeoDataCoordinates.Select(n => Helper.GeoToPixel(n[0], n[1], map)));
+                        .Polygon(cell.GeoDataCoordinates.Select(n => Helper.GeoToImage(new GeoPoint(n[0], n[1]), map).ToMagickPoint()));
 
                 }
 
@@ -136,7 +136,7 @@ namespace Converter.Lemur
                     .StrokeWidth(1)
                     .StrokeColor(MagickColors.Black)
                     .FillOpacity(new Percentage(0))
-                    .Polygon(cell.GeoDataCoordinates.Select(n => Helper.GeoToPixel(n[0], n[1], map)));
+                    .Polygon(cell.GeoDataCoordinates.Select(n => Helper.GeoToImage(new GeoPoint(n[0], n[1]), map).ToMagickPoint()));
             }
 
             // Build lookup for neighbor access
@@ -151,7 +151,7 @@ namespace Converter.Lemur
             {
                 var cx = cell.GeoDataCoordinates.Average(n => n[0]);
                 var cy = cell.GeoDataCoordinates.Average(n => n[1]);
-                var cp = Helper.GeoToPixel(cx, cy, map);
+                var cp = Helper.GeoToImage(new GeoPoint(cx, cy), map);
 
                 foreach (var neighborId in cell.Neighbors)
                 {
@@ -160,7 +160,7 @@ namespace Converter.Lemur
 
                     var nx = neighbor.GeoDataCoordinates.Average(n => n[0]);
                     var ny = neighbor.GeoDataCoordinates.Average(n => n[1]);
-                    var np = Helper.GeoToPixel(nx, ny, map);
+                    var np = Helper.GeoToImage(new GeoPoint(nx, ny), map);
 
                     var lineColor = (Entities.Cell.IsDryLand(cell.Type), Entities.Cell.IsDryLand(neighbor.Type)) switch
                     {
@@ -412,8 +412,7 @@ namespace Converter.Lemur
                         .StrokeColor(MagickColors.Black)
                         .FillOpacity(new Percentage(0))
                         .Polygon(cell.GeoDataCoordinates.Select(
-                            n => new PointD((n[0] - map.XOffset) * map.XRatio,
-                                           Map.MapHeight - (n[1] - map.YOffset) * map.YRatio)));
+                            n => Helper.GeoToImage(new GeoPoint(n[0], n[1]), map).ToMagickPoint()));
                 }
                 image.Draw(gridDrawables);
 
@@ -471,10 +470,10 @@ namespace Converter.Lemur
                     var (px, pz)   = Writers.LocatorWriter.PerpendicularTowardCentroid(barony, map);
                     var (cx, cz)   = Writers.LocatorWriter.ComputeCentroid(barony.Cells, map);
 
-                    var burgPixel = Helper.BurgToPixel(barony.burg.Position.X, barony.burg.Position.Y, map);
+                    var burgPixel = Helper.BurgToWorld(barony.burg.Position, map);
 
                     // All positions are in CK3 world Z (increases northward); convert to image Y (h - worldZ)
-                    Dot(dots, MagickColors.Yellow,       radius, burgPixel.X,    h - burgPixel.Y);
+                    Dot(dots, MagickColors.Yellow,       radius, burgPixel.X,    h - burgPixel.Z);
                     Dot(dots, MagickColors.Orange,       radius, bx - px * 10,   h - (bz - pz * 10));
                     Dot(dots, MagickColors.Red,          radius, bx,             h - bz);
                     Dot(dots, MagickColors.Cyan,         radius, cx + 15,        h - (cz + 10));
@@ -531,7 +530,7 @@ namespace Converter.Lemur
 
                     // Polyline connecting control points
                     var pixels = river.ControlPoints
-                        .Select(cp => Helper.GeoToPixel(cp[0], cp[1], map))
+                        .Select(cp => Helper.GeoToImage(new GeoPoint(cp[0], cp[1]), map))
                         .ToList();
 
                     drawables.StrokeColor(color).StrokeWidth(2).FillOpacity(new Percentage(0));

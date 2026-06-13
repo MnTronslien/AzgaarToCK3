@@ -25,20 +25,46 @@ public static class Helper
     public static int MixSeeds(int a, int b, int c) =>
         unchecked(MixSeeds(a, b) * 1664525 + c * 22695477 + 1013904223);
 
-    public static PointD GeoToPixel(float lon, float lat, Entities.Map map)
-    {
-        return new PointD((lon - map.XOffset) * map.XRatio, Entities.Map.MapHeight - (lat - map.YOffset) * map.YRatio);
-    }
+    /// <summary>Azgaar geo (lon, lat) → CK3 IMAGE pixel (Y down, north = top). For rasterizing PNG/DDS.</summary>
+    public static ImagePixel GeoToImage(GeoPoint g, Entities.Map map)
+        => new((g.Lon - map.XOffset) * map.XRatio, Entities.Map.MapHeight - (g.Lat - map.YOffset) * map.YRatio);
+
+    /// <summary>Azgaar geo (lon, lat) → CK3 WORLD pixel (Z up, north = high). For map_object locator positions.</summary>
+    public static WorldPixel GeoToWorld(GeoPoint g, Entities.Map map)
+        => new((g.Lon - map.XOffset) * map.XRatio, (g.Lat - map.YOffset) * map.YRatio);
 
     /// <summary>
-    /// Converts Azgaar burg pixel coordinates (burg.Position.X/Y) to CK3 map pixel coordinates.
-    /// Azgaar burgs store canvas pixel positions, not geo coordinates — use this, not GeoToPixel.
+    /// Azgaar burg canvas pixels → CK3 WORLD pixel. Burgs store canvas positions, not geo; this is the
+    /// canvas analogue of GeoToWorld (settlement/building locators use it).
     /// </summary>
-    public static PointD BurgToPixel(float x, float y, Entities.Map map)
+    public static WorldPixel BurgToWorld(CanvasPoint c, Entities.Map map)
     {
         double xRatio = (double)Entities.Map.MapWidth / map.JsonMap.info.width;
         double yRatio = (double)Entities.Map.MapHeight / map.JsonMap.info.height;
-        return new PointD(x * xRatio, Entities.Map.MapHeight - y * yRatio);
+        return new(c.X * xRatio, Entities.Map.MapHeight - c.Y * yRatio);
+    }
+
+    /// <summary>
+    /// Azgaar burg canvas pixels → Azgaar geo (lon, lat), the space cell GeoDataCoordinates live in.
+    /// Burg positions and cell geometry are DIFFERENT spaces; convert before comparing a burg against
+    /// a cell polygon. Inverse of GeoToCanvas (round-trips exactly regardless of axis flips).
+    /// </summary>
+    public static GeoPoint CanvasToGeo(CanvasPoint c, Entities.Map map)
+    {
+        double ck3X = c.X * (double)Entities.Map.MapWidth / map.JsonMap.info.width;
+        double ck3Y = Entities.Map.MapHeight - c.Y * (double)Entities.Map.MapHeight / map.JsonMap.info.height;
+        double lon = ck3X / map.XRatio + map.XOffset;
+        double lat = (Entities.Map.MapHeight - ck3Y) / map.YRatio + map.YOffset;
+        return new(lon, lat);
+    }
+
+    /// <summary>Azgaar geo (lon, lat) → burg canvas pixels. Inverse of <see cref="CanvasToGeo"/>.</summary>
+    public static CanvasPoint GeoToCanvas(GeoPoint g, Entities.Map map)
+    {
+        var p = GeoToImage(g, map);
+        double x = p.X * map.JsonMap.info.width / (double)Entities.Map.MapWidth;
+        double y = (Entities.Map.MapHeight - p.Y) * map.JsonMap.info.height / (double)Entities.Map.MapHeight;
+        return new(x, y);
     }
 
     public static string GeoToString(float[][] geo)
