@@ -35,7 +35,11 @@ public static class ModManager
             if (f.EndsWith(".json"))
             {
                 var p = Path.GetFileName(f);
-                if (!p.EndsWith("settings.json") && !p.StartsWith("ConsoleUI"))
+                // Exclude our own config + .NET runtime sidecars (deps/runtimeconfig),
+                // matched by suffix so this survives any rename of the executable.
+                if (!p.EndsWith("settings.json") &&
+                    !p.EndsWith(".deps.json") &&
+                    !p.EndsWith(".runtimeconfig.json"))
                 {
                     jsonName = f;
                 }

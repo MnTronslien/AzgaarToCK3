@@ -3,6 +3,9 @@
 ### Added
 - **Empires inferred from diplomacy.** When an Azgaar map author marked one state as the suzerain of another in the diplomacy table, that overlordship is now carried into the mod: the senior state's realm is raised to an empire and the junior state's ruler starts as its vassal. Suzerain chains collapse so everyone answers to the one ruler at the top. When two suzerains would land in the same culture/religion empire, each is given their own empire title so neither relationship is dropped. Maps with no declared vassalage are unchanged — empires stay unheld exactly as before.
 
+### Changed
+- **The program is now named `AzgaarToCK3.exe`.** The executable used to be called `ConsoleUI.exe`, which didn't match the download or the project. It is now `AzgaarToCK3.exe`. If you launch it from a script or a shortcut, update the name; settings.json and everything else work the same.
+
 ### Fixed
 - **Derived cultures no longer spawn people with no culture.** Cultures created by blending or splitting from a parent weren't being recorded as existing at the start date, so any character or province that belonged to one came up cultureless. They're now declared correctly and populate as expected.
 - **Town and building icons are visible again.** Settlement and building markers on the map weren't being drawn; they now render in their right place.
