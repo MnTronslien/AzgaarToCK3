@@ -1,29 +1,10 @@
-# 1.8.0 — 2026-06-15
+# 1.8.0 — Empires & Epithets — 2026-06-15
 
-### Added
-- infer de facto empire tier from Azgaar diplomacy
-- preserve Azgaar formName as per-title realm-name flavorization
-
-### Fixed
-- suppress self-liege on the emperor's own kingdom
-- don't prompt for ModName under -o / redirected stdin (drive-by)
-- stop emitting `{`/`}` as character names from name_list parser
-- add render_pass=Map, drop render_under_water (towns invisible)
-- write hybrid-culture created date in the definition, not history
-- correct burg/cell coordinate-space mismatch that clustered all burgs
-- correct burg-locator Z flip (mirrored about the equator)
-- draw rivers in tributary-depth order so they aren't truncated by their own tributaries
-
-### Changed
-- make coordinate spaces explicit types (compiler-enforced)
-
----
-
-# Unreleased
+Where 1.6.0 and 1.7.0 gave cultures and faiths their own character, this release turns to the political map. Two changes give it texture: the suzerain relationships an Azgaar author draws between states are now carried through as real empires with vassal kings, and every realm keeps the evocative name Azgaar gave it instead of being flattened to a generic "Kingdom of —". One caveat on the names: they appear on the title itself — its title card and the hover tooltip — not as labels drawn across the map. Together they read as a world of named powers and their overlords rather than a flat patchwork of identical titles.
 
 ### Added
 - **Empires inferred from diplomacy.** When an Azgaar map author marked one state as the suzerain of another in the diplomacy table, that overlordship is now carried into the mod: the senior state's realm is raised to an empire and the junior state's ruler starts as its vassal. Suzerain chains collapse so everyone answers to the one ruler at the top. When two suzerains would land in the same culture/religion empire, each is given their own empire title so neither relationship is dropped. Maps with no declared vassalage are unchanged — empires stay unheld exactly as before.
-- **Realms keep their Azgaar names.** Azgaar names every state with flavour — "Brotherhood of Skjer", "Despotate of Theos", "Horde of Bukex" — and the converter used to throw that away, leaving the generic "Kingdom of Skjer". Each realm now carries its original name into the mod. The name follows the ruler's government, so it reads true while the realm stays in character and quietly reverts to the plain title if a ruler of a different kind takes over. Names also hold up for players who don't own the relevant DLC, where the game would otherwise swap a realm to a different government type behind the scenes.
+- **Realms keep their Azgaar names.** Azgaar names every state with flavour — "Brotherhood of Skjer", "Despotate of Theos", "Horde of Bukex" — and the converter used to throw that away, leaving the generic "Kingdom of Skjer". Each realm now carries its original name into the mod, shown on the title (its title card and hover tooltip) — not as a label painted on the map. The name follows the ruler's government, so it reads true while the realm stays in character and quietly reverts to the plain title if a ruler of a different kind takes over. Names also hold up for players who don't own the relevant DLC, where the game would otherwise swap a realm to a different government type behind the scenes.
 
 ### Fixed
 - **Derived cultures no longer spawn people with no culture.** Cultures created by blending or splitting from a parent weren't being recorded as existing at the start date, so any character or province that belonged to one came up cultureless. They're now declared correctly and populate as expected.
