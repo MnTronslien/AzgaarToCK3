@@ -8,6 +8,8 @@
 - **Derived cultures no longer spawn people with no culture.** Cultures created by blending or splitting from a parent weren't being recorded as existing at the start date, so any character or province that belonged to one came up cultureless. They're now declared correctly and populate as expected.
 - **Town and building icons are visible again.** Settlement and building markers on the map weren't being drawn; they now render in their right place.
 - **No more characters named "{" or "}".** A few generated characters could take stray punctuation as their name when the converter read certain vanilla name lists. Those names are now parsed cleanly.
+- **Settlements sit in their true place on the map.** With rivers enabled, every settlement was being squeezed into one corner of the map, and settlement markers were also mirrored top-to-bottom (places that should sit in the north ended up in the south). Settlements now appear at their correct locations across the whole map.
+- **Rivers no longer cut each other short.** A river could be truncated — or vanish entirely — where one of its own tributaries crossed its path. Rivers are now drawn in the right order, so a tributary no longer clips the river it feeds into.
 
 ---
 
