@@ -207,6 +207,10 @@ public class WriterFlags
     public bool Heightmap { get; set; } = true;
     public bool Bookmark { get; set; } = true;
     public bool Flavorization { get; set; } = true;
+    // Editor-oriented terrain output: paint biome masks with real data (instead of all-black)
+    // so the CK3 map editor opens onto a painted map. 8-bit grayscale depth is forced
+    // unconditionally regardless of this flag (it's just-correct output for runtime + editor).
+    public bool MapEditor { get; set; } = false;
 }
 
 /// <summary>

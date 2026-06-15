@@ -15,7 +15,8 @@ public static class TerrainMaskWriter
         IReadOnlyList<TerrainMaskEntry> masks,
         L.Map map,
         string ck3Directory,
-        string outputDirectory)
+        string outputDirectory,
+        bool mapEditor = false)
     {
         using var _ = OperationTimer.Start("Writing terrain mask files");
 
@@ -41,17 +42,23 @@ public static class TerrainMaskWriter
                 .Select(f => new TerrainMaskEntry(f!, []))
                 .ToList()
             : [];
-        // Paint all TCS mask slots black — only hills/mountain masks (written by HeightmapMasks) carry data.
-        var allMasks = masks.Select(m => new TerrainMaskEntry(m.FileName, [])).Concat(blanks).ToList();
+        // Default: paint all TCS mask slots black — only hills/mountain masks (written by HeightmapMasks) carry data.
+        // mapEditor: keep TerrainMaskPreparer's biome painting so the editor opens onto a painted map.
+        var biome = mapEditor
+            ? masks
+            : masks.Select(m => new TerrainMaskEntry(m.FileName, Array.Empty<L.Cell>()));
+        var allMasks = biome.Concat(blanks).ToList();
 
         // Canonical blank PNG — created once here, shared by biome masks and masks_gen.
         // All 69 biome mask slots are black; MagickImage per-file took ~200s; File.Copy is ~0.1s.
-        var blankPath = Helper.GetPath(CacheDir, $"blank_{L.Map.MapWidth}x{L.Map.MapHeight}.png");
+        // Cache key includes "8bit": a prior build cached a 1-bit blank here, and File.Copy
+        // would propagate that to every blank slot + masks_gen. Bumping the key forces an
+        // 8-bit regeneration and avoids the stale-cache trap.
+        var blankPath = Helper.GetPath(CacheDir, $"blank_8bit_{L.Map.MapWidth}x{L.Map.MapHeight}.png");
         if (!File.Exists(blankPath))
         {
             using var img = new MagickImage("xc:black", readSettings);
-            img.Alpha(AlphaOption.Set);
-            img.Evaluate(Channels.Alpha, EvaluateOperator.Set, new Percentage(100));
+            ForceEditorMaskFormat(img);
             await img.WriteAsync(blankPath);
             Logger.Debug($"Cached blank PNG {L.Map.MapWidth}×{L.Map.MapHeight}");
         }
@@ -92,12 +99,22 @@ public static class TerrainMaskWriter
             return;
         }
         using var image = new MagickImage("xc:black", readSettings);
-        // CK3 1.18 optimizes away alpha channels that are entirely 0 — explicit alpha=255 required.
-        image.Alpha(AlphaOption.Set);
-        image.Evaluate(Channels.Alpha, EvaluateOperator.Set, new Percentage(100));
         var drawables = ImageUtility.GenerateCellPolygons(entry.WhiteCells, MagickColors.White, map);
         image.Draw(drawables);
+        ForceEditorMaskFormat(image);
         await image.WriteAsync(dst);
+    }
+
+    // The CK3 map editor rejects 1-bit masks. A single-colour PNG (the all-black blank) or a
+    // two-colour black/white biome mask is otherwise collapsed to 1-bit grayscale by the PNG
+    // encoder. Force 8-bit grayscale so the editor loads them; harmless to the CK3 runtime
+    // (the prior alpha=255 workaround was dropped here — uniform-opaque alpha was encoded away
+    // anyway, so shipped masks were already grayscale; this just pins the depth at 8).
+    private static void ForceEditorMaskFormat(MagickImage img)
+    {
+        img.Depth = 8;
+        img.Settings.SetDefine(MagickFormat.Png, "bit-depth", "8");
+        img.Settings.SetDefine(MagickFormat.Png, "color-type", "0"); // 0 = grayscale
     }
 
     private static async Task WriteColormapAsync(string terrainDir)

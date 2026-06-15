@@ -320,7 +320,7 @@ namespace Converter.Lemur
             if (w.TerrainMasks)
             {
                 var terrainMasks = TerrainMaskPreparer.Prepare(map);
-                await TerrainMaskWriter.Write(terrainMasks, map, Settings.Instance.Ck3Directory, Settings.OutputDirectory);
+                await TerrainMaskWriter.Write(terrainMasks, map, Settings.Instance.Ck3Directory, Settings.OutputDirectory, w.MapEditor);
             }
             if (w.Flatmap)
                 await FlatmapWriter.Write(map, Settings.Instance.AzgaarSvgPath, Settings.OutputDirectory);
