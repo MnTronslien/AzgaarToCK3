@@ -1,3 +1,24 @@
+# 1.8.0 — 2026-06-15
+
+### Added
+- infer de facto empire tier from Azgaar diplomacy
+- preserve Azgaar formName as per-title realm-name flavorization
+
+### Fixed
+- suppress self-liege on the emperor's own kingdom
+- don't prompt for ModName under -o / redirected stdin (drive-by)
+- stop emitting `{`/`}` as character names from name_list parser
+- add render_pass=Map, drop render_under_water (towns invisible)
+- write hybrid-culture created date in the definition, not history
+- correct burg/cell coordinate-space mismatch that clustered all burgs
+- correct burg-locator Z flip (mirrored about the equator)
+- draw rivers in tributary-depth order so they aren't truncated by their own tributaries
+
+### Changed
+- make coordinate spaces explicit types (compiler-enforced)
+
+---
+
 # Unreleased
 
 ### Added
