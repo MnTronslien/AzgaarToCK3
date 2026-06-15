@@ -12,12 +12,21 @@ public static class TitleHistoryWriter
 
         foreach (var empire in map.Empires!)
         {
-            // Emperors are never assigned (de jure only)
+            // Emperor: assigned only for diplomacy-driven empires (CharacterFactory's empire pass). Holderless
+            // culture/religion shells emit nothing. Government inherited from the suzerain kingdom.
+            if (empire.Holder != null)
+                sb.AppendLine(TitleEntry(empire.Ck3_Id(), empire.Holder.Id, liege: null, governmentKey: empire.Government?.Key));
 
             foreach (var kingdom in empire.Kingdoms)
             {
+                // Kingdom liege = its de facto liege (an empire) for a vassal king; null for independent kings.
+                // Suppress a self-liege: the emperor's own (suzerain) kingdom is held by the same character as
+                // its empire, so no liege line is needed — CK3 nests it under the higher title automatically.
                 if (kingdom.Holder != null)
-                    sb.AppendLine(TitleEntry(kingdom.Ck3_Id(), kingdom.Holder.Id, liege: null, governmentKey: kingdom.Government?.Key));
+                {
+                    var kLiege = kingdom.DeFactoLiege is { } kl && kl.Holder != kingdom.Holder ? kl.Ck3_Id() : null;
+                    sb.AppendLine(TitleEntry(kingdom.Ck3_Id(), kingdom.Holder.Id, liege: kLiege, governmentKey: kingdom.Government?.Key));
+                }
 
                 foreach (var duchy in kingdom.Duchies)
                 {

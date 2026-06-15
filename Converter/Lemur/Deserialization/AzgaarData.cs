@@ -53,6 +53,41 @@ namespace Converter.Lemur.Deserialization
     }
 
     /// <summary>
+    /// Reads a state's <c>diplomacy</c> field, which is heterogeneous across the states array:
+    /// real states (i ≥ 1) hold a flat array of relationship strings ("Suzerain", "Vassal",
+    /// "Ally", ...), but state 0 ("Neutrals") holds the diplomatic war-log (an array of arrays),
+    /// and some exports leave it empty. Returns the flat string array for real states; returns
+    /// null for the war-log / empty shapes (we only read i ≥ 1, so dropping state 0 is harmless).
+    /// A plain string[] field would throw on the nested state-0 shape.
+    /// </summary>
+    public class StateDiplomacyConverter : JsonConverter<string[]?>
+    {
+        public override string[]? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Null) return null;
+            if (reader.TokenType != JsonTokenType.StartArray) { reader.Skip(); return null; }
+
+            var list = new List<string>();
+            while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+            {
+                if (reader.TokenType == JsonTokenType.String)
+                    list.Add(reader.GetString()!);
+                else
+                    reader.Skip(); // nested array (state-0 war-log) or other — ignore
+            }
+            return list.Count == 0 ? null : list.ToArray();
+        }
+
+        public override void Write(Utf8JsonWriter writer, string[]? value, JsonSerializerOptions options)
+        {
+            if (value == null) { writer.WriteNullValue(); return; }
+            writer.WriteStartArray();
+            foreach (var v in value) writer.WriteStringValue(v);
+            writer.WriteEndArray();
+        }
+    }
+
+    /// <summary>
     /// Clean DTOs for Azgaar JSON structure - no upstream dependencies
     /// These records match the Azgaar data model directly for deserialization
     /// </summary>
@@ -91,7 +126,9 @@ namespace Converter.Lemur.Deserialization
         string name,
         int[] provinces,
         string? form = null,        // broad Azgaar government category: "Monarchy", "Republic", "Theocracy", "Union", "Anarchy"
-        string? formName = null     // granular Azgaar government name: "Duchy", "Khanate", "Diocese", "Republic", "Free Territory", ...
+        string? formName = null,    // granular Azgaar government name: "Duchy", "Khanate", "Diocese", "Republic", "Free Territory", ...
+        [property: JsonConverter(typeof(StateDiplomacyConverter))]
+        string[]? diplomacy = null  // relationship to each state by index; states[i].diplomacy[j]=="Suzerain" ⟹ i is senior over j. Null on state 0 / empty (see StateDiplomacyConverter).
     );
 
     public record AzgaarCulture(

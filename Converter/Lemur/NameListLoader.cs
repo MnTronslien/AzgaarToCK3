@@ -123,9 +123,30 @@ public static class NameListLoader
         if (blockEnd < 0) return false;
 
         var inner = parent[blockStart..blockEnd];
-        names = inner.Split(
-            [' ', '\t', '\r', '\n'],
-            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        // Depth-track: vanilla blocks contain nested `{ }` (e.g. weighted `Name = { 10 }`).
+        // Only collect bare tokens at depth 0; drop structural `{`, `}`, `=` and nested contents.
+        var collected = new List<string>();
+        var token = new StringBuilder();
+        int depth = 0;
+        void Flush()
+        {
+            if (token.Length > 0)
+            {
+                var t = token.ToString();
+                if (t != "=") collected.Add(t);
+                token.Clear();
+            }
+        }
+        foreach (var c in inner)
+        {
+            if (c == '{') { Flush(); depth++; }
+            else if (c == '}') { Flush(); if (depth > 0) depth--; }
+            else if (depth > 0) { /* inside nested block: skip */ }
+            else if (c is ' ' or '\t' or '\r' or '\n') Flush();
+            else token.Append(c);
+        }
+        Flush();
+        names = [.. collected];
         return true;
     }
 

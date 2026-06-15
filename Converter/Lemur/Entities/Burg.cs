@@ -9,7 +9,7 @@ namespace Converter.Lemur.Entities
         public Cell? Cell;
 
         public int Cell_id { get; set; }
-        public Vector2 Position { get; set; }
+        public CanvasPoint Position { get; set; }
         public int Culture { get; set; }
         public int State { get; set; }
         public int Feature { get; set; }
@@ -37,7 +37,7 @@ namespace Converter.Lemur.Entities
             id = i;
             Name = name;
             Cell_id = cell_id;
-            Position = new Vector2(x, y);
+            Position = new CanvasPoint(x, y);
             Culture = culture;
             State = state;
             Feature = feature;

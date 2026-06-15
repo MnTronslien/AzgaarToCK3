@@ -8,11 +8,11 @@ namespace ConsoleUI;
 internal class Program
 {
     static async Task Run(string? jsonPath = null, string? geojsonPath = null, string? riversGeojsonPath = null,
-        LogLevel? logLevel = null, bool noImages = false, bool? empireFromCulture = null,
+        LogLevel? logLevel = null, bool? empireFromCulture = null,
         int? minDuchiesPerKingdom = null, int? minKingdomsPerEmpire = null,
         bool noRivers = false, bool noWipe = false, string? svgPath = null, string? inputDir = null,
         int? seed = null, int? tenetCount = null, float? doctrineMutationRate = null, string? outputDir = null,
-        string? dumpCellsPath = null, bool riversOnly = false)
+        string? dumpCellsPath = null, bool riversOnly = false, bool? generateDebugImages = null)
     {
         Logger.Title();
 
@@ -24,8 +24,10 @@ internal class Program
         // Override settings with command-line arguments if provided
         if (logLevel.HasValue)
             Settings.Instance.LogLevel = logLevel.Value;
-        if (noImages)
-            Settings.Instance.GenerateDebugImages = false;
+        // --generate-debug-images overrides the settings.json default in either direction.
+        if (generateDebugImages.HasValue)
+            Settings.Instance.GenerateDebugImages = generateDebugImages.Value;
+        Logger.Info($"Debug images: {Settings.Instance.GenerateDebugImages} (from {(generateDebugImages.HasValue ? "CLI flag" : "settings.json")})");
         if (noWipe)
             Settings.Instance.AutoWipeOutput = false;
         if (!string.IsNullOrWhiteSpace(svgPath))
@@ -85,8 +87,24 @@ internal class Program
 
         if (string.IsNullOrWhiteSpace(Settings.Instance.ModName))
         {
-            Logger.Info("Name your mod: ");
-            Settings.Instance.ModName = Console.ReadLine()!;
+            if (!string.IsNullOrWhiteSpace(Settings.OutputDirectoryOverride))
+            {
+                // -o given: name the mod after the output folder rather than prompting, so scripted runs
+                // (which pass -o) never block on Console.ReadLine.
+                Settings.Instance.ModName = Path.GetFileName(Settings.OutputDirectoryOverride.TrimEnd('/', '\\'));
+                Logger.Info($"ModName not set; using output-dir name '{Settings.Instance.ModName}'.");
+            }
+            else if (Console.IsInputRedirected)
+            {
+                // Non-interactive (piped/CI/background) with no -o: fall back to a default instead of hanging.
+                Settings.Instance.ModName = "LemurConverter";
+                Logger.Info($"ModName not set and input is redirected; defaulting to '{Settings.Instance.ModName}'.");
+            }
+            else
+            {
+                Logger.Info("Name your mod: ");
+                Settings.Instance.ModName = Console.ReadLine()!;
+            }
         }
 
         // Resolve inputs from --input-dir / InputDirectory if set
@@ -204,7 +222,7 @@ internal class Program
             string? inputDir = null;
             string? outputDir = null;
             LogLevel? logLevel = null;
-            bool noImages = false;
+            bool? generateDebugImages = null;
             bool noRivers = false;
             bool noWipe = false;
             bool riversOnly = false;
@@ -258,9 +276,10 @@ internal class Program
                     svgPath = args[i + 1];
                     i++;
                 }
-                else if (args[i] == "--no-images")
+                else if (args[i] == "--generate-debug-images" && i + 1 < args.Length)
                 {
-                    noImages = true;
+                    generateDebugImages = bool.Parse(args[i + 1]);
+                    i++;
                 }
                 else if (args[i] == "--no-wipe")
                 {
@@ -422,7 +441,7 @@ internal class Program
                 return;
             }
 
-            await Run(jsonPath, geojsonPath, riversGeojsonPath, logLevel, noImages, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire, noRivers, noWipe, svgPath, inputDir, seed, tenetCount, doctrineMutationRate, outputDir, dumpCellsPath, riversOnly);
+            await Run(jsonPath, geojsonPath, riversGeojsonPath, logLevel, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire, noRivers, noWipe, svgPath, inputDir, seed, tenetCount, doctrineMutationRate, outputDir, dumpCellsPath, riversOnly, generateDebugImages);
         }
         catch (Exception ex)
         {
@@ -545,7 +564,7 @@ internal class Program
         Console.WriteLine("  --rivers-only                    Draw only rivers.png and exit (skips the rest of the pipeline; fast iteration)");
         Console.WriteLine("  --svg, -s <path>                 Path to Azgaar SVG export for flatmap.dds (optional; fallback uses cell biome colors)");
         Console.WriteLine("  --log-level <verbose|debug|info|warning|error>  Set log verbosity (default: info)");
-        Console.WriteLine("  --no-images                      Suppress debug image generation (provinces.png and rivers.png still written)");
+        Console.WriteLine("  --generate-debug-images <bool>   Override settings.json GenerateDebugImages (true/false); the setting is the default");
         Console.WriteLine("  --no-wipe                        Skip auto-wipe of mod output directory before conversion (default: wipe enabled)");
         Console.WriteLine("  --no-log-file                    Disable writing a .log file alongside the exe (default: write to ./logs/)");
         Console.WriteLine("  --log-file <path>                Override the log file path (default: ./logs/AzgaarToCK3_<timestamp>.log)");

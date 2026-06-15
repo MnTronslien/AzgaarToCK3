@@ -35,11 +35,11 @@ public static class LocatorWriter
     private static (string fileName, string content) BuildBuildingLocators(L.Map map)
     {
         int id = 1;
-        var sb = StartLocatorFile("buildings", "building_layer");
+        var sb = StartLocatorFile("buildings", "building_layer", clampToWaterLevel: true);
         foreach (var barony in map.Baronies!)
         {
-            var p = Helper.BurgToPixel(barony.burg.Position.X, barony.burg.Position.Y, map);
-            AppendInstance(sb, id++, p.X, p.Y);
+            var p = Helper.BurgToWorld(barony.burg.Position, map);
+            AppendInstance(sb, id++, p.X, p.Z);
         }
         return ("building_locators.txt", EndLocatorFile(sb));
     }
@@ -47,7 +47,7 @@ public static class LocatorWriter
     private static (string fileName, string content) BuildSpecialBuildingLocators(L.Map map)
     {
         int id = 1;
-        var sb = StartLocatorFile("special_building", "building_layer");
+        var sb = StartLocatorFile("special_building", "building_layer", clampToWaterLevel: true);
         foreach (var barony in map.Baronies!)
         {
             var (x, z) = BurgNudgedTowardCentroid(barony, map);
@@ -60,7 +60,7 @@ public static class LocatorWriter
     private static (string fileName, string content) BuildSiegeLocators(L.Map map)
     {
         int id = 1;
-        var sb = StartLocatorFile("siege", "unit_layer");
+        var sb = StartLocatorFile("siege", "unit_layer", clampToWaterLevel: false);
         foreach (var barony in map.Baronies!)
         {
             var (x, z) = BurgNudgedTowardCentroid(barony, map);
@@ -75,7 +75,7 @@ public static class LocatorWriter
     private static (string fileName, string content) BuildCombatLocators(L.Map map)
     {
         int id = 1;
-        var sb = StartLocatorFile("combat", "unit_layer");
+        var sb = StartLocatorFile("combat", "unit_layer", clampToWaterLevel: true);
         foreach (var barony in map.Baronies!)
         {
             var (x, z) = ComputeCentroid(barony.Cells, map);
@@ -98,7 +98,7 @@ public static class LocatorWriter
     private static (string fileName, string content) BuildActivitiesLocators(L.Map map)
     {
         int id = 1;
-        var sb = StartLocatorFile("activities", "activities_layer");
+        var sb = StartLocatorFile("activities", "activities_layer", clampToWaterLevel: false);
         foreach (var barony in map.Baronies!)
         {
             var (x, z) = ComputeCentroid(barony.Cells, map);
@@ -130,7 +130,7 @@ public static class LocatorWriter
     private static (string fileName, string content) BuildAllProvinceStackLocator(L.Map map, string locatorName, string fileName)
     {
         int id = 1;
-        var sb = StartLocatorFile(locatorName, "unit_layer");
+        var sb = StartLocatorFile(locatorName, "unit_layer", clampToWaterLevel: true);
         foreach (var barony in map.Baronies!)
         {
             var (x, z) = ComputeCentroid(barony.Cells, map);
@@ -159,13 +159,13 @@ public static class LocatorWriter
         await File.WriteAllTextAsync(path, locator.content, Helper.Utf8Bom);
     }
 
-    private static StringBuilder StartLocatorFile(string name, string layer)
+    private static StringBuilder StartLocatorFile(string name, string layer, bool clampToWaterLevel)
     {
         var sb = new StringBuilder();
         sb.AppendLine("game_object_locator={");
         sb.AppendLine($"\tname=\"{name}\"");
-        sb.AppendLine("\tclamp_to_water_level=yes");
-        sb.AppendLine("\trender_under_water=no");
+        sb.AppendLine("\trender_pass=Map"); // required since CK3 1.18, else the renderer skips these objects
+        sb.AppendLine($"\tclamp_to_water_level={(clampToWaterLevel ? "yes" : "no")}");
         sb.AppendLine("\tgenerated_content=no");
         sb.AppendLine($"\tlayer=\"{layer}\"");
         sb.AppendLine("\tinstances={");
@@ -198,19 +198,19 @@ public static class LocatorWriter
     /// </summary>
     internal static (double x, double z) BurgNudgedTowardCentroid(L.Barony barony, L.Map map)
     {
-        var burg = Helper.BurgToPixel(barony.burg.Position.X, barony.burg.Position.Y, map);
+        var burg = Helper.BurgToWorld(barony.burg.Position, map);
         var (cx, cz) = ComputeCentroid(barony.Cells, map);
 
         double dx = cx - burg.X;
-        double dz = cz - burg.Y;
+        double dz = cz - burg.Z;
         double length = Math.Sqrt(dx * dx + dz * dz);
 
         if (length < 5)
-            return (burg.X, burg.Y);
+            return (burg.X, burg.Z);
 
         dx /= length;
         dz /= length;
-        return (burg.X + dx * 20, burg.Y + dz * 20);
+        return (burg.X + dx * 20, burg.Z + dz * 20);
     }
 
     /// <summary>
@@ -219,11 +219,11 @@ public static class LocatorWriter
     /// </summary>
     internal static (double x, double z) PerpendicularTowardCentroid(L.Barony barony, L.Map map)
     {
-        var burg = Helper.BurgToPixel(barony.burg.Position.X, barony.burg.Position.Y, map);
+        var burg = Helper.BurgToWorld(barony.burg.Position, map);
         var (cx, cz) = ComputeCentroid(barony.Cells, map);
 
         double dx = cx - burg.X;
-        double dz = cz - burg.Y;
+        double dz = cz - burg.Z;
         double length = Math.Sqrt(dx * dx + dz * dz);
 
         if (length < 5)
@@ -246,8 +246,9 @@ public static class LocatorWriter
         foreach (var cell in cells.OrderBy(c => c.Id))
             foreach (var vertex in cell.GeoDataCoordinates)
             {
-                sumX += (vertex[0] - map.XOffset) * map.XRatio;
-                sumZ += (vertex[1] - map.YOffset) * map.YRatio; // geo lat increases northward = CK3 world Z, no flip needed
+                var w = Helper.GeoToWorld(new GeoPoint(vertex[0], vertex[1]), map); // world Z, north = high (no flip)
+                sumX += w.X;
+                sumZ += w.Z;
                 count++;
             }
 

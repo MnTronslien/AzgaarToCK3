@@ -205,6 +205,10 @@ namespace Converter.Lemur
             using (var _ = OperationTimer.Start("GenerateEmpires")) GenerateEmpires(map);
             using (var _ = OperationTimer.Start("GenerateKingdoms")) GenerateKingdoms(map);
 
+            // Resolve the suzerain/vassal graph from Azgaar diplomacy before the merge, so MergeTinyKingdoms
+            // can protect the root (would-be emperor) kingdoms from being merged away.
+            map.Diplomacy = DiplomacyResolver.Resolve(map);
+
             MergeTinyKingdoms(map); //Adjust Kingdoms
             MergeTinyEmpires(map); //Adjust Empires
 
@@ -234,6 +238,9 @@ namespace Converter.Lemur
             }
 
             DeFactoHierarchyBuilder.Build(map);
+            // Wire the diplomacy-driven empire tier into the de facto hierarchy (sets DeFactoLiege / empire
+            // capital / government, mints titular empires for collisions) before characters are assigned.
+            EmpireDeFactoBuilder.Run(map);
             CharacterFactory.CreateAndAssignAll(map);
 
             TitleTreeDebugger.PrintTrees(map);
@@ -282,6 +289,8 @@ namespace Converter.Lemur
                 await Task.WhenAll(
                     LandedTitlesWriter.Write(map, Settings.OutputDirectory),
                     TitleLocalizationWriter.Write(map, Settings.OutputDirectory));
+            if (w.Flavorization)
+                await FlavorizationWriter.Write(map, Settings.OutputDirectory);
             using (var _ = OperationTimer.Start("Writing mod descriptor")) await ModDescriptorWriter.Write(Settings.Instance.ModName, Settings.Instance.ModsDirectory, Settings.OutputDirectory);
             await LandlessTitleStubsWriter.Write(Settings.OutputDirectory);
             await VanillaEventOverridesWriter.Write(Settings.OutputDirectory);
@@ -1157,6 +1166,11 @@ namespace Converter.Lemur
 
             // Add all kingdoms to the dictionary so we can keep track of if they are mergable or not
             Dictionary<Kingdom, bool> unmergableKingdoms = map.Kingdoms.ToDictionary(k => k, k => false);
+
+            // Protect suzerain root kingdoms (diplomacy empires) — a king must survive to become emperor.
+            if (map.Diplomacy != null)
+                foreach (var k in map.Kingdoms.Where(k => map.Diplomacy.Roots.Contains(k.Id)))
+                    unmergableKingdoms[k] = true;
 
             // Now next step we do per empire
             bool mergerOccurred;

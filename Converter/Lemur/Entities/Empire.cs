@@ -22,6 +22,15 @@ namespace Converter.Lemur.Entities
         public List<Cell> Cells { get; set; } = new List<Cell>();
         public List<Kingdom> Kingdoms { get; set; } = new List<Kingdom>();
         public Barony? Capital { get; set; }
+
+        /// <summary>
+        /// The suzerain's kingdom — the emperor's own demesne kingdom, set by EmpireDeFactoBuilder when this
+        /// empire heads a de facto realm inferred from diplomacy. Drives CharacterFactory: it is the empire's
+        /// sole de facto drill-child (the emperor holds it; vassal kingdoms get their own kings), and the
+        /// culture/religion fallback below so a titular empire (zero de jure kingdoms) still derives the
+        /// emperor's culture from the suzerain. Null for ordinary holderless culture/religion empires.
+        /// </summary>
+        public Kingdom? CapitalKingdom { get; set; }
         public AzgaarCulture Culture { get; set; }
         public AzgaarReligion Religion { get; set; }
 
@@ -61,6 +70,10 @@ namespace Converter.Lemur.Entities
         /// </summary>
         public Dictionary<int, int> GetCultureDistributionByCells(Map map)
         {
+            // Titular empire (no de jure kingdoms): derive from the suzerain's kingdom so the emperor
+            // gets the suzerain's culture rather than a fallback.
+            if (Kingdoms.Count == 0 && CapitalKingdom != null)
+                return CapitalKingdom.GetCultureDistributionByCells(map);
             var counts = new Dictionary<int, int>();
             foreach (var kingdom in Kingdoms)
                 counts.MergeAdd(kingdom.GetCultureDistributionByCells(map));
@@ -72,6 +85,8 @@ namespace Converter.Lemur.Entities
         /// </summary>
         public Dictionary<int, int> GetReligionDistributionByCells(Map map)
         {
+            if (Kingdoms.Count == 0 && CapitalKingdom != null)
+                return CapitalKingdom.GetReligionDistributionByCells(map);
             var counts = new Dictionary<int, int>();
             foreach (var kingdom in Kingdoms)
                 counts.MergeAdd(kingdom.GetReligionDistributionByCells(map));

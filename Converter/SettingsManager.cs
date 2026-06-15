@@ -206,6 +206,7 @@ public class WriterFlags
     public bool ProvinceHistory { get; set; } = true;
     public bool Heightmap { get; set; } = true;
     public bool Bookmark { get; set; } = true;
+    public bool Flavorization { get; set; } = true;
 }
 
 /// <summary>

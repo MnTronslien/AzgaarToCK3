@@ -20,7 +20,6 @@ public static class CultureWriter
             WriteCultureDefinitionsFile(cultures, outputDirectory),
             WriteHeritagePillarsFile(cultures, outputDirectory),
             WriteLanguagePillarsFile(cultures, outputDirectory),
-            WriteCultureHistoryFile(cultures, outputDirectory),
             WriteCultureLocalizationFile(cultures, outputDirectory)
         );
 
@@ -60,6 +59,13 @@ public static class CultureWriter
             {
                 lines.Add($"\tparents = {{ {string.Join(" ", culture.Parents.Select(p => p.CK3Key))} }}");
             }
+
+            // A parented (hybrid/divergent) culture must declare created here in the
+            // definition — not in history/cultures, where CK3 has no created mechanic and
+            // ignores it. Without it CK3 treats the culture as not-yet-created at the start
+            // date and characters resolving to it spawn cultureless.
+            if (culture.CreationDate != null)
+                lines.Add($"\tcreated = {culture.CreationDate}");
 
             lines.Add("\ttraditions = {");
             foreach (var tradition in culture.Traditions)
@@ -171,36 +177,6 @@ public static class CultureWriter
         }
 
         var path = Helper.GetPath(dir, "lemur_languages.txt");
-        await File.WriteAllLinesAsync(path, lines, Helper.Utf8Bom);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // history/cultures/lemur_cultures.txt
-    // ─────────────────────────────────────────────────────────────────────────
-    private static async Task WriteCultureHistoryFile(
-        Dictionary<int, L.Culture> cultures,
-        string outputDirectory)
-    {
-        var dir = Helper.GetPath(outputDirectory, "history", "cultures");
-        Directory.CreateDirectory(dir);
-
-        var lines = new List<string>
-        {
-            "# Lemur conversion: generated culture history.",
-            ""
-        };
-
-        foreach (var culture in cultures.Values.OrderBy(c => c.AzgaarId))
-        {
-            lines.Add($"# {culture.Name}");
-            lines.Add($"{culture.CK3Key} = {{");
-            if (culture.CreationDate != null)
-                lines.Add($"\tcreated = {culture.CreationDate}");
-            lines.Add("}");
-            lines.Add("");
-        }
-
-        var path = Helper.GetPath(dir, "lemur_cultures.txt");
         await File.WriteAllLinesAsync(path, lines, Helper.Utf8Bom);
     }
 

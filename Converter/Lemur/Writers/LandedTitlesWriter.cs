@@ -32,18 +32,22 @@ public static class LandedTitlesWriter
             sb.AppendLine();
         }
 
-        // Write empires with their kingdoms
+        // Write empires with their kingdoms. A held titular empire (diplomacy collision) has no de jure
+        // kingdoms but does have a holder — emit it as a top-level titular title (no children, no landless).
         foreach (var empire in map.Empires!)
         {
-            if (!empire.Kingdoms.Any()) continue;
+            if (!empire.Kingdoms.Any() && empire.Holder == null) continue;
             var empId = ToCk3Id("e", empire.Name, empire.Id);
             var (er, eg, eb) = TitleColor(empire.Id);
             sb.AppendLine($"{empId} = {{");
             sb.AppendLine($"\tcolor = {{ {er} {eg} {eb} }}");
-            var empireCapitalCounty = empire.Capital != null
-                ? empire.Kingdoms.SelectMany(k => k.Duchies).SelectMany(d => d.Counties)
-                    .FirstOrDefault(c => c.Baronies?.Contains(empire.Capital) == true)
-                : null;
+            // Capital county containing empire.Capital. De jure empires search their own counties; a titular
+            // empire (no de jure kingdoms) searches map-wide — its seat is a county it isn't de jure part of.
+            var empireCapitalCounty = empire.Capital == null ? null
+                : (empire.Kingdoms.Any()
+                        ? empire.Kingdoms.SelectMany(k => k.Duchies).SelectMany(d => d.Counties)
+                        : map.Counties!.AsEnumerable())
+                    .FirstOrDefault(c => c.Baronies?.Contains(empire.Capital) == true);
             if (empireCapitalCounty != null)
                 sb.AppendLine($"\tcapital = {ToCk3Id("c", empireCapitalCounty.Name, empireCapitalCounty.Id)}");
             foreach (var kingdom in empire.Kingdoms)

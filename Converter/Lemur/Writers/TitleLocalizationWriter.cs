@@ -20,7 +20,7 @@ public static class TitleLocalizationWriter
 
         foreach (var empire in map.Empires!)
         {
-            if (!empire.Kingdoms.Any()) continue;
+            if (!empire.Kingdoms.Any() && empire.Holder == null) continue;
             lines.Add($" {empire.Ck3_Id()}:0 \"{empire.Name}\"");
             WriteKingdomsLoc(lines, empire.Kingdoms);
         }

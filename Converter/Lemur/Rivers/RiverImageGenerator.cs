@@ -56,7 +56,7 @@ namespace Converter.Lemur.Rivers
                     .StrokeColor(landColor)
                     .FillColor(landColor)
                     .Polygon(cell.GeoDataCoordinates.Select(n =>
-                        Helper.GeoToPixel(n[0], n[1], map)));
+                        Helper.GeoToImage(new GeoPoint(n[0], n[1]), map).ToMagickPoint()));
             }
             image.Draw(drawables);
 
@@ -177,6 +177,25 @@ namespace Converter.Lemur.Rivers
         }
 
         /// <summary>
+        /// Depth in the tributary tree: 0 for a mainstem, +1 per hop up the ParentId
+        /// chain. Used to order drawing so every river is on the canvas before its
+        /// tributaries. Guards against parent==self and cycles.
+        /// </summary>
+        private static int TributaryDepth(River river, Dictionary<int, River> byId)
+        {
+            int depth = 0;
+            var seen = new HashSet<int>();
+            var cur = river;
+            while (cur.ParentId != 0 && cur.ParentId != cur.Id && seen.Add(cur.Id)
+                   && byId.TryGetValue(cur.ParentId, out var parent))
+            {
+                depth++;
+                cur = parent;
+            }
+            return depth;
+        }
+
+        /// <summary>
         /// Draws rivers.png for CK3 using manual pixel control and A* pathfinding.
         /// NO line drawing - we set each pixel individually for exact control.
         /// </summary>
@@ -184,10 +203,16 @@ namespace Converter.Lemur.Rivers
         {
             Logger.Section("Drawing Rivers Image - Pure A* Approach");
 
+            // Draw shallower rivers (mainstems) before their tributaries so a river is
+            // always on the canvas before any river that flows into it. Ordering by
+            // ParentId does NOT achieve this: a river with a low Id but high ParentId
+            // (Showcase "Saint": Id=2, ParentId=632) sorts AFTER its own child
+            // ("Ongor", ParentId=2), so Saint collided with Ongor and truncated.
+            var byId = allRivers.ToDictionary(r => r.Id);
             var minorRivers = allRivers
                 .Where(r => !r.IsMajor(majorThreshold))
-                .OrderBy(r => r.ParentId)   // Draw parent rivers first, then tributaries
-                .ThenBy(r => r.Id)          // Deterministic secondary sort
+                .OrderBy(r => TributaryDepth(r, byId))   // parents before tributaries
+                .ThenBy(r => r.Id)                       // deterministic secondary sort
                 .ToList();
             Logger.Info($"Drawing {minorRivers.Count} minor rivers using pure A* pathfinding (parent rivers first)");
             Logger.Info($"No line drawing - exact pixel control with manual SetPixel");
@@ -218,7 +243,7 @@ namespace Converter.Lemur.Rivers
                 var controlPoints = new List<PointD>();
                 foreach (var coord in river.ControlPoints)
                 {
-                    var pixel = Helper.GeoToPixel(coord[0], coord[1], map);
+                    var pixel = Helper.GeoToImage(new GeoPoint(coord[0], coord[1]), map).ToMagickPoint();
                     controlPoints.Add(pixel);
                 }
 
@@ -240,7 +265,7 @@ namespace Converter.Lemur.Rivers
                 if (needsTerminalTrim && terminalCell != null)
                 {
                     var poly = terminalCell.GeoDataCoordinates
-                        .Select(c => Helper.GeoToPixel(c[0], c[1], map))
+                        .Select(c => Helper.GeoToImage(new GeoPoint(c[0], c[1]), map).ToMagickPoint())
                         .ToArray();
                     int bx0 = (int)poly.Min(p => p.X), by0 = (int)poly.Min(p => p.Y);
                     int bx1 = (int)poly.Max(p => p.X), by1 = (int)poly.Max(p => p.Y);

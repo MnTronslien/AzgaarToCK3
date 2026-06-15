@@ -10,7 +10,22 @@ namespace Converter.Lemur.Governments;
 /// base-game government) or both non-null (DLC-gated). Catalog entries in <see cref="Ck3Governments"/>
 /// uphold this.
 /// </summary>
-public sealed record Ck3Government(string Key, string? DlcFeature = null, Ck3Government? Fallback = null);
+public sealed record Ck3Government(string Key, string? DlcFeature = null, Ck3Government? Fallback = null)
+{
+    /// <summary>
+    /// This government's <see cref="Key"/> followed by every fallback key down the chain.
+    /// Used by the flavorization writer's <c>governments = { ... }</c> selector so a flavour
+    /// entry matches whether the engine kept the DLC government or substituted its fallback
+    /// at game-start. E.g. Nomad → "nomad_government", "tribal_government".
+    /// </summary>
+    public IEnumerable<string> KeyWithFallbacks()
+    {
+        yield return Key;
+        if (Fallback != null)
+            foreach (var key in Fallback.KeyWithFallbacks())
+                yield return key;
+    }
+}
 
 /// <summary>
 /// Catalog of CK3 governments the converter emits. Only governments reachable from the

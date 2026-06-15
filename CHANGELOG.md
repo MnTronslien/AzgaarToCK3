@@ -1,3 +1,19 @@
+# 1.8.0 — Empires & Epithets — 2026-06-15
+
+This release turns to the political map. Two changes lead it: we have emperors, and we have custom realm names. An emperor appears wherever an Azgaar state has one or more vassal states beneath it, and custom names carry each realm's full Azgaar state name into the game in place of the generic "Kingdom of —". Plus a number of minor bugfixes. Happy converting!
+
+### Added
+- **Empires inferred from diplomacy.** When one Azgaar state is the suzerain of another in the diplomacy table, that overlordship is now carried into the mod: the senior state's realm is raised to an empire and the junior state's ruler starts as its vassal. Suzerain chains collapse so everyone answers to the one ruler at the top. When two suzerains would land in the same culture/religion empire, each is given their own empire title so neither relationship is dropped. Maps with no vassalage in their diplomacy are unchanged — empires stay unheld exactly as before.
+- **Realms keep their Azgaar names.** Azgaar names every state with flavour — "Brotherhood of Skjer", "Despotate of Theos", "Horde of Bukex" — and the converter used to throw that away, leaving the generic "Kingdom of Skjer". Each realm now carries its original name into the mod, shown on the title (its title card and hover tooltip) — not as a label painted on the map. The name follows the ruler's government, so it reads true while the realm stays in character and quietly reverts to the plain title if a ruler of a different kind takes over. Names also hold up for players who don't own the relevant DLC, where the game would otherwise swap a realm to a different government type behind the scenes.
+
+### Fixed
+- **Derived cultures no longer spawn people with no culture.** Cultures created by blending or splitting from a parent weren't being recorded as existing at the start date, so any character or province that belonged to one came up cultureless. They're now declared correctly and populate as expected.
+- **No more characters named "{" or "}".** A few generated characters could take stray punctuation as their name when the converter read certain vanilla name lists. Those names are now parsed cleanly.
+- **Settlement icons show up, and in the right place.** The town and building markers had three separate problems: they weren't being drawn at all; with rivers enabled they were crammed into one corner of the map; and they were mirrored top-to-bottom, putting northern places in the south. All three are fixed — settlement icons now render across the whole map at their true locations.
+- **Rivers no longer cut each other short.** A river could be truncated — or vanish entirely — where one of its own tributaries crossed its path. Rivers are now drawn in the right order, so a tributary no longer clips the river it feeds into.
+
+---
+
 # 1.7.1 — 2026-06-10
 
 A maintenance release that repairs the long-broken rivers feature: rivers render in-game again, and they read better while we were in there.

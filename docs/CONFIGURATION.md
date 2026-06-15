@@ -76,7 +76,7 @@ Explicit paths (`-j`, `-g`, `-r`) always override directory auto-detection.
 | Key | CLI | Type | Default | Description |
 |-----|-----|------|---------|-------------|
 | `LogLevel` | `--log-level` | enum | `Info` | `Verbose` / `Debug` / `Info` / `Warning` / `Error` |
-| `GenerateDebugImages` | `--no-images` | bool | `true` | Save intermediate map images to `%LOCALAPPDATA%\AzgaarToCK3\debug\` |
+| `GenerateDebugImages` | `--generate-debug-images <bool>` | bool | `true` | Save intermediate map images to `%LOCALAPPDATA%\AzgaarToCK3\debug\`. The flag overrides this setting in either direction. |
 
 ---
 
