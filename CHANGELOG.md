@@ -3,6 +3,21 @@
 ### Added
 - **Map editor support.** Converted maps now open in the CK3 map editor without crashing, and the terrain comes in pre-painted from your map's biomes — smoothly blended to match what the game renders — so the editor opens onto your actual map instead of a blank pink canvas. On by default. To add it to a map you've *already* converted and customised, without losing your work, see [Map Editor support](docs/MAP_EDITOR.md).
 
+### Changed
+- **The program is now named `AzgaarToCK3.exe`.** The executable used to be called `ConsoleUI.exe`, which didn't match the download or the project. It is now `AzgaarToCK3.exe`. If you launch it from a script or a shortcut, update the name; settings.json and everything else work the same.
+
+### Fixed
+- **The version the program reports is now correct.** Release builds had been embedding a stale, hard-coded version, so every download's startup banner reported the same old number no matter which release it actually was. Builds now stamp their real version, so the banner (and any bug-report logs) identify the actual build.
+
+---
+
+# 1.8.1 — 2026-06-16
+
+A targeted fix for a crash that left some conversions with an empty mod folder.
+
+### Fixed
+- **Conversion no longer ends with an empty mod folder.** On some maps, a stray entry in Azgaar's exported rivers data crashed the converter partway through — after the output folder had been emptied but before any mod files were written — so it left a folder with the mod's name and nothing inside. The converter now skips such malformed river entries (and notes how many it skipped) and carries on to finish the mod. As part of the same fix, a run that does fail no longer prints "Map conversion finished successfully!", so a real failure is visible instead of looking like a success.
+
 ---
 
 # 1.8.0 — Empires & Epithets — 2026-06-15
@@ -12,9 +27,6 @@ This release turns to the political map. Two changes lead it: we have emperors, 
 ### Added
 - **Empires inferred from diplomacy.** When one Azgaar state is the suzerain of another in the diplomacy table, that overlordship is now carried into the mod: the senior state's realm is raised to an empire and the junior state's ruler starts as its vassal. Suzerain chains collapse so everyone answers to the one ruler at the top. When two suzerains would land in the same culture/religion empire, each is given their own empire title so neither relationship is dropped. Maps with no vassalage in their diplomacy are unchanged — empires stay unheld exactly as before.
 - **Realms keep their Azgaar names.** Azgaar names every state with flavour — "Brotherhood of Skjer", "Despotate of Theos", "Horde of Bukex" — and the converter used to throw that away, leaving the generic "Kingdom of Skjer". Each realm now carries its original name into the mod, shown on the title (its title card and hover tooltip) — not as a label painted on the map. The name follows the ruler's government, so it reads true while the realm stays in character and quietly reverts to the plain title if a ruler of a different kind takes over. Names also hold up for players who don't own the relevant DLC, where the game would otherwise swap a realm to a different government type behind the scenes.
-
-### Changed
-- **The program is now named `AzgaarToCK3.exe`.** The executable used to be called `ConsoleUI.exe`, which didn't match the download or the project. It is now `AzgaarToCK3.exe`. If you launch it from a script or a shortcut, update the name; settings.json and everything else work the same.
 
 ### Fixed
 - **Derived cultures no longer spawn people with no culture.** Cultures created by blending or splitting from a parent weren't being recorded as existing at the start date, so any character or province that belonged to one came up cultureless. They're now declared correctly and populate as expected.
