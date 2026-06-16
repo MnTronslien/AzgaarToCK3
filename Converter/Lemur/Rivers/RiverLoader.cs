@@ -75,14 +75,48 @@ namespace Converter.Lemur.Rivers
                 throw new Exception("Failed to parse rivers GeoJSON file");
             }
 
+            var (mergedCount, skippedCount) = MergeControlPoints(rivers, riverGeoJson);
+
+            Logger.Info($"Merged control points for {mergedCount} rivers");
+            if (skippedCount > 0)
+            {
+                Logger.Warning($"Skipped {skippedCount} malformed river feature(s) (missing geometry/properties) " +
+                               $"in {Path.GetFileName(riverGeoJsonPath)}");
+            }
+
+            if (mergedCount == 0)
+            {
+                throw new Exception("No rivers with control points found in rivers GeoJSON");
+            }
+        }
+
+        /// <summary>
+        /// Merges LineString control points from the parsed rivers GeoJSON into the matching
+        /// <see cref="River"/> entities (matched by id). Returns the number of rivers merged and
+        /// the number of malformed features skipped.
+        ///
+        /// Guards against malformed GeoJSON: an Azgaar rivers export can contain a null feature,
+        /// or a feature whose <c>properties</c>/<c>geometry</c> is null. Dereferencing those
+        /// (e.g. <c>feature.properties.id</c>) previously threw an unhandled
+        /// NullReferenceException that aborted the entire conversion before any file was written,
+        /// leaving an empty mod folder (issue #32). Such features are skipped, not fatal.
+        /// </summary>
+        public static (int merged, int skipped) MergeControlPoints(List<River> rivers, RiverGeoJson riverGeoJson)
+        {
             // Create lookup dictionary for fast matching
             var riverDict = rivers.ToDictionary(r => r.Id);
 
-            // Merge control points into River objects
             int mergedCount = 0;
+            int skippedCount = 0;
             foreach (var feature in riverGeoJson.features)
             {
-                if (feature.geometry?.type == "LineString" &&
+                if (feature == null || feature.properties == null || feature.geometry == null)
+                {
+                    skippedCount++;
+                    continue;
+                }
+
+                if (feature.geometry.type == "LineString" &&
                     feature.geometry.coordinates != null &&
                     riverDict.TryGetValue(feature.properties.id, out var river))
                 {
@@ -91,12 +125,7 @@ namespace Converter.Lemur.Rivers
                 }
             }
 
-            Logger.Info($"Merged control points for {mergedCount} rivers");
-
-            if (mergedCount == 0)
-            {
-                throw new Exception("No rivers with control points found in rivers GeoJSON");
-            }
+            return (mergedCount, skippedCount);
         }
     }
 }

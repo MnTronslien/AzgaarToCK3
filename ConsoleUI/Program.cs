@@ -174,8 +174,11 @@ internal class Program
         }
 
         Console.Write("Start conversion? ");
+        bool conversionRan = false;
+        bool conversionSucceeded = false;
         if (YesNo())
         {
+            conversionRan = true;
             // Copy sandbox mod files.
             if (!ModManager.DoesModExist())
             {
@@ -188,6 +191,7 @@ internal class Program
             try
             {
                 await Converter.Lemur.ConversionManager.Run(noRivers);
+                conversionSucceeded = true;
             }
             catch (Exception ex)
             {
@@ -199,10 +203,16 @@ internal class Program
 
 #if DEBUG
         SettingsManager.Save();
-        Environment.Exit(0);
+        Environment.Exit(conversionRan && !conversionSucceeded ? 1 : 0);
 #endif
 
-        Logger.Info("Map conversion finished successfully!");
+        // Don't claim success when the conversion threw — the previous unconditional
+        // "finished successfully!" line made a crashed run (empty mod folder) look
+        // like it had worked, which masked failures such as issue #32.
+        if (conversionRan && !conversionSucceeded)
+            Logger.Error("Map conversion failed — see the errors above. The output folder may be empty or incomplete.");
+        else if (conversionSucceeded)
+            Logger.Info("Map conversion finished successfully!");
 
         Exit();
     }
