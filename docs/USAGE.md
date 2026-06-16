@@ -35,13 +35,13 @@ On first run you'll be prompted for your CK3 install path, mods directory, and a
 
 Point the converter at the Azgaar folder with `-d`:
 ```
-./ConsoleUI -d "C:/path/to/your/azgaar/exports"
+./AzgaarToCK3 -d "C:/path/to/your/azgaar/exports"
 ```
 
 For a full list of supported arguments see usage with:
 
 ```
-./ConsoleUI --help
+./AzgaarToCK3 --help
 ```
 ---
 

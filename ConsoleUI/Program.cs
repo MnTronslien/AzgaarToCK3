@@ -554,8 +554,8 @@ internal class Program
         Console.WriteLine("Azgaar to CK3 Converter");
         Console.WriteLine();
         Console.WriteLine("Usage:");
-        Console.WriteLine("  ConsoleUI [options]");
-        Console.WriteLine("  ConsoleUI <json-path> <geojson-path> <rivers-geojson-path>");
+        Console.WriteLine("  AzgaarToCK3 [options]");
+        Console.WriteLine("  AzgaarToCK3 <json-path> <geojson-path> <rivers-geojson-path>");
         Console.WriteLine();
         Console.WriteLine("Input Options:");
         Console.WriteLine("  --input-dir, -d <dir>            Directory to scan for input files (see detection rules below)");
@@ -566,7 +566,7 @@ internal class Program
         Console.WriteLine();
         Console.WriteLine("Auto-detection rules (used by --input-dir and AutoDetectInputs):");
         Console.WriteLine("  Files are ranked newest-first by creation time. The first match wins for each slot.");
-        Console.WriteLine("  Full data  : *.json  — excludes settings.json and ConsoleUI*.json");
+        Console.WriteLine("  Full data  : *.json  — excludes settings.json and the .NET sidecars (*.deps.json, *.runtimeconfig.json)");
         Console.WriteLine("  Rivers     : *.geojson whose filename contains \"rivers\" or \"river\" (case-insensitive)");
         Console.WriteLine("  Cells      : *.geojson that does not match the rivers rule");
         Console.WriteLine("  Tip: name your exports \"<map> Full ...\", \"<map> Cells ...\", \"<map> Rivers ...\"");
@@ -599,11 +599,11 @@ internal class Program
         Console.WriteLine("  --help, -h                       Show this help message");
         Console.WriteLine();
         Console.WriteLine("Examples:");
-        Console.WriteLine("  ConsoleUI --input-dir C:/TestData --no-rivers");
-        Console.WriteLine("  ConsoleUI -d C:/TestData --rivers-geojson C:/other/rivers.geojson");
-        Console.WriteLine("  ConsoleUI --json map.json --geojson map.geojson --rivers-geojson rivers.geojson");
-        Console.WriteLine("  ConsoleUI -j map.json -g map.geojson -r rivers.geojson --log-level verbose");
-        Console.WriteLine("  ConsoleUI map.json map.geojson rivers.geojson --min-duchies-per-kingdom 3");
+        Console.WriteLine("  AzgaarToCK3 --input-dir C:/TestData --no-rivers");
+        Console.WriteLine("  AzgaarToCK3 -d C:/TestData --rivers-geojson C:/other/rivers.geojson");
+        Console.WriteLine("  AzgaarToCK3 --json map.json --geojson map.geojson --rivers-geojson rivers.geojson");
+        Console.WriteLine("  AzgaarToCK3 -j map.json -g map.geojson -r rivers.geojson --log-level verbose");
+        Console.WriteLine("  AzgaarToCK3 map.json map.geojson rivers.geojson --min-duchies-per-kingdom 3");
         Console.WriteLine();
         Console.WriteLine("If no arguments are provided, the program will use the settings.json file.");
     }

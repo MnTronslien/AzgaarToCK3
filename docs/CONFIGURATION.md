@@ -1,6 +1,6 @@
 # Configuration Reference
 
-Settings are stored in `settings.json` next to the `ConsoleUI` executable. CLI flags override `settings.json` for a single run. Delete `settings.json` to reset everything and be prompted again.
+Settings are stored in `settings.json` next to the `AzgaarToCK3` executable. CLI flags override `settings.json` for a single run. Delete `settings.json` to reset everything and be prompted again.
 
 ---
 
