@@ -12,7 +12,6 @@ public static class TerrainMaskWriter
         "AzgaarToCK3", "cache");
 
     public static async Task Write(
-        IReadOnlyList<TerrainMaskEntry> masks,
         L.Map map,
         string ck3Directory,
         string outputDirectory,
@@ -32,25 +31,17 @@ public static class TerrainMaskWriter
             Height = L.Map.MapHeight,
         };
 
-        // Blank-fill every CK3 mask filename we don't explicitly set, so vanilla's masks don't leak through at the wrong scale.
         var baseMasksDir = Helper.GetPath(ck3Directory, "game", "gfx", "map", "terrain", "masks");
-        var covered = masks.Select(m => m.FileName).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var blanks = Directory.Exists(baseMasksDir)
-            ? Directory.EnumerateFiles(baseMasksDir, "*.png")
-                .Select(Path.GetFileName)
-                .Where(f => !covered.Contains(f!))
-                .Select(f => new TerrainMaskEntry(f!, []))
-                .ToList()
-            : [];
-        // Default: paint all TCS mask slots black — only hills/mountain masks (written by HeightmapMasks) carry data.
-        // mapEditor: keep TerrainMaskPreparer's biome painting so the editor opens onto a painted map.
-        var biome = mapEditor
-            ? masks
-            : masks.Select(m => new TerrainMaskEntry(m.FileName, Array.Empty<L.Cell>()));
-        var allMasks = biome.Concat(blanks).ToList();
 
-        // Canonical blank PNG — created once here, shared by biome masks and masks_gen.
-        // All 69 biome mask slots are black; MagickImage per-file took ~200s; File.Copy is ~0.1s.
+        // Build the splatmap ONCE. It is the single source of truth: it drives detail_index/
+        // detail_intensity (runtime rendering) and, in mapEditor mode, the per-material editor
+        // masks too — so the editor opens onto exactly what the game renders, with smooth blended
+        // weights instead of the old binary per-cell fill. map.HeightmapF/Pixels are populated by
+        // HeightmapWriter (runs before this), enabling the steepness materials (hills, mountain).
+        var splat = SplatmapBuilder.Build(map.Cells!, map.JsonMap.mapCoordinates,
+            map.HeightmapF, map.HeightmapPixels);
+
+        // Canonical blank PNG — created once, File.Copy'd into every non-painted mask slot + masks_gen.
         // Cache key includes "8bit": a prior build cached a 1-bit blank here, and File.Copy
         // would propagate that to every blank slot + masks_gen. Bumping the key forces an
         // 8-bit regeneration and avoids the stale-cache trap.
@@ -63,46 +54,80 @@ public static class TerrainMaskWriter
             Logger.Debug($"Cached blank PNG {L.Map.MapWidth}×{L.Map.MapHeight}");
         }
 
-        // Run all 5 groups concurrently — they write to different files, no shared mutable state.
+        // mapEditor: rasterise one editor mask per MaterialRegistry material from the splatmap
+        // (filename = "<texture>_mask.png", value = that material's blend intensity per pixel).
+        // Every other CK3 mask slot — and the whole set when not in mapEditor mode — stays blank.
+        var splatMasks = mapEditor
+            ? MaterialRegistry.All
+                .Where(mat => Ck3MaterialBytes.ByName.ContainsKey(mat.TextureName))
+                .ToDictionary(mat => mat.TextureName + "_mask.png",
+                              mat => Ck3MaterialBytes.ByName[mat.TextureName],
+                              StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
+
+        var baseMaskFiles = Directory.Exists(baseMasksDir)
+            ? Directory.EnumerateFiles(baseMasksDir, "*.png").Select(Path.GetFileName).ToList()
+            : [];
+        int painted = baseMaskFiles.Count(f => splatMasks.ContainsKey(f!));
+
+        // Run all groups concurrently — they write to different files, no shared mutable state.
         await Task.WhenAll(
-            Task.WhenAll(allMasks.Select(entry => WriteBiomeMask(entry, masksDir, readSettings, map, blankPath))),
+            Task.WhenAll(baseMaskFiles.Select(f =>
+            {
+                var dst = Path.Combine(masksDir, f!);
+                return splatMasks.TryGetValue(f!, out var materialByte)
+                    ? WriteSplatMask(splat, materialByte, dst)
+                    : Task.Run(() => File.Copy(blankPath, dst, overwrite: true));
+            })),
             WriteColormapAsync(terrainDir),
             WriteMasksGenAsync(ck3Directory, terrainDir, blankPath),
             Task.Run(async () =>
             {
-                // map.HeightmapPixels/F are populated by HeightmapWriter if it ran first.
-                // Null → steepness materials produce 0 weight → biome-only output (M1 equivalent).
-                using var img = RenderDetailIndex(map.Cells!, map.JsonMap.mapCoordinates,
-                    map.HeightmapF, map.HeightmapPixels);
+                using var img = SerialiseSplat(splat, intensityNotIndex: false);
                 await img.WriteAsync(Helper.GetPath(terrainDir, "detail_index.tga"), MagickFormat.Tga);
             }),
             Task.Run(async () =>
             {
-                using var img = RenderDetailIntensity(map.Cells!, map.JsonMap.mapCoordinates,
-                    map.HeightmapF, map.HeightmapPixels);
+                using var img = SerialiseSplat(splat, intensityNotIndex: true);
                 await img.WriteAsync(Helper.GetPath(terrainDir, "detail_intensity.tga"), MagickFormat.Tga);
             })
         );
 
-        Logger.Info($"Wrote {allMasks.Count} terrain mask PNGs ({masks.Count} biome + {blanks.Count} blank) + colormap.dds + masks_gen + detail TGAs to gfx/map/terrain/");
+        Logger.Info($"Wrote {baseMaskFiles.Count} terrain mask PNGs ({painted} splat-painted + {baseMaskFiles.Count - painted} blank) + colormap.dds + masks_gen + detail TGAs to gfx/map/terrain/");
     }
 
-    private static async Task WriteBiomeMask(
-        TerrainMaskEntry entry, string masksDir,
-        MagickReadSettings readSettings, L.Map map, string blankPath)
+    // Rasterise one terrain mask from the splatmap: each pixel's grey value is the blend intensity
+    // of the layer whose material byte matches `materialByte` (0 where this material is absent).
+    // This is the same data CK3 renders from detail_index/intensity, so the editor mask matches the
+    // in-game terrain exactly — with smooth blended edges, not hard per-cell boundaries.
+    private static async Task WriteSplatMask(Splatmap splat, byte materialByte, string dst)
     {
-        var dst = Path.Combine(masksDir, entry.FileName);
-        if (entry.WhiteCells.Count == 0)
+        int w = splat.Width, h = splat.Height;
+        var px = await Task.Run(() =>
         {
-            // Fast path: all biome mask slots are blank — copy the canonical cached file.
-            File.Copy(blankPath, dst, overwrite: true);
-            return;
-        }
-        using var image = new MagickImage("xc:black", readSettings);
-        var drawables = ImageUtility.GenerateCellPolygons(entry.WhiteCells, MagickColors.White, map);
-        image.Draw(drawables);
-        ForceEditorMaskFormat(image);
-        await image.WriteAsync(dst);
+            var buf = new byte[w * h];
+            for (int i = 0; i < buf.Length; i++)
+            {
+                var p = splat.Pixels[i];
+                int v = 0;
+                if (p.L0.BiomeIndex == materialByte) v += p.L0.Intensity;
+                if (p.L1.BiomeIndex == materialByte) v += p.L1.Intensity;
+                if (p.L2.BiomeIndex == materialByte) v += p.L2.Intensity;
+                if (p.L3.BiomeIndex == materialByte) v += p.L3.Intensity;
+                buf[i] = v > 255 ? (byte)255 : (byte)v;
+            }
+            return buf;
+        });
+
+        var settings = new MagickReadSettings
+        {
+            Width = w, Height = h,
+            ColorSpace = ColorSpace.Gray,
+            Format = MagickFormat.Gray,
+        };
+        using var img = new MagickImage(px, settings);
+        ForceEditorMaskFormat(img);
+        await img.WriteAsync(dst, MagickFormat.Png);
     }
 
     // The CK3 map editor rejects 1-bit masks. A single-colour PNG (the all-black blank) or a
