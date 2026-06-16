@@ -1,3 +1,10 @@
+# Unreleased
+
+### Added
+- **Map editor support.** Converted maps now open in the CK3 map editor without crashing, and the terrain comes in pre-painted from your map's biomes — smoothly blended to match what the game renders — so the editor opens onto your actual map instead of a blank pink canvas. On by default. To add it to a map you've *already* converted and customised, without losing your work, see [Map Editor support](docs/MAP_EDITOR.md).
+
+---
+
 # 1.8.0 — Empires & Epithets — 2026-06-15
 
 This release turns to the political map. Two changes lead it: we have emperors, and we have custom realm names. An emperor appears wherever an Azgaar state has one or more vassal states beneath it, and custom names carry each realm's full Azgaar state name into the game in place of the generic "Kingdom of —". Plus a number of minor bugfixes. Happy converting!
