@@ -1,13 +1,6 @@
-# 1.9.0 — 2026-06-16
+# 1.9.0 — Map Editor — 2026-06-17
 
-### Added
-- emit 8-bit grayscale masks + paint biome masks behind Writers.MapEditor
-- drive editor masks from the splatmap (smooth blends, fixes glacier/cold-desert pink)
-- default Writers.MapEditor on
-
----
-
-# Unreleased
+A small maintenance release led by map-editor support: a converted mod now opens in CK3's in-game map editor with the terrain already painted from your map's biomes, instead of crashing or showing a blank pink canvas. Two long-standing rough edges are tidied up along the way — the program is now named `AzgaarToCK3.exe`, and release builds finally report their true version.
 
 ### Added
 - **Map editor support.** Converted maps now open in the CK3 map editor without crashing, and the terrain comes in pre-painted from your map's biomes — smoothly blended to match what the game renders — so the editor opens onto your actual map instead of a blank pink canvas. On by default. To add it to a map you've *already* converted and customised, without losing your work, see [Map Editor support](docs/MAP_EDITOR.md).
