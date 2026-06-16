@@ -1,3 +1,12 @@
+# 1.8.1 — 2026-06-16
+
+A targeted fix for a crash that left some conversions with an empty mod folder.
+
+### Fixed
+- **Conversion no longer ends with an empty mod folder.** On some maps, a stray entry in Azgaar's exported rivers data crashed the converter partway through — after the output folder had been emptied but before any mod files were written — so it left a folder with the mod's name and nothing inside. The converter now skips such malformed river entries (and notes how many it skipped) and carries on to finish the mod. As part of the same fix, a run that does fail no longer prints "Map conversion finished successfully!", so a real failure is visible instead of looking like a success.
+
+---
+
 # 1.8.0 — Empires & Epithets — 2026-06-15
 
 This release turns to the political map. Two changes lead it: we have emperors, and we have custom realm names. An emperor appears wherever an Azgaar state has one or more vassal states beneath it, and custom names carry each realm's full Azgaar state name into the game in place of the generic "Kingdom of —". Plus a number of minor bugfixes. Happy converting!
