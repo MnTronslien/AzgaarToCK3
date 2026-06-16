@@ -1,3 +1,12 @@
+# 1.9.0 — 2026-06-16
+
+### Added
+- emit 8-bit grayscale masks + paint biome masks behind Writers.MapEditor
+- drive editor masks from the splatmap (smooth blends, fixes glacier/cold-desert pink)
+- default Writers.MapEditor on
+
+---
+
 # Unreleased
 
 ### Added
