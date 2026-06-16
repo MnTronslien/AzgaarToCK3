@@ -202,6 +202,8 @@ internal class Program
         }
 
 #if DEBUG
+        // DEBUG exits here before the messages below, so it signals a failed run
+        // via a non-zero exit code (the launch scripts rely on this) rather than text.
         SettingsManager.Save();
         Environment.Exit(conversionRan && !conversionSucceeded ? 1 : 0);
 #endif
