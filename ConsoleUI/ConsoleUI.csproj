@@ -2,11 +2,15 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <AssemblyName>AzgaarToCK3</AssemblyName>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <Configurations>Debug;Release;Publish</Configurations>
-    <Version>1.2.0</Version>
+    <!-- Dev-build fallback only. Release artifacts are stamped with the real version by
+         release.yml (`/p:Version=<tag>`), which overrides this. Do NOT rely on bumping this
+         to version a release — local builds just report this number in the startup banner. -->
+    <Version>0.0.0-dev</Version>
   </PropertyGroup>
 
   <ItemGroup>

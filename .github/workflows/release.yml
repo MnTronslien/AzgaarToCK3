@@ -73,6 +73,8 @@ jobs:
         run: |
           dotnet publish ConsoleUI/ConsoleUI.csproj `
             -c Release -r win-x64 `
+            /p:Version=${{ needs.check.outputs.version }} `
+            /p:InformationalVersion=${{ needs.check.outputs.version }} `
             /p:PublishAot=true `
             /p:DebugType=None /p:DebugSymbols=false `
             /p:CopyOutputSymbolsToPublishDirectory=false `
@@ -85,6 +87,8 @@ jobs:
         run: |
           dotnet publish ConsoleUI/ConsoleUI.csproj \
             -c Release -r ${{ matrix.rid }} \
+            /p:Version=${{ needs.check.outputs.version }} \
+            /p:InformationalVersion=${{ needs.check.outputs.version }} \
             /p:PublishSingleFile=true \
             /p:PublishTrimmed=true \
             /p:DebugType=None /p:DebugSymbols=false \

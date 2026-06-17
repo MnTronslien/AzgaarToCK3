@@ -21,7 +21,7 @@ dotnet build
 **Run from source:**
 ```
 cd ConsoleUI/bin/Debug/net8.0
-./ConsoleUI -d "path/to/azgaar/exports" --no-rivers
+./AzgaarToCK3 -d "path/to/azgaar/exports" --no-rivers
 ```
 
 Test datasets are included under `TestData/` — use `-d "TestData/Oncyia"` for a quick run.

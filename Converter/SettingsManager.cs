@@ -207,6 +207,11 @@ public class WriterFlags
     public bool Heightmap { get; set; } = true;
     public bool Bookmark { get; set; } = true;
     public bool Flavorization { get; set; } = true;
+    // Editor-oriented terrain output: rasterise the per-material editor masks from the splatmap
+    // so the CK3 map editor opens onto a fully painted, smoothly-blended map. Default ON — the
+    // splatmap is already computed for runtime, so painting the masks is near-free. Turn off to
+    // emit blank masks (the 8-bit depth fix that lets the editor load at all is unconditional).
+    public bool MapEditor { get; set; } = true;
 }
 
 /// <summary>

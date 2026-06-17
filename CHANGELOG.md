@@ -1,3 +1,18 @@
+# 1.9.0 — Map Editor — 2026-06-17
+
+A small maintenance release led by map-editor support: a converted mod now opens in CK3's in-game map editor with the terrain already painted from your map's biomes, instead of crashing or showing a blank pink canvas. Two long-standing rough edges are tidied up along the way — the program is now named `AzgaarToCK3.exe`, and release builds finally report their true version.
+
+### Added
+- **Map editor support.** Converted maps now open in the CK3 map editor without crashing, and the terrain comes in pre-painted from your map's biomes — smoothly blended to match what the game renders — so the editor opens onto your actual map instead of a blank pink canvas. On by default. To add it to a map you've *already* converted and customised, without losing your work, see [Map Editor support](docs/MAP_EDITOR.md).
+
+### Changed
+- **The program is now named `AzgaarToCK3.exe`.** The executable used to be called `ConsoleUI.exe`, which didn't match the download or the project. It is now `AzgaarToCK3.exe`. If you launch it from a script or a shortcut, update the name; settings.json and everything else work the same.
+
+### Fixed
+- **The version the program reports is now correct.** Release builds had been embedding a stale, hard-coded version, so every download's startup banner reported the same old number no matter which release it actually was. Builds now stamp their real version, so the banner (and any bug-report logs) identify the actual build.
+
+---
+
 # 1.8.1 — 2026-06-16
 
 A targeted fix for a crash that left some conversions with an empty mod folder.

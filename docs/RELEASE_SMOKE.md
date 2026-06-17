@@ -28,14 +28,14 @@ dotnet build ConsoleUI/ConsoleUI.csproj    # expect 0 errors
 bash ../scorched-earth.sh
 cd ConsoleUI/bin/Debug/net8.0
 START=$(date +%s)
-./ConsoleUI.exe --log-level debug > /tmp/smoke-logs/Showcase.log 2>&1
+./AzgaarToCK3.exe --log-level debug > /tmp/smoke-logs/Showcase.log 2>&1
 echo "Showcase: exit=$? elapsed=$(($(date +%s) - START))s"
 
 # Cerbois, Oncyia, Edge Cases redirect output via -o so they don't trample Showcase.
 for dataset in "Cerbois" "Oncyia" "Handcrafted Edge Cases"; do
     label=$(echo "$dataset" | tr ' ' '-')
     START=$(date +%s)
-    ./ConsoleUI.exe \
+    ./AzgaarToCK3.exe \
       -d "../../../../TestData/$dataset" \
       -o "$LOCALAPPDATA/Temp/AzgaarToCK3-smoke/$label" \
       --log-level debug \

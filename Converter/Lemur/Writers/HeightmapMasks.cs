@@ -48,7 +48,11 @@ public static class HeightmapMasks
     static async Task WriteMask(byte[] pixels, string fileName, string dir, MagickReadSettings settings)
     {
         using var img = new MagickImage(pixels, settings);
+        // Depth=8 alone is NOT enough: the PNG encoder reduces a single-colour (all-black)
+        // image back to 1-bit, which the CK3 map editor rejects. The bit-depth define pins it.
         img.Depth = 8;
+        img.Settings.SetDefine(MagickFormat.Png, "bit-depth", "8");
+        img.Settings.SetDefine(MagickFormat.Png, "color-type", "0"); // 0 = grayscale
         await img.WriteAsync(Path.Combine(dir, fileName), MagickFormat.Png);
     }
 }
