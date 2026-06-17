@@ -17,6 +17,12 @@ static class Program
         string? cellsDumpPath = null;
         string? riversGeojsonPath = null;
         float riverCpSpacing = 5f;
+        // Vegetation MVP debug image (feature/vegetation-mvp)
+        bool vegetationMap = false;
+        string? vegRule = null;     // biome category driving thickness (default: deciduous)
+        int vegGrid = 16;           // coarse square size in image px
+        float vegMax = 6f;          // trees at full thickness per square
+        int vegDownscale = 4;       // debug canvas = mapW / this
         int seed = 42;
         float strength = 0.25f, roughnessNorm = 1.0f;
         int nodesPerCell = 4;
@@ -104,6 +110,11 @@ static class Program
                 case "--cells":           cellsDumpPath     = args[++i]; break;
                 case "--rivers-geojson":  riversGeojsonPath = args[++i]; break;
                 case "--river-cp-spacing": riverCpSpacing  = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--vegetation-map":  vegetationMap = true; break;
+                case "--rule":            vegRule       = args[++i]; break;
+                case "--veg-grid":        vegGrid       = int.Parse(args[++i]); break;
+                case "--veg-max":         vegMax        = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--veg-downscale":   vegDownscale  = int.Parse(args[++i]); break;
                 case "--compare":
                     comparePathA = args[++i];
                     comparePathB = args[++i];
@@ -187,6 +198,18 @@ static class Program
             lonW = mc.lonW; lonT = mc.lonT;
             latS = mc.latS; latT = mc.latT;
             Console.WriteLine($"Loaded {cells.Count} cells.");
+        }
+
+        // ── Vegetation MVP debug image (feature/vegetation-mvp) ──────────────
+        if (vegetationMap)
+        {
+            var vcoords = new Converter.Lemur.Deserialization.AzgaarMapCoordinates(
+                latT: latT, latN: latS + latT, latS: latS,
+                lonT: lonT, lonW: lonW,         lonE: lonW + lonT);
+            var rule = VegetationDebug.ParseRule(vegRule);
+            var vout = outputPath ?? "vegetation_debug.png";
+            VegetationDebug.Render(cells, vcoords, rule, vegGrid, vegMax, seed, vegDownscale, vout);
+            return 0;
         }
 
         // ── Paint detail TGAs (real cell-painted versions for hot-reload iteration) ──
