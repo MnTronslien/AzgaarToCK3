@@ -27,6 +27,7 @@ static class Program
         int vegTightenIters = 2;    // tighten passes
         float vegTreeline = 0.6f;   // elevation filter: reject land trees with height01 above this
         bool vegElev = true;        // run the elevation filter (needs heightmap pre-pass)
+        bool vegUnified = false;    // render all vegetation rules at once, each its own colour
         int seed = 42;
         float strength = 0.25f, roughnessNorm = 1.0f;
         int nodesPerCell = 4;
@@ -123,6 +124,7 @@ static class Program
                 case "--veg-tighten-iters": vegTightenIters = int.Parse(args[++i]); break;
                 case "--veg-treeline":      vegTreeline     = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--no-veg-elev":       vegElev         = false; break;
+                case "--unified":           vegUnified      = true; break;
                 case "--compare":
                     comparePathA = args[++i];
                     comparePathB = args[++i];
@@ -220,7 +222,10 @@ static class Program
                 Rule: rule, GridPx: vegGrid, MaxPerSquare: vegMax, Seed: seed,
                 Downscale: vegDownscale, ElevationFilter: vegElev, Treeline01: vegTreeline,
                 TightenStrength: vegTighten, TightenIters: vegTightenIters);
-            VegetationDebug.Render(cells, vcoords, lonW, lonT, latS, latT, opts, vout);
+            if (vegUnified || string.Equals(vegRule, "all", StringComparison.OrdinalIgnoreCase))
+                VegetationDebug.RenderUnified(cells, vcoords, lonW, lonT, latS, latT, opts, vout);
+            else
+                VegetationDebug.Render(cells, vcoords, lonW, lonT, latS, latT, opts, vout);
             return 0;
         }
 

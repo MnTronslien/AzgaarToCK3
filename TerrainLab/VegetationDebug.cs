@@ -213,6 +213,131 @@ static class VegetationDebug
         for (int i = 0; i < n; i++) trees[i] = (xs[i], ys[i]);
     }
 
+    // ── Multi-rule "unified" vegetation map ──────────────────────────────
+    // Each vegetated biome is its own rule: thickness = its blended weight, placed in its own
+    // colour, tightened within its own set (per-mesh). Rules ADD UP — across biomes the blend
+    // keeps the total bounded (a pixel's biome shares sum to 1), so edges mingle without crowding.
+    public sealed record Rule(AzgaarBiome Biome, float MaxPerSquare, byte R, byte G, byte B, string Label);
+
+    // Drawn in this order: sparse ground cover first, dense forest painted on top.
+    static readonly Rule[] Rules =
+    {
+        new(AzgaarBiome.Grassland,                1.5f, 150, 180,  90, "grassland"),
+        new(AzgaarBiome.Savanna,                  2.0f, 181, 160,  70, "savanna bush"),
+        new(AzgaarBiome.Wetland,                  3.0f,  90, 120,  80, "wetland reeds"),
+        new(AzgaarBiome.TropicalSeasonalForest,   5.0f, 140, 160,  50, "tropical seasonal"),
+        new(AzgaarBiome.Taiga,                    5.0f,  60,  95,  80, "taiga"),
+        new(AzgaarBiome.TemperateRainforest,      6.0f,  35,  95,  85, "pine (temp. rainforest)"),
+        new(AzgaarBiome.TemperateDeciduousForest, 6.0f,  40, 120,  45, "deciduous"),
+        new(AzgaarBiome.TropicalRainforest,       6.0f,  15,  85,  55, "jungle (trop. rainforest)"),
+    };
+
+    public static void RenderUnified(
+        IReadOnlyDictionary<int, Cell> cells, AzgaarMapCoordinates coords,
+        float lonW, float lonT, float latS, float latT,
+        Options o, string outPath)
+    {
+        int W = Map.MapWidth, H = Map.MapHeight;
+        Console.WriteLine($"Building biome weight field ({W}x{H})…");
+        var biomes = BiomeWeightField.Build(cells, coords);
+
+        byte[]? heightBytes = null;
+        if (o.ElevationFilter)
+        {
+            Console.WriteLine("Heightmap pre-pass (for elevation filter)…");
+            var hp = new HeightmapAlgorithm.Params(
+                LonW: lonW, LonT: lonT, LatS: latS, LatT: latT, Width: W, Height: H);
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            heightBytes = HeightmapAlgorithm.Generate(cells, hp).Pixels;
+            sw.Stop();
+            Console.WriteLine($"Heightmap done in {sw.Elapsed.TotalSeconds:F1}s.");
+        }
+
+        // Scatter + tighten each rule independently (per-mesh), seeded per rule for determinism.
+        var perRule = new List<(Rule rule, List<(float x, float y)> pts)>();
+        Console.WriteLine("Per-rule tree counts:");
+        foreach (var rule in Rules)
+        {
+            var pts = Scatter(biomes, heightBytes, rule.Biome, o.GridPx, rule.MaxPerSquare,
+                              o.Seed + (int)rule.Biome, o.Treeline01);
+            if (o.TightenStrength > 0f && o.TightenIters > 0)
+                Tighten(pts, W, H, o.TightenStrength, o.TightenIters, k: 6, minGap: 3f);
+            Console.WriteLine($"  {rule.Label,-26} {pts.Count,8}");
+            perRule.Add((rule, pts));
+        }
+
+        // Render: neutral land/sea background, then each rule's dots in its own colour.
+        int cw = W / o.Downscale, ch = H / o.Downscale;
+        var buf = new byte[cw * ch * 3];
+        for (int y = 0; y < ch; y++)
+            for (int x = 0; x < cw; x++)
+            {
+                int sx = Math.Min(x * o.Downscale, W - 1);
+                int sy = Math.Min(y * o.Downscale, H - 1);
+                var bt = biomes[sy * W + sx];
+                bool land = bt.W0 > 0 || bt.W1 > 0 || bt.W2 > 0;
+                int idx = (y * cw + x) * 3;
+                if (!land) { buf[idx] = 198; buf[idx + 1] = 214; buf[idx + 2] = 232; }   // sea
+                else       { buf[idx] = 226; buf[idx + 1] = 220; buf[idx + 2] = 198; }   // tan
+            }
+        foreach (var (rule, pts) in perRule)
+            foreach (var (tx, ty) in pts)
+            {
+                int x = (int)(tx / o.Downscale), y = (int)(ty / o.Downscale);
+                for (int dy = 0; dy < 2; dy++)
+                    for (int dx = 0; dx < 2; dx++)
+                    {
+                        int xx = x + dx, yy = y + dy;
+                        if (xx < 0 || yy < 0 || xx >= cw || yy >= ch) continue;
+                        int idx = (yy * cw + xx) * 3;
+                        buf[idx] = rule.R; buf[idx + 1] = rule.G; buf[idx + 2] = rule.B;
+                    }
+            }
+
+        var settings = new MagickReadSettings { Width = cw, Height = ch, Format = MagickFormat.Rgb };
+        using var img = new MagickImage(buf, settings);
+        var full = Path.GetFullPath(outPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+        img.Write(full, MagickFormat.Png);
+        Console.WriteLine($"Wrote unified vegetation debug image: {full} ({cw}x{ch})");
+    }
+
+    // Count-per-square scatter for one biome, with optional elevation filter. Pure given its seed.
+    static List<(float x, float y)> Scatter(
+        BiomeWeightTriple[] biomes, byte[]? heightBytes, AzgaarBiome biome,
+        int gridPx, float maxPerSquare, int seed, float treeline01)
+    {
+        int W = Map.MapWidth, H = Map.MapHeight;
+        int gw = (W + gridPx - 1) / gridPx;
+        int gh = (H + gridPx - 1) / gridPx;
+        int treelineByte = (int)MathF.Round(treeline01 * 255f);
+        var rng = new Random(seed);
+        var pts = new List<(float x, float y)>();
+        for (int gy = 0; gy < gh; gy++)
+            for (int gx = 0; gx < gw; gx++)
+            {
+                int cx = Math.Min(gx * gridPx + gridPx / 2, W - 1);
+                int cy = Math.Min(gy * gridPx + gridPx / 2, H - 1);
+                float thickness = biomes[cy * W + cx].WeightOf(biome);
+                if (thickness <= 0f) continue;
+                int count = (int)MathF.Round(thickness * maxPerSquare);
+                for (int k = 0; k < count; k++)
+                {
+                    float px = gx * gridPx + (float)rng.NextDouble() * gridPx;
+                    float py = gy * gridPx + (float)rng.NextDouble() * gridPx;
+                    if (px >= W || py >= H) continue;
+                    if (heightBytes != null)
+                    {
+                        byte hb = heightBytes[(int)py * W + (int)px];
+                        if (hb <= HeightmapAlgorithm.MaxWaterByte) continue;   // underwater
+                        if (hb > treelineByte) continue;                       // above treeline
+                    }
+                    pts.Add((px, py));
+                }
+            }
+        return pts;
+    }
+
     public static AzgaarBiome ParseRule(string? s) => s?.ToLowerInvariant() switch
     {
         null or "deciduous" or "leaf"            => AzgaarBiome.TemperateDeciduousForest,
