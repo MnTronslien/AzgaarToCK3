@@ -115,6 +115,35 @@ public class Settings
     /// </summary>
     public int SeaZoneMinimumArea { get; set; } = 2500;
 
+    // ── Straits (sea crossings → adjacencies.csv). See PLAN_straits.md. ──
+    // All distances are in CK3 image-pixel units (8192 × 4096). Defaults are untuned
+    // starting points — dial them in via the TerrainLab --strait-map harness.
+
+    /// <summary>
+    /// Rule 1: two cells reachable from each other overland within this many cell-hops get no
+    /// strait (you can just walk around). Distinguishes a bay worth bridging from a shoreline.
+    /// </summary>
+    public int StraitMinimumSelfSeparation { get; set; } = 8;
+
+    /// <summary>
+    /// Rule 2: maximum crossing length (cell-centre to cell-centre), in image pixels. Also bounds
+    /// how wide a strait may be — wider channels need a larger value.
+    /// </summary>
+    public double StraitMaxDistance { get; set; } = 300;
+
+    /// <summary>
+    /// Rule 3: minimum spacing between two straits joining the same landmass pair (midpoint to
+    /// midpoint), in image pixels. Shorter straits win; nearby parallel crossings are pruned.
+    /// </summary>
+    public double StraitMinimumClearance { get; set; } = 400;
+
+    /// <summary>
+    /// Water bodies whose summed cell area is at or above this are oceans (strait-able); smaller
+    /// bodies are lakes (never crossed by a sea strait). Azgaar cell-area units. Azgaar's one-ocean
+    /// limit means large seas are often mislabelled lakes, so we classify by size, not feature type.
+    /// </summary>
+    public int StraitOceanMinimumArea { get; set; } = 30000;
+
     /// <summary>
     /// Auto-detect newer .json/.geojson files in the directory and prompt to use them.
     /// If false, always uses the paths specified in InputJsonPath, InputGeojsonPath, and InputRiversGeojsonPath.

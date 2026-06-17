@@ -51,6 +51,9 @@ namespace Converter.Lemur.Entities
 
         public List<IProvince>? AllProvinces { get; set; }
 
+        /// <summary>Sea straits (PLAN_straits.md), generated after sea zones; written to adjacencies.csv.</summary>
+        public List<Straits.Strait> Straits { get; set; } = new();
+
         public List<Character> Characters { get; set; } = new();
         public Dictionary<int, Culture> Cultures { get; set; } = new();
         public Dictionary<int, Faith> Faiths { get; set; } = new();

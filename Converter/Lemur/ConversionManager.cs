@@ -161,6 +161,8 @@ namespace Converter.Lemur
             await ShowSeaZones(map);
             using (var _ = OperationTimer.Start("DrawProvincesImage")) await ShowBaronies(map);
 
+            using (var _ = OperationTimer.Start("Generating straits")) GenerateStraits(map);
+
             var w = Settings.Instance.Writers;
 
             if (w.TerrainMasks && !w.Heightmap)
@@ -283,7 +285,7 @@ namespace Converter.Lemur
             if (w.Adjacencies)
             {
                 using var _ = OperationTimer.Start("Writing adjacencies.csv");
-                await AdjacenciesCsvWriter.Write(Settings.OutputDirectory);
+                await AdjacenciesCsvWriter.Write(map, Settings.OutputDirectory);
             }
             if (w.LandedTitles)
                 await Task.WhenAll(
@@ -1438,6 +1440,34 @@ namespace Converter.Lemur
                 barony.Neighbors = adjacentBaronies!;
             }
             Logger.Info($"Built barony adjacency graph ({map.Baronies.Count} baronies)");
+        }
+
+        /// <summary>
+        /// Generate sea straits (PLAN_straits.md) and, when debug images are on, draw the tuning
+        /// image. Runs after sea zones + barony cell-assignment so the over-ocean validity gate and
+        /// the barony-pair collapse have everything they need. Output feeds AdjacenciesCsvWriter.
+        /// </summary>
+        private static void GenerateStraits(Map map)
+        {
+            var s = Settings.Instance;
+            var p = new Straits.StraitParams(
+                s.StraitMinimumSelfSeparation,
+                s.StraitMaxDistance,
+                s.StraitMinimumClearance,
+                s.StraitOceanMinimumArea);
+
+            Func<GeoPoint, ImagePixel> project = g => Helper.GeoToImage(g, map);
+            map.Straits = Straits.StraitGenerator.Generate(map.Cells!, project, p, collapseByBarony: true);
+            Logger.Info($"Generated {map.Straits.Count} straits (sea crossings).");
+
+            if (s.GenerateDebugImages)
+            {
+                var debugRoot = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "AzgaarToCK3", "debug");
+                var path = Helper.GetPath(debugRoot, ImageUtility.GetDebugFolderName(), "10_straits.png");
+                Straits.StraitDebugImage.Write(map.Cells!, project, map.Straits, p.OceanMinimumArea, path);
+            }
         }
     }
 }
