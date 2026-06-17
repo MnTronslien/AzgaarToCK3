@@ -23,6 +23,10 @@ static class Program
         int vegGrid = 16;           // coarse square size in image px
         float vegMax = 6f;          // trees at full thickness per square
         int vegDownscale = 4;       // debug canvas = mapW / this
+        float vegTighten = 0.08f;   // tighten strength (0 = off); ~0.08 = very slight
+        int vegTightenIters = 2;    // tighten passes
+        float vegTreeline = 0.6f;   // elevation filter: reject land trees with height01 above this
+        bool vegElev = true;        // run the elevation filter (needs heightmap pre-pass)
         int seed = 42;
         float strength = 0.25f, roughnessNorm = 1.0f;
         int nodesPerCell = 4;
@@ -115,6 +119,10 @@ static class Program
                 case "--veg-grid":        vegGrid       = int.Parse(args[++i]); break;
                 case "--veg-max":         vegMax        = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--veg-downscale":   vegDownscale  = int.Parse(args[++i]); break;
+                case "--veg-tighten":       vegTighten      = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--veg-tighten-iters": vegTightenIters = int.Parse(args[++i]); break;
+                case "--veg-treeline":      vegTreeline     = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--no-veg-elev":       vegElev         = false; break;
                 case "--compare":
                     comparePathA = args[++i];
                     comparePathB = args[++i];
@@ -208,7 +216,11 @@ static class Program
                 lonT: lonT, lonW: lonW,         lonE: lonW + lonT);
             var rule = VegetationDebug.ParseRule(vegRule);
             var vout = outputPath ?? "vegetation_debug.png";
-            VegetationDebug.Render(cells, vcoords, rule, vegGrid, vegMax, seed, vegDownscale, vout);
+            var opts = new VegetationDebug.Options(
+                Rule: rule, GridPx: vegGrid, MaxPerSquare: vegMax, Seed: seed,
+                Downscale: vegDownscale, ElevationFilter: vegElev, Treeline01: vegTreeline,
+                TightenStrength: vegTighten, TightenIters: vegTightenIters);
+            VegetationDebug.Render(cells, vcoords, lonW, lonT, latS, latT, opts, vout);
             return 0;
         }
 
