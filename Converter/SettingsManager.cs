@@ -116,20 +116,21 @@ public class Settings
     public int SeaZoneMinimumArea { get; set; } = 2500;
 
     // ── Straits (sea crossings → adjacencies.csv). See PLAN_straits.md. ──
-    // All distances are in CK3 image-pixel units (8192 × 4096). Defaults are untuned
-    // starting points — dial them in via the TerrainLab --strait-map harness.
+    // All distances are in CK3 image-pixel units (8192 × 4096). Max-distance + self-separation
+    // tuned on Oncyia (2026-06-17); clearance + ocean-area still starting points. Tune via the
+    // TerrainLab --strait-map harness.
 
     /// <summary>
     /// Rule 1: two cells reachable from each other overland within this many cell-hops get no
     /// strait (you can just walk around). Distinguishes a bay worth bridging from a shoreline.
     /// </summary>
-    public int StraitMinimumSelfSeparation { get; set; } = 8;
+    public int StraitMinimumSelfSeparation { get; set; } = 24;
 
     /// <summary>
     /// Rule 2: maximum crossing length (cell-centre to cell-centre), in image pixels. Also bounds
     /// how wide a strait may be — wider channels need a larger value.
     /// </summary>
-    public double StraitMaxDistance { get; set; } = 300;
+    public double StraitMaxDistance { get; set; } = 200;
 
     /// <summary>
     /// Rule 3: minimum spacing between two straits joining the same landmass pair (midpoint to

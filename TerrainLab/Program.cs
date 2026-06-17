@@ -213,8 +213,8 @@ static class Program
             // Knob baseline mirrors the Converter.Settings defaults (kept in sync by hand — the lab
             // doesn't construct Settings, which has required members). CLI flags override per-knob.
             var p = new Converter.Lemur.Straits.StraitParams(
-                straitSelfSep   ?? 8,
-                straitMaxDist   ?? 300,
+                straitSelfSep   ?? 24,
+                straitMaxDist   ?? 200,
                 straitClearance ?? 400,
                 straitOceanArea ?? 30000);
 
