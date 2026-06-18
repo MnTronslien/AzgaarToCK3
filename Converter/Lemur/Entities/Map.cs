@@ -32,6 +32,10 @@ namespace Converter.Lemur.Entities
         // which case splat painting falls back to biome-only output.
         public byte[]? HeightmapPixels { get; set; }
         public float[]? HeightmapF { get; set; }
+        // p95-normalised per-pixel steepness [0..1], computed ONCE from the heightmap (HeightmapWriter)
+        // and shared by the splatmap (hills/mountain materials) and vegetation (steep-slope veto) —
+        // so neither recomputes it. Null if the heightmap pipeline hasn't run.
+        public float[]? SteepnessField { get; set; }
 
         public List<Barony>? Baronies { get; set; } = new();
 

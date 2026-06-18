@@ -55,6 +55,20 @@ public static class VegetationCore
         return (TreelineHigh - hb) / (float)(TreelineHigh - TreelineLow);
     }
 
+    // Steepness veto (reads the shared p95-normalised SteepnessField ∈ [0,1]; high = steep).
+    // Full vegetation on gentle ground up to SteepKeepLow, tapering to none above SteepKeepHigh —
+    // keeps trees off cliffs now that the treeline lets them climb.
+    public const float SteepKeepLow  = 0.55f;
+    public const float SteepKeepHigh = 0.80f;
+
+    /// <summary>Probability [0..1] a tree on slope <paramref name="steep"/> (normalised) survives the steepness veto.</summary>
+    public static float SteepKeepProb(float steep)
+    {
+        if (steep <= SteepKeepLow) return 1f;
+        if (steep >= SteepKeepHigh) return 0f;
+        return (SteepKeepHigh - steep) / (SteepKeepHigh - SteepKeepLow);
+    }
+
     // ── Deterministic 2D value noise in [0,1] (no System.Random; pure function of lattice + seed) ──
     public static float ValueNoise2D(float x, float y, float wavelength, int seed)
     {

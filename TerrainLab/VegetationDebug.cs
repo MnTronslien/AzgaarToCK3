@@ -60,15 +60,18 @@ static class VegetationDebug
             Enumerable.Range(1, 12).Where(b => hist[b] > 0)
                       .Select(b => $"{(AzgaarBiome)b}={hist[b]}")));
 
-        // ── Optional heightmap pre-pass (≈30s) for the elevation filter ──
+        // ── Optional heightmap pre-pass (≈30s) for the elevation + steepness filters ──
         byte[]? heightBytes = null;
+        float[]? steepness = null;
         if (o.ElevationFilter)
         {
-            Console.WriteLine("Heightmap pre-pass (for elevation filter)…");
+            Console.WriteLine("Heightmap pre-pass (for elevation + steepness filters)…");
             var hp = new HeightmapAlgorithm.Params(
                 LonW: lonW, LonT: lonT, LatS: latS, LatT: latT, Width: W, Height: H);
             var sw = System.Diagnostics.Stopwatch.StartNew();
-            heightBytes = HeightmapAlgorithm.Generate(cells, hp).Pixels;
+            var hr = HeightmapAlgorithm.Generate(cells, hp);
+            heightBytes = hr.Pixels;
+            steepness = SteepnessField.Compute(hr.HeightmapF, hr.Pixels, W, H);
             sw.Stop();
             Console.WriteLine($"Heightmap done in {sw.Elapsed.TotalSeconds:F1}s.");
         }
@@ -98,10 +101,16 @@ static class VegetationDebug
 
                     if (heightBytes != null)
                     {
-                        byte hb = heightBytes[(int)py * W + (int)px];
+                        int hi = (int)py * W + (int)px;
+                        byte hb = heightBytes[hi];
                         if (hb <= HeightmapAlgorithm.MaxWaterByte + VegetationCore.WaterlineMarginBytes) { rejUnderwater++; continue; }
                         float keep = VegetationCore.HeightKeepProb(hb);
                         if (keep <= 0f || (keep < 1f && rng.NextDouble() > keep)) { rejTreeline++; continue; }
+                        if (steepness != null)
+                        {
+                            float sk = VegetationCore.SteepKeepProb(steepness[hi]);
+                            if (sk <= 0f || (sk < 1f && rng.NextDouble() > sk)) { rejTreeline++; continue; }
+                        }
                         heights.Add(hb / 255f);
                     }
                     trees.Add((px, py));
@@ -340,13 +349,16 @@ static class VegetationDebug
         var biomes = BiomeWeightField.Build(cells, coords);
 
         byte[]? heightBytes = null;
+        float[]? steepness = null;
         if (o.ElevationFilter)
         {
-            Console.WriteLine("Heightmap pre-pass (for elevation filter)…");
+            Console.WriteLine("Heightmap pre-pass (for elevation + steepness filters)…");
             var hp = new HeightmapAlgorithm.Params(
                 LonW: lonW, LonT: lonT, LatS: latS, LatT: latT, Width: W, Height: H);
             var sw = System.Diagnostics.Stopwatch.StartNew();
-            heightBytes = HeightmapAlgorithm.Generate(cells, hp).Pixels;
+            var hr = HeightmapAlgorithm.Generate(cells, hp);
+            heightBytes = hr.Pixels;
+            steepness = SteepnessField.Compute(hr.HeightmapF, hr.Pixels, W, H);
             sw.Stop();
             Console.WriteLine($"Heightmap done in {sw.Elapsed.TotalSeconds:F1}s.");
         }
@@ -356,7 +368,7 @@ static class VegetationDebug
         Console.WriteLine("Per-rule tree counts:");
         foreach (var rule in Rules)
         {
-            var pts = Scatter(biomes, heightBytes, rule.Biome, o.GridPx, rule.MaxPerSquare,
+            var pts = Scatter(biomes, heightBytes, steepness, rule.Biome, o.GridPx, rule.MaxPerSquare,
                               o.Seed + (int)rule.Biome, o.TreelineByte);
             if (o.TightenStrength > 0f && o.TightenIters > 0)
                 Tighten(pts, W, H, o.TightenStrength, o.TightenIters, k: 6, minGap: 1f);
@@ -412,7 +424,7 @@ static class VegetationDebug
     // height uses VegetationCore's gradual treeline. Pure given its seed. (treelineByte param unused —
     // the gradual band lives in VegetationCore.) Mirrors VegetationWriter.Scatter.
     static List<(float x, float y)> Scatter(
-        BiomeWeightTriple[] biomes, byte[]? heightBytes, AzgaarBiome biome,
+        BiomeWeightTriple[] biomes, byte[]? heightBytes, float[]? steepness, AzgaarBiome biome,
         int gridPx, float maxPerSquare, int seed, int treelineByte)
     {
         int W = Map.MapWidth, H = Map.MapHeight;
@@ -436,10 +448,16 @@ static class VegetationDebug
                     if (px >= W || py >= H) continue;
                     if (heightBytes != null)
                     {
-                        byte hb = heightBytes[(int)py * W + (int)px];
+                        int hi = (int)py * W + (int)px;
+                        byte hb = heightBytes[hi];
                         if (hb <= HeightmapAlgorithm.MaxWaterByte + VegetationCore.WaterlineMarginBytes) continue;   // at/just-above waterline
                         float keep = VegetationCore.HeightKeepProb(hb);
                         if (keep <= 0f || (keep < 1f && rng.NextDouble() > keep)) continue;
+                        if (steepness != null)
+                        {
+                            float sk = VegetationCore.SteepKeepProb(steepness[hi]);
+                            if (sk <= 0f || (sk < 1f && rng.NextDouble() > sk)) continue;
+                        }
                     }
                     pts.Add((px, py));
                 }
