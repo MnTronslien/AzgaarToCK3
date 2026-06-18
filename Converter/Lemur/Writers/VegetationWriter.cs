@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using Converter.Lemur.Splats;
+using Converter.Lemur.Vegetation;
 using L = Converter.Lemur.Entities;
 
 namespace Converter.Lemur.Writers;
@@ -38,10 +39,8 @@ public static class VegetationWriter
 
     // Tuning constants (kept in sync with TerrainLab's VegetationDebug harness).
     private const int   GridPx          = 16;
-    // Height cutoff in HEIGHTMAP BYTE units (same scale as the heightmap; waterline = MaxWaterByte ≈ 20).
-    // Vegetation stops a little way up the mountainsides — for our terrain this stands in for a
-    // steepness cutoff. Tune to taste.
-    private const int   TreelineByte    = 35;
+    // Height falloff (gradual, byte units) + large-scale density noise live in VegetationCore so the
+    // writer and the TerrainLab harness share identical math.
     private const float DensityMul      = 1.20f;   // global density scale (+20% trees where vegetation exists)
     private const float TightenStrength = 0.60f;   // very strong clustering into groves + clearings
     private const int   TightenIters    = 6;
@@ -68,7 +67,7 @@ public static class VegetationWriter
         foreach (var rule in Rules)
         {
             var pts = Scatter(biomes, heightBytes, rule.Biome, rule.MaxPerSquare,
-                              SeedBase + (int)rule.Biome, TreelineByte, W, H);
+                              SeedBase + (int)rule.Biome, W, H);
             if (pts.Count == 0) continue;
             Tighten(pts, W, H, TightenStrength, TightenIters, k: 6, minGap: MinGap);
 
@@ -117,10 +116,11 @@ public static class VegetationWriter
         Logger.Info($"Vegetation: wrote {totalTrees} trees across {byMesh.Count} meshes to map_object_data/generated/");
     }
 
-    // Count-per-square scatter for one biome, with the elevation filter. Pure given its seed.
+    // Count-per-square scatter for one biome. Density is modulated by the large-scale noise field;
+    // height uses the gradual treeline (both shared via VegetationCore). Pure given its seed.
     private static List<(float x, float y)> Scatter(
         BiomeWeightTriple[] biomes, byte[]? heightBytes, AzgaarBiome biome,
-        float maxPerSquare, int seed, int treelineByte, int W, int H)
+        float maxPerSquare, int seed, int W, int H)
     {
         int gw = (W + GridPx - 1) / GridPx;
         int gh = (H + GridPx - 1) / GridPx;
@@ -133,7 +133,8 @@ public static class VegetationWriter
                 int cy = Math.Min(gy * GridPx + GridPx / 2, H - 1);
                 float thickness = biomes[cy * W + cx].WeightOf(biome);
                 if (thickness <= 0f) continue;
-                int count = (int)MathF.Round(thickness * maxPerSquare * DensityMul);
+                float density = thickness * maxPerSquare * DensityMul * VegetationCore.DensityFactor(cx, cy);
+                int count = (int)MathF.Round(density);
                 for (int k = 0; k < count; k++)
                 {
                     float px = gx * GridPx + (float)rng.NextDouble() * GridPx;
@@ -142,8 +143,9 @@ public static class VegetationWriter
                     if (heightBytes != null)
                     {
                         byte hb = heightBytes[(int)py * W + (int)px];
-                        if (hb <= HeightmapAlgorithm.MaxWaterByte) continue;   // underwater
-                        if (hb > treelineByte) continue;                       // above treeline
+                        if (hb <= HeightmapAlgorithm.MaxWaterByte) continue;     // underwater
+                        float keep = VegetationCore.HeightKeepProb(hb);          // gradual treeline
+                        if (keep <= 0f || (keep < 1f && rng.NextDouble() > keep)) continue;
                     }
                     pts.Add((px, py));
                 }
