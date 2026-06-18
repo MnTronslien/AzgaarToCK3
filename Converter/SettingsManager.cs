@@ -129,10 +129,12 @@ public class Settings
     public double StraitMinimumSelfSeparation { get; set; } = 2000;
 
     /// <summary>
-    /// Rule 2: maximum crossing length (cell-centre to cell-centre), in image pixels. Also bounds
-    /// how wide a strait may be — wider channels need a larger value.
+    /// Rule 2: maximum crossing length (cell-centre to cell-centre), in image pixels. Also bounds how
+    /// wide a strait may be. <c>null</c> (default) auto-scales it by map cell count via
+    /// <see cref="Converter.Lemur.Straits.StraitKnobs.ResolveMaxDistance"/> — the one density-sensitive
+    /// knob (see STRAITS_TUNING.md). Set a value to pin it explicitly (explicit always wins).
     /// </summary>
-    public double StraitMaxDistance { get; set; } = 120;
+    public double? StraitMaxDistance { get; set; } = null;
 
     /// <summary>
     /// Rule 3: minimum spacing between two straits joining the same landmass pair (midpoint to

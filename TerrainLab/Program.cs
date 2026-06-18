@@ -212,9 +212,10 @@ static class Program
 
             // Knob baseline mirrors the Converter.Settings defaults (kept in sync by hand — the lab
             // doesn't construct Settings, which has required members). CLI flags override per-knob.
+            // MaxDistance: no flag ⇒ auto-scale by cell count (same resolver the converter uses).
             var p = new Converter.Lemur.Straits.StraitParams(
                 straitSelfSep   ?? 2000,
-                straitMaxDist   ?? 120,
+                Converter.Lemur.Straits.StraitKnobs.ResolveMaxDistance(cells.Count, straitMaxDist),
                 straitClearance ?? 400,
                 straitOceanArea ?? 30000);
 

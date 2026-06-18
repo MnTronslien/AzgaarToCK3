@@ -1450,11 +1450,13 @@ namespace Converter.Lemur
         private static void GenerateStraits(Map map)
         {
             var s = Settings.Instance;
+            double maxDist = Straits.StraitKnobs.ResolveMaxDistance(map.Cells!.Count, s.StraitMaxDistance);
             var p = new Straits.StraitParams(
                 s.StraitMinimumSelfSeparation,
-                s.StraitMaxDistance,
+                maxDist,
                 s.StraitMinimumClearance,
                 s.StraitOceanMinimumArea);
+            Logger.Info($"Strait MaxDistance = {maxDist:F0}px ({(s.StraitMaxDistance.HasValue ? "explicit" : $"auto from {map.Cells!.Count} cells")}).");
 
             Func<GeoPoint, ImagePixel> project = g => Helper.GeoToImage(g, map);
             map.Straits = Straits.StraitGenerator.Generate(map.Cells!, project, p, collapseByBarony: true);
