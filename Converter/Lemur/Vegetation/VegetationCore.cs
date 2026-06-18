@@ -22,16 +22,20 @@ public static class VegetationCore
     /// <summary>Debug-only amplitude override (set by TerrainLab to preview different strengths). &lt;0 = use the const.</summary>
     public static float NoiseAmpOverride = -1f;
 
+    /// <summary>Debug-only wavelength override (TerrainLab frequency previews). &lt;=0 = use the const.</summary>
+    public static float NoiseWavelengthOverride = -1f;
+    private static float Wavelength => NoiseWavelengthOverride > 0f ? NoiseWavelengthOverride : NoiseWavelength;
+
     /// <summary>Density multiplier from the large-scale noise field: amp*noise ∈ [0, amp]. No negatives,
     /// no clamp artefact — low-noise regions taper smoothly toward bare, peaks reach amp×. Mean ≈ amp/2.</summary>
     public static float DensityFactor(float x, float y)
     {
         float amp = NoiseAmpOverride >= 0f ? NoiseAmpOverride : NoiseAmp;
-        return amp * ValueNoise2D(x, y, NoiseWavelength, NoiseSeed);
+        return amp * ValueNoise2D(x, y, Wavelength, NoiseSeed);
     }
 
     /// <summary>Raw noise field value [0,1] at a pixel — for the debug overlay.</summary>
-    public static float NoiseRaw(float x, float y) => ValueNoise2D(x, y, NoiseWavelength, NoiseSeed);
+    public static float NoiseRaw(float x, float y) => ValueNoise2D(x, y, Wavelength, NoiseSeed);
 
     /// <summary>Probability [0..1] a tree at heightmap byte <paramref name="hb"/> survives the gradual treeline.</summary>
     public static float HeightKeepProb(int hb)

@@ -131,6 +131,7 @@ static class Program
                 case "--mesh-graph":        meshGraph       = true; break;
                 case "--veg-noise-overlay": vegNoiseOverlay = true; break;
                 case "--veg-noise-amp":     vegNoiseAmp     = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--veg-noise-wavelength": Converter.Lemur.Vegetation.VegetationCore.NoiseWavelengthOverride = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--compare":
                     comparePathA = args[++i];
                     comparePathB = args[++i];
