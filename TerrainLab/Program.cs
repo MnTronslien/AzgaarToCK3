@@ -23,8 +23,8 @@ static class Program
         int vegGrid = 16;           // coarse square size in image px
         float vegMax = 6f;          // trees at full thickness per square
         int vegDownscale = 4;       // debug canvas = mapW / this
-        float vegTighten = 0.60f;   // tighten strength (0 = off); very strong clustering into groves
-        int vegTightenIters = 6;    // tighten passes
+        float vegTighten = 0.20f;   // tighten strength (0 = off); light = solid vanilla-like fill
+        int vegTightenIters = 2;    // tighten passes
         int vegTreeline = 35;       // elevation cutoff in heightmap BYTES (waterline ≈ 20); no veg above
         bool vegElev = true;        // run the elevation filter (needs heightmap pre-pass)
         bool vegUnified = false;    // render all vegetation rules at once, each its own colour

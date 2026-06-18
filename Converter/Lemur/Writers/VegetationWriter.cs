@@ -42,8 +42,8 @@ public static class VegetationWriter
     // Height falloff (gradual, byte units) + large-scale density noise live in VegetationCore so the
     // writer and the TerrainLab harness share identical math.
     private const float DensityMul      = 1.20f;   // global density scale (+20% trees where vegetation exists)
-    private const float TightenStrength = 0.60f;   // very strong clustering into groves + clearings
-    private const int   TightenIters    = 6;
+    private const float TightenStrength = 0.20f;   // light tightening — solid, vanilla-like fill (not stringy)
+    private const int   TightenIters    = 2;
     private const float MinGap          = 1f;      // floor: trees never pulled closer than this (fights collapse)
     private const int   SeedBase        = 1337;    // deterministic; not tied to --seed (MVP)
 
