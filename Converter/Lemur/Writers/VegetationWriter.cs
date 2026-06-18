@@ -36,11 +36,15 @@ public static class VegetationWriter
         new(AzgaarBiome.TropicalRainforest,       6.0f, new[] { "tree_jungle_01_c_mesh", "tree_jungle_01_d_mesh", "tree_palm_01_a_mesh" }),
     };
 
-    // Tuning constants (mirror TerrainLab harness defaults that were visually approved).
+    // Tuning constants (kept in sync with TerrainLab's VegetationDebug harness).
     private const int   GridPx          = 16;
-    private const float Treeline01      = 0.60f;   // reject trees above this normalised height
-    private const float TightenStrength = 0.08f;
-    private const int   TightenIters    = 2;
+    // Height cutoff in HEIGHTMAP BYTE units (same scale as the heightmap; waterline = MaxWaterByte ≈ 20).
+    // Vegetation stops a little way up the mountainsides — for our terrain this stands in for a
+    // steepness cutoff. Tune to taste.
+    private const int   TreelineByte    = 35;
+    private const float TightenStrength = 0.40f;   // strong clustering into groves + clearings
+    private const int   TightenIters    = 5;
+    private const float MinGap          = 3f;      // floor: trees never pulled closer than this (fights collapse)
     private const int   SeedBase        = 1337;    // deterministic; not tied to --seed (MVP)
 
     // grass_layer for ground cover (reeds, bushes); tree_high_layer for everything else — matches vanilla.
@@ -59,14 +63,13 @@ public static class VegetationWriter
 
         // mesh name → instance transform rows
         var byMesh = new Dictionary<string, List<string>>();
-        int treelineByte = (int)MathF.Round(Treeline01 * 255f);
 
         foreach (var rule in Rules)
         {
             var pts = Scatter(biomes, heightBytes, rule.Biome, rule.MaxPerSquare,
-                              SeedBase + (int)rule.Biome, treelineByte, W, H);
+                              SeedBase + (int)rule.Biome, TreelineByte, W, H);
             if (pts.Count == 0) continue;
-            Tighten(pts, W, H, TightenStrength, TightenIters, k: 6, minGap: 3f);
+            Tighten(pts, W, H, TightenStrength, TightenIters, k: 6, minGap: MinGap);
 
             // Per-tree: pick a mesh variant, random yaw, slight scale jitter. Seeded per rule.
             var rng = new Random(SeedBase * 31 + (int)rule.Biome);

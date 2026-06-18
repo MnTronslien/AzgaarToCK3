@@ -32,8 +32,8 @@ static class VegetationDebug
         int Seed,
         int Downscale,
         bool ElevationFilter,
-        float Treeline01,        // reject land trees with height01 above this (treeline)
-        float TightenStrength,   // 0 = off; ~0.08 = very slight
+        int TreelineByte,        // reject land trees with heightmap byte above this (waterline ≈ 20)
+        float TightenStrength,   // 0 = off
         int TightenIters);
 
     public static void Render(
@@ -68,7 +68,7 @@ static class VegetationDebug
             sw.Stop();
             Console.WriteLine($"Heightmap done in {sw.Elapsed.TotalSeconds:F1}s.");
         }
-        int treelineByte = (int)MathF.Round(o.Treeline01 * 255f);
+        int treelineByte = o.TreelineByte;
 
         // ── Scatter: count per coarse square from thickness at the square centre ──
         int gw = (W + o.GridPx - 1) / o.GridPx;
@@ -104,7 +104,7 @@ static class VegetationDebug
         Console.WriteLine($"Placed {trees.Count} {o.Rule} trees (grid={o.GridPx}px, max/sq={o.MaxPerSquare}, seed={o.Seed}).");
         if (o.ElevationFilter)
         {
-            Console.WriteLine($"Elevation filter: rejected {rejUnderwater} underwater, {rejTreeline} above treeline (height01 > {o.Treeline01:F2}).");
+            Console.WriteLine($"Elevation filter: rejected {rejUnderwater} underwater, {rejTreeline} above treeline (heightByte > {o.TreelineByte}).");
             if (heights.Count > 0)
             {
                 heights.Sort();
@@ -351,7 +351,7 @@ static class VegetationDebug
         foreach (var rule in Rules)
         {
             var pts = Scatter(biomes, heightBytes, rule.Biome, o.GridPx, rule.MaxPerSquare,
-                              o.Seed + (int)rule.Biome, o.Treeline01);
+                              o.Seed + (int)rule.Biome, o.TreelineByte);
             if (o.TightenStrength > 0f && o.TightenIters > 0)
                 Tighten(pts, W, H, o.TightenStrength, o.TightenIters, k: 6, minGap: 3f);
             Console.WriteLine($"  {rule.Label,-26} {pts.Count,8}");
@@ -397,12 +397,11 @@ static class VegetationDebug
     // Count-per-square scatter for one biome, with optional elevation filter. Pure given its seed.
     static List<(float x, float y)> Scatter(
         BiomeWeightTriple[] biomes, byte[]? heightBytes, AzgaarBiome biome,
-        int gridPx, float maxPerSquare, int seed, float treeline01)
+        int gridPx, float maxPerSquare, int seed, int treelineByte)
     {
         int W = Map.MapWidth, H = Map.MapHeight;
         int gw = (W + gridPx - 1) / gridPx;
         int gh = (H + gridPx - 1) / gridPx;
-        int treelineByte = (int)MathF.Round(treeline01 * 255f);
         var rng = new Random(seed);
         var pts = new List<(float x, float y)>();
         for (int gy = 0; gy < gh; gy++)

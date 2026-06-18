@@ -23,9 +23,9 @@ static class Program
         int vegGrid = 16;           // coarse square size in image px
         float vegMax = 6f;          // trees at full thickness per square
         int vegDownscale = 4;       // debug canvas = mapW / this
-        float vegTighten = 0.08f;   // tighten strength (0 = off); ~0.08 = very slight
-        int vegTightenIters = 2;    // tighten passes
-        float vegTreeline = 0.6f;   // elevation filter: reject land trees with height01 above this
+        float vegTighten = 0.40f;   // tighten strength (0 = off); strong clustering into groves
+        int vegTightenIters = 5;    // tighten passes
+        int vegTreeline = 35;       // elevation cutoff in heightmap BYTES (waterline ≈ 20); no veg above
         bool vegElev = true;        // run the elevation filter (needs heightmap pre-pass)
         bool vegUnified = false;    // render all vegetation rules at once, each its own colour
         bool meshGraph = false;     // render the rule→mesh graph (no Azgaar data needed)
@@ -123,7 +123,7 @@ static class Program
                 case "--veg-downscale":   vegDownscale  = int.Parse(args[++i]); break;
                 case "--veg-tighten":       vegTighten      = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--veg-tighten-iters": vegTightenIters = int.Parse(args[++i]); break;
-                case "--veg-treeline":      vegTreeline     = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--veg-treeline":      vegTreeline     = int.Parse(args[++i]); break;
                 case "--no-veg-elev":       vegElev         = false; break;
                 case "--unified":           vegUnified      = true; break;
                 case "--mesh-graph":        meshGraph       = true; break;
@@ -229,7 +229,7 @@ static class Program
             var vout = outputPath ?? "vegetation_debug.png";
             var opts = new VegetationDebug.Options(
                 Rule: rule, GridPx: vegGrid, MaxPerSquare: vegMax, Seed: seed,
-                Downscale: vegDownscale, ElevationFilter: vegElev, Treeline01: vegTreeline,
+                Downscale: vegDownscale, ElevationFilter: vegElev, TreelineByte: vegTreeline,
                 TightenStrength: vegTighten, TightenIters: vegTightenIters);
             if (vegUnified || string.Equals(vegRule, "all", StringComparison.OrdinalIgnoreCase))
                 VegetationDebug.RenderUnified(cells, vcoords, lonW, lonT, latS, latT, opts, vout);
