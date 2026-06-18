@@ -29,6 +29,7 @@ static class Program
         bool vegElev = true;        // run the elevation filter (needs heightmap pre-pass)
         bool vegUnified = false;    // render all vegetation rules at once, each its own colour
         bool meshGraph = false;     // render the rule→mesh graph (no Azgaar data needed)
+        bool vanillaVegMap = false; // parse + plot vanilla CK3's tree generators (sanity check)
         bool vegNoiseOverlay = false; // paint the noise field as the background
         float vegNoiseAmp = -1f;    // override VegetationCore.NoiseAmp (<0 = use the const)
         int seed = 42;
@@ -129,6 +130,7 @@ static class Program
                 case "--no-veg-elev":       vegElev         = false; break;
                 case "--unified":           vegUnified      = true; break;
                 case "--mesh-graph":        meshGraph       = true; break;
+                case "--vanilla-veg-map":   vanillaVegMap   = true; break;
                 case "--veg-noise-overlay": vegNoiseOverlay = true; break;
                 case "--veg-noise-amp":     vegNoiseAmp     = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--veg-noise-wavelength": Converter.Lemur.Vegetation.VegetationCore.NoiseWavelengthOverride = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
@@ -159,6 +161,14 @@ static class Program
         if (meshGraph)
         {
             VegetationDebug.RenderMeshGraph(outputPath ?? "mesh_graph.png");
+            return 0;
+        }
+
+        // ── Vanilla vegetation density sanity check — no Azgaar data needed ──
+        if (vanillaVegMap)
+        {
+            var ck3 = genMaterialsCk3Dir ?? @"C:\Program Files (x86)\Steam\steamapps\common\Crusader Kings III";
+            VanillaVegDebug.Render(ck3, outputPath ?? "vanilla_veg.png");
             return 0;
         }
 
