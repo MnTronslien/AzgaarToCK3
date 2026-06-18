@@ -15,8 +15,8 @@ public static class VegetationCore
     // The field multiplies per-square density, so high-noise regions get many trees (→ big dense
     // groves once tightened) and low-noise regions get few (→ small sparse stands). One field varies
     // both coverage AND grove size. Wavelength is in map pixels (8192 wide), so ~900 ≈ 9 lobes across.
-    public const float NoiseAmp        = 0.75f;   // density factor swings in [1-amp, 1+amp] = [0.25, 1.75]
-    public const float NoiseWavelength = 900f;
+    public const float NoiseAmp        = 3.5f;    // density factor = (1-amp)+2*amp*noise, clamped ≥0 → bare↔~4.5x
+    public const float NoiseWavelength = 450f;    // ~18 lobes across the 8192px map (smaller features)
     public const int   NoiseSeed       = 1234;
 
     /// <summary>Debug-only amplitude override (set by TerrainLab to preview different strengths). &lt;0 = use the const.</summary>
