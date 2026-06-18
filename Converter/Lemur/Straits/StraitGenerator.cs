@@ -103,8 +103,15 @@ public static class StraitGenerator
                 var key = a.Id < b.Id ? (a.Id, b.Id) : (b.Id, a.Id);
                 if (!seen.Add(key)) continue;
 
-                // Rule 0 — different baronies (converter mode only; cells-only mode has null Province).
-                if (collapseByBarony && a.Province != null && ReferenceEquals(a.Province, b.Province)) continue;
+                // Rule 0 — converter mode: both endpoints must be distinct baronies. Drops crossings
+                // to non-barony land (wasteland provinces, which have no holdable barony) and same-barony
+                // pairs, so map.Straits matches exactly what AdjacenciesCsvWriter can emit. Cells-only
+                // mode (harness) has null Province and skips this — it shows every geometric candidate.
+                if (collapseByBarony)
+                {
+                    if (a.Province is not Barony || b.Province is not Barony) continue;
+                    if (ReferenceEquals(a.Province, b.Province)) continue;
+                }
 
                 double bx = px[b.Id], by = py[b.Id];
                 double len = Math.Sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
