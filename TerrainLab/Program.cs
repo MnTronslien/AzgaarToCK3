@@ -217,7 +217,7 @@ static class Program
                 straitSelfSep   ?? 500,
                 Converter.Lemur.Straits.StraitKnobs.ResolveMaxDistance(cells.Count, straitMaxDist),
                 straitClearance ?? 400,
-                straitOceanArea ?? 30000);
+                straitOceanArea ?? 2000);
 
             // collapseByBarony: false — cells-only mode has no baronies; show every geometric candidate.
             var swGen = System.Diagnostics.Stopwatch.StartNew();

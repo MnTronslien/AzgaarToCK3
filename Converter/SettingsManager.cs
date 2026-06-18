@@ -149,8 +149,11 @@ public class Settings
     /// Water bodies whose summed cell area is at or above this are oceans (strait-able); smaller
     /// bodies are lakes (never crossed by a sea strait). Azgaar cell-area units. Azgaar's one-ocean
     /// limit means large seas are often mislabelled lakes, so we classify by size, not feature type.
+    /// 2000 (maintainer-approved on Showcase 2026-06-18): reaches lake-island enclaves without bridging
+    /// ponds — the MaxDistance/over-water/barony gates already block pond crossings, so this is low-risk.
+    /// May warrant per-map tuning like MaxDistance; verify on other maps.
     /// </summary>
-    public int StraitOceanMinimumArea { get; set; } = 30000;
+    public int StraitOceanMinimumArea { get; set; } = 2000;
 
     /// <summary>
     /// Auto-detect newer .json/.geojson files in the directory and prompt to use them.
