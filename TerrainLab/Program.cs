@@ -214,7 +214,7 @@ static class Program
             // doesn't construct Settings, which has required members). CLI flags override per-knob.
             var p = new Converter.Lemur.Straits.StraitParams(
                 straitSelfSep   ?? 24,
-                straitMaxDist   ?? 200,
+                straitMaxDist   ?? 120,
                 straitClearance ?? 400,
                 straitOceanArea ?? 30000);
 

@@ -130,7 +130,7 @@ public class Settings
     /// Rule 2: maximum crossing length (cell-centre to cell-centre), in image pixels. Also bounds
     /// how wide a strait may be — wider channels need a larger value.
     /// </summary>
-    public double StraitMaxDistance { get; set; } = 200;
+    public double StraitMaxDistance { get; set; } = 120;
 
     /// <summary>
     /// Rule 3: minimum spacing between two straits joining the same landmass pair (midpoint to
