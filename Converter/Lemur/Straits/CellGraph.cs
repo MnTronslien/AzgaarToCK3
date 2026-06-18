@@ -45,33 +45,43 @@ internal static class CellGraph
     }
 
     /// <summary>
-    /// True if <paramref name="toId"/> is reachable from <paramref name="fromId"/> within
-    /// <paramref name="maxHops"/> edges, traversing only passable cells (endpoints included).
-    /// Used by rule 1: two cells reachable overland within the bound are too close to warrant a strait.
+    /// True if <paramref name="toId"/> is reachable from <paramref name="fromId"/> by an overland path
+    /// whose accumulated cost (sum of <paramref name="centroid"/>-to-centroid pixel distances along the
+    /// path) is ≤ <paramref name="maxCost"/>, traversing only passable cells. Bounded Dijkstra.
+    ///
+    /// Used by rule 1: two cells joined by a short overland detour are too close to warrant a strait.
+    /// Cost is in CK3 image pixels (not hops) so the threshold is independent of Azgaar cell density —
+    /// a 10k-cell and a 100k-cell map at the same resolution behave the same.
     /// </summary>
-    public static bool ReachableWithin(
-        IReadOnlyDictionary<int, Cell> cells, int fromId, int toId, int maxHops, Func<Cell, bool> passable)
+    public static bool ReachableWithinCost(
+        IReadOnlyDictionary<int, Cell> cells, int fromId, int toId, double maxCost,
+        Func<int, (double x, double y)> centroid, Func<Cell, bool> passable)
     {
-        if (maxHops < 0) return false;
+        if (maxCost < 0) return false;
         if (fromId == toId) return true;
         if (!cells.TryGetValue(fromId, out var from) || !passable(from)) return false;
         if (!cells.TryGetValue(toId, out var to) || !passable(to)) return false;
 
-        var depth = new Dictionary<int, int> { [fromId] = 0 };
-        var queue = new Queue<int>();
-        queue.Enqueue(fromId);
-        while (queue.Count > 0)
+        var best = new Dictionary<int, double> { [fromId] = 0 };
+        var pq = new PriorityQueue<int, double>();
+        pq.Enqueue(fromId, 0);
+        while (pq.TryDequeue(out int curId, out double curCost))
         {
-            int curId = queue.Dequeue();
-            int d = depth[curId];
-            if (d >= maxHops) continue;
+            if (curCost > best.GetValueOrDefault(curId, double.MaxValue)) continue; // stale entry
+            if (curCost > maxCost) return false; // cheapest frontier already over budget — to unreachable in budget
+            var (cx, cy) = centroid(curId);
             foreach (var nId in cells[curId].Neighbors)
             {
-                if (nId == toId) return true;
-                if (depth.ContainsKey(nId)) continue;
                 if (!cells.TryGetValue(nId, out var n) || !passable(n)) continue;
-                depth[nId] = d + 1;
-                queue.Enqueue(nId);
+                var (nx, ny) = centroid(nId);
+                double nc = curCost + Math.Sqrt((nx - cx) * (nx - cx) + (ny - cy) * (ny - cy));
+                if (nc > maxCost) continue;
+                if (nc < best.GetValueOrDefault(nId, double.MaxValue))
+                {
+                    best[nId] = nc;
+                    if (nId == toId) return true;
+                    pq.Enqueue(nId, nc);
+                }
             }
         }
         return false;

@@ -2,9 +2,9 @@ using Converter.Lemur.Entities;
 
 namespace Converter.Lemur.Straits;
 
-/// <summary>The four tuning knobs (PLAN_straits.md). Distances are in CK3 image-pixel units.</summary>
+/// <summary>The four tuning knobs (PLAN_straits.md). All distances are in CK3 image-pixel units.</summary>
 public sealed record StraitParams(
-    int MinimumSelfSeparation,
+    double MinimumSelfSeparation, // overland path-cost in pixels (density-independent), not hops
     double MaxDistance,
     double MinimumClearance,
     int OceanMinimumArea,
@@ -124,8 +124,10 @@ public static class StraitGenerator
                 int la = landmass.GetValueOrDefault(a.Id, -1);
                 int lb = landmass.GetValueOrDefault(b.Id, -2);
 
-                // Rule 1 — same-landmass pairs reachable overland within the bound are too close.
-                if (la == lb && CellGraph.ReachableWithin(cells, a.Id, b.Id, p.MinimumSelfSeparation - 1, IsLandCell))
+                // Rule 1 — same-landmass pairs joined by a short overland path (pixel cost, density-
+                // independent) are too close to warrant a strait. Different landmasses → unreachable → kept.
+                if (la == lb && CellGraph.ReachableWithinCost(
+                        cells, a.Id, b.Id, p.MinimumSelfSeparation, id => (px[id], py[id]), IsLandCell))
                     continue;
 
                 candidates.Add(new Strait

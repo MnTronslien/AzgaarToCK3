@@ -121,10 +121,12 @@ public class Settings
     // TerrainLab --strait-map harness.
 
     /// <summary>
-    /// Rule 1: two cells reachable from each other overland within this many cell-hops get no
-    /// strait (you can just walk around). Distinguishes a bay worth bridging from a shoreline.
+    /// Rule 1: two cells joined by an overland path shorter than this (accumulated cell-centroid pixel
+    /// distance) get no strait — you can just walk around. Distinguishes a bay worth bridging from a
+    /// shoreline. In PIXELS, not hops, so it is independent of Azgaar cell density (a 10k-cell and a
+    /// 100k-cell map at the same resolution behave identically). Default ≈ the old 24-hop Oncyia tuning.
     /// </summary>
-    public int StraitMinimumSelfSeparation { get; set; } = 24;
+    public double StraitMinimumSelfSeparation { get; set; } = 2000;
 
     /// <summary>
     /// Rule 2: maximum crossing length (cell-centre to cell-centre), in image pixels. Also bounds

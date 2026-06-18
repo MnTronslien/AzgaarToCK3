@@ -55,8 +55,8 @@ static class Program
         bool packDebug = false;
         string? packOut = null;
         bool straitMap = false;
-        double? straitMaxDist = null, straitClearance = null;
-        int? straitSelfSep = null, straitOceanArea = null;
+        double? straitMaxDist = null, straitClearance = null, straitSelfSep = null;
+        int? straitOceanArea = null;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -107,7 +107,7 @@ static class Program
                 case "--strait-map":          straitMap        = true; break;
                 case "--strait-max-distance": straitMaxDist    = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--strait-clearance":    straitClearance  = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
-                case "--strait-self-sep":     straitSelfSep    = int.Parse(args[++i]); break;
+                case "--strait-self-sep":     straitSelfSep    = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--strait-ocean-area":   straitOceanArea  = int.Parse(args[++i]); break;
                 case "--cells":           cellsDumpPath     = args[++i]; break;
                 case "--rivers-geojson":  riversGeojsonPath = args[++i]; break;
@@ -213,7 +213,7 @@ static class Program
             // Knob baseline mirrors the Converter.Settings defaults (kept in sync by hand — the lab
             // doesn't construct Settings, which has required members). CLI flags override per-knob.
             var p = new Converter.Lemur.Straits.StraitParams(
-                straitSelfSep   ?? 24,
+                straitSelfSep   ?? 2000,
                 straitMaxDist   ?? 120,
                 straitClearance ?? 400,
                 straitOceanArea ?? 30000);
