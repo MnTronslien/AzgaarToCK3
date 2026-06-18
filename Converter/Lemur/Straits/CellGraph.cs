@@ -47,7 +47,10 @@ internal static class CellGraph
     /// <summary>
     /// True if <paramref name="toId"/> is reachable from <paramref name="fromId"/> by an overland path
     /// whose accumulated cost (sum of <paramref name="centroid"/>-to-centroid pixel distances along the
-    /// path) is ≤ <paramref name="maxCost"/>, traversing only passable cells. Bounded Dijkstra.
+    /// path) is ≤ <paramref name="maxCost"/>, traversing only passable cells. Bounded A* — the priority
+    /// is path-cost-so-far plus the straight-line distance to the target (an admissible heuristic), so
+    /// the search beelines toward the target and the common "reachable by a short walk" case resolves
+    /// almost immediately instead of expanding a full maxCost-radius disk.
     ///
     /// Used by rule 1: two cells joined by a short overland detour are too close to warrant a strait.
     /// Cost is in CK3 image pixels (not hops) so the threshold is independent of Azgaar cell density —
@@ -62,25 +65,31 @@ internal static class CellGraph
         if (!cells.TryGetValue(fromId, out var from) || !passable(from)) return false;
         if (!cells.TryGetValue(toId, out var to) || !passable(to)) return false;
 
+        var (tx, ty) = centroid(toId);
+        double Heuristic(int id) { var (x, y) = centroid(id); return Math.Sqrt((x - tx) * (x - tx) + (y - ty) * (y - ty)); }
+
         var best = new Dictionary<int, double> { [fromId] = 0 };
-        var pq = new PriorityQueue<int, double>();
-        pq.Enqueue(fromId, 0);
-        while (pq.TryDequeue(out int curId, out double curCost))
+        var pq = new PriorityQueue<int, double>(); // priority = g + h
+        pq.Enqueue(fromId, Heuristic(fromId));
+        while (pq.TryDequeue(out int curId, out double curPriority))
         {
-            if (curCost > best.GetValueOrDefault(curId, double.MaxValue)) continue; // stale entry
-            if (curCost > maxCost) return false; // cheapest frontier already over budget — to unreachable in budget
+            // A* lower bound: once the cheapest f = g+h exceeds the budget, no path ≤ maxCost remains
+            // (h is admissible, so g_to ≥ f_here for everything still queued).
+            if (curPriority > maxCost) return false;
+            double g = best[curId];
+            if (curPriority > g + Heuristic(curId) + 1e-6) continue; // stale: a cheaper path to curId was queued later
             var (cx, cy) = centroid(curId);
             foreach (var nId in cells[curId].Neighbors)
             {
                 if (!cells.TryGetValue(nId, out var n) || !passable(n)) continue;
                 var (nx, ny) = centroid(nId);
-                double nc = curCost + Math.Sqrt((nx - cx) * (nx - cx) + (ny - cy) * (ny - cy));
-                if (nc > maxCost) continue;
-                if (nc < best.GetValueOrDefault(nId, double.MaxValue))
+                double ng = g + Math.Sqrt((nx - cx) * (nx - cx) + (ny - cy) * (ny - cy));
+                if (ng > maxCost) continue;
+                if (ng < best.GetValueOrDefault(nId, double.MaxValue))
                 {
-                    best[nId] = nc;
+                    best[nId] = ng;
                     if (nId == toId) return true;
-                    pq.Enqueue(nId, nc);
+                    pq.Enqueue(nId, ng + Heuristic(nId));
                 }
             }
         }

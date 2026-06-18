@@ -219,11 +219,15 @@ static class Program
                 straitOceanArea ?? 30000);
 
             // collapseByBarony: false — cells-only mode has no baronies; show every geometric candidate.
+            var swGen = System.Diagnostics.Stopwatch.StartNew();
             var straits = Converter.Lemur.Straits.StraitGenerator.Generate(cells, project, p, collapseByBarony: false);
-            Console.WriteLine($"Generated {straits.Count} straits "
+            swGen.Stop();
+            Console.WriteLine($"Generated {straits.Count} straits in {swGen.ElapsedMilliseconds}ms "
                 + $"(self-sep={p.MinimumSelfSeparation}, max-dist={p.MaxDistance}, clearance={p.MinimumClearance}, ocean-area={p.OceanMinimumArea}).");
+            var swImg = System.Diagnostics.Stopwatch.StartNew();
             Converter.Lemur.Straits.StraitDebugImage.Write(cells, project, straits, p.OceanMinimumArea, outputPath!);
-            Console.WriteLine($"Strait debug image → {outputPath}");
+            swImg.Stop();
+            Console.WriteLine($"Strait debug image written in {swImg.ElapsedMilliseconds}ms → {outputPath}");
             return 0;
         }
 
