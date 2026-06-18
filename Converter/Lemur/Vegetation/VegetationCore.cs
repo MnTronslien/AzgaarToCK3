@@ -8,8 +8,8 @@ public static class VegetationCore
 {
     // ── Gradual height falloff (heightmap byte units; waterline = MaxWaterByte ≈ 20) ──
     // Full vegetation up to Low; linear taper Low→High; none above High.
-    public const int TreelineLow  = 35;
-    public const int TreelineHigh = 50;
+    public const int TreelineLow  = 135;
+    public const int TreelineHigh = 150;
 
     // ── Large-scale density noise — breaks the "same clump size/coverage everywhere" uniformity ──
     // The field multiplies per-square density, so high-noise regions get many trees (→ big dense
@@ -26,12 +26,17 @@ public static class VegetationCore
     public static float NoiseWavelengthOverride = -1f;
     private static float Wavelength => NoiseWavelengthOverride > 0f ? NoiseWavelengthOverride : NoiseWavelength;
 
-    /// <summary>Density multiplier from the large-scale noise field: amp*noise ∈ [0, amp]. No negatives,
-    /// no clamp artefact — low-noise regions taper smoothly toward bare, peaks reach amp×. Mean ≈ amp/2.</summary>
+    // Trough floor as a fraction of the peak: noise swings in [amp*FloorFrac, amp], never 0.
+    // 0.5 → troughs at amp/2, peaks at amp (so no fully-bare holes from the noise).
+    public const float NoiseFloorFrac = 0.5f;
+
+    /// <summary>Density multiplier from the large-scale noise field: amp*(FloorFrac + (1-FloorFrac)*noise)
+    /// ∈ [amp*FloorFrac, amp]. Floored so low-noise regions thin out but never hit zero. Mean ≈ amp*0.75.</summary>
     public static float DensityFactor(float x, float y)
     {
         float amp = NoiseAmpOverride >= 0f ? NoiseAmpOverride : NoiseAmp;
-        return amp * ValueNoise2D(x, y, Wavelength, NoiseSeed);
+        float n = ValueNoise2D(x, y, Wavelength, NoiseSeed);            // [0,1]
+        return amp * (NoiseFloorFrac + (1f - NoiseFloorFrac) * n);      // [amp*FloorFrac, amp]
     }
 
     /// <summary>Raw noise field value [0,1] at a pixel — for the debug overlay.</summary>

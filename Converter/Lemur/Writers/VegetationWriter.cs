@@ -30,7 +30,7 @@ public static class VegetationWriter
         new(AzgaarBiome.Grassland,                1.5f, new[] { "steppe_bush_01_mesh" }),
         new(AzgaarBiome.Savanna,                  2.0f, new[] { "steppe_bush_01_mesh", "tree_palm_01_a_mesh" }),
         new(AzgaarBiome.Wetland,                  3.0f, new[] { "reeds_01_tall_grass_mesh", "reeds_06_grass_mesh", "reeds_07_grass_mesh" }),
-        new(AzgaarBiome.TropicalSeasonalForest,   5.0f, new[] { "tree_palm_01_a_mesh", "tree_jungle_01_c_mesh" }),
+        new(AzgaarBiome.TropicalSeasonalForest,   1.5f, new[] { "tree_palm_01_a_mesh", "tree_jungle_01_c_mesh" }),
         new(AzgaarBiome.Taiga,                    5.0f, new[] { "tree_pine_01_b_mesh", "tree_pine_single_01_a_mesh", "tree_pine_impassable_01_a_mesh" }),
         new(AzgaarBiome.TemperateRainforest,      6.0f, new[] { "tree_pine_single_01_a_mesh", "tree_pine_single_01_b_mesh", "tree_pine_single_01_c_mesh", "tree_pine_01_b_mesh" }),
         new(AzgaarBiome.TemperateDeciduousForest, 6.0f, new[] { "tree_leaf_01_a_mesh", "tree_leaf_01_b_mesh", "tree_leaf_01_c_mesh", "tree_leaf_01_single_a_mesh" }),
