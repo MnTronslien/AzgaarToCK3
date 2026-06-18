@@ -15,6 +15,11 @@ using Converter.Lemur.Entities;
 /// </summary>
 public static class CharacterFactory
 {
+    // Generated rulers are born this many years before the game-start date. A placeholder until the
+    // age bell-curve (notes-for-later.md) replaces it with a per-character age; relocated here from
+    // the old hardcoded Character.BirthYear = 1033 so birth years track Map.StartDate.
+    private const int RulerAgeOffset = 33;
+
     public static void CreateAndAssignAll(Map map)
     {
         var claimed = new HashSet<County>();
@@ -249,6 +254,6 @@ public static class CharacterFactory
             Converter.Settings.Instance.Seed!.Value, map.Characters.Count, culture.AzgaarId));
         var name = pool[rng.Next(pool.Length)];
 
-        return new Character(culture, faith, name);
+        return new Character(culture, faith, map.StartDate.Year - RulerAgeOffset, name);
     }
 }

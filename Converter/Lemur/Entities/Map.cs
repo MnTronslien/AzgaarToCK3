@@ -23,6 +23,13 @@ namespace Converter.Lemur.Entities
         public required AzgaarJsonMap JsonMap { get; set; }
         public required Settings Settings { get; set; }
 
+        /// <summary>
+        /// CK3 game-start date — single source of truth for every dated emission (title history,
+        /// bookmark, character births, culture creation dates). World data, not a setting; a future
+        /// loader will populate it from the Azgaar export. Default 1066.1.1.
+        /// </summary>
+        public StartDate StartDate { get; set; } = new(1066, 1, 1);
+
         public Dictionary<int, Cell>? Cells { get; set; }
         public Dictionary<int, Burg>? Burgs { get; set; }
 

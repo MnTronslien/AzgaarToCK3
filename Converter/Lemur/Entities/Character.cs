@@ -11,12 +11,12 @@ public class Character
     public int BirthYear { get; }
     public List<ITitle> HeldTitles { get; } = new();
 
-    public Character(Culture culture, Faith faith, string? name = null)
+    public Character(Culture culture, Faith faith, int birthYear, string? name = null)
     {
         Id = $"lemur_{++_counter}";
         Name = name;
         Culture = culture;
         Faith = faith;
-        BirthYear = 1033;
+        BirthYear = birthYear;
     }
 }

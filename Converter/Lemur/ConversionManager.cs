@@ -97,7 +97,7 @@ namespace Converter.Lemur
                 $"{cellDist.CultureCellCounts.Count} cultures have at least one land cell.");
 
             map.Faiths = FaithManager.Build(map.JsonMap.pack.religions, cellDist.ReligionCellCounts);
-            map.Cultures = CultureManager.Build(map.JsonMap.pack.cultures, Settings.Instance.Seed!.Value);
+            map.Cultures = CultureManager.Build(map.JsonMap.pack.cultures, Settings.Instance.Seed!.Value, map.StartDate.Year);
 
             // ✅ Visualization checkpoint 1: Raw cells
             await ImageUtility.DrawCells(map.Cells!.Values.ToList(), map);

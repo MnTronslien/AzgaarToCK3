@@ -4,10 +4,9 @@ namespace Converter.Lemur.Writers;
 
 public static class TitleHistoryWriter
 {
-    private const string StartDate = "1066.1.1";
-
     public static async Task Write(L.Map map, string outputDirectory)
     {
+        var startDate = map.StartDate.ToString();
         var sb = new System.Text.StringBuilder();
 
         foreach (var empire in map.Empires!)
@@ -15,7 +14,7 @@ public static class TitleHistoryWriter
             // Emperor: assigned only for diplomacy-driven empires (CharacterFactory's empire pass). Holderless
             // culture/religion shells emit nothing. Government inherited from the suzerain kingdom.
             if (empire.Holder != null)
-                sb.AppendLine(TitleEntry(empire.Ck3_Id(), empire.Holder.Id, liege: null, governmentKey: empire.Government?.Key));
+                sb.AppendLine(TitleEntry(startDate, empire.Ck3_Id(), empire.Holder.Id, liege: null, governmentKey: empire.Government?.Key));
 
             foreach (var kingdom in empire.Kingdoms)
             {
@@ -25,13 +24,13 @@ public static class TitleHistoryWriter
                 if (kingdom.Holder != null)
                 {
                     var kLiege = kingdom.DeFactoLiege is { } kl && kl.Holder != kingdom.Holder ? kl.Ck3_Id() : null;
-                    sb.AppendLine(TitleEntry(kingdom.Ck3_Id(), kingdom.Holder.Id, liege: kLiege, governmentKey: kingdom.Government?.Key));
+                    sb.AppendLine(TitleEntry(startDate, kingdom.Ck3_Id(), kingdom.Holder.Id, liege: kLiege, governmentKey: kingdom.Government?.Key));
                 }
 
                 foreach (var duchy in kingdom.Duchies)
                 {
                     if (duchy.Holder != null)
-                        sb.AppendLine(TitleEntry(duchy.Ck3_Id(), duchy.Holder.Id, duchy.DeFactoLiege?.Ck3_Id(), governmentKey: duchy.Government?.Key));
+                        sb.AppendLine(TitleEntry(startDate, duchy.Ck3_Id(), duchy.Holder.Id, duchy.DeFactoLiege?.Ck3_Id(), governmentKey: duchy.Government?.Key));
 
                     // Always write county liege — even without a holder.
                     // CK3 will auto-spawn a count and route them to the correct liege.
@@ -39,6 +38,7 @@ public static class TitleHistoryWriter
                     // counties to the first titled holder it finds (often the wrong king).
                     foreach (var county in duchy.Counties)
                         sb.AppendLine(TitleEntry(
+                            startDate,
                             county.Ck3_Id(),
                             county.Holder?.Id,
                             county.DeFactoLiege!.Ck3_Id(),
@@ -62,12 +62,12 @@ public static class TitleHistoryWriter
     /// `e_japan.txt` for nomad and japan_feudal). Development levels are emitted on counties only
     /// (from the 1.3.0 feature/county-development feature).
     /// </summary>
-    private static string TitleEntry(string titleId, string? holderId, string? liege, string? governmentKey = null, int? development = null)
+    private static string TitleEntry(string startDate, string titleId, string? holderId, string? liege, string? governmentKey = null, int? development = null)
     {
         var holderClause = holderId != null ? $" holder = {holderId}" : "";
         var liegeClause = liege != null ? $" liege = {liege}" : "";
         var govClause = governmentKey != null ? $" government = {governmentKey}" : "";
         var devClause = development.HasValue ? $" change_development_level = {development.Value}" : "";
-        return $"{titleId} = {{ {StartDate} = {{{holderClause}{liegeClause}{govClause}{devClause} }} }}";
+        return $"{titleId} = {{ {startDate} = {{{holderClause}{liegeClause}{govClause}{devClause} }} }}";
     }
 }
