@@ -15,19 +15,19 @@ public static class VegetationCore
     // The field multiplies per-square density, so high-noise regions get many trees (→ big dense
     // groves once tightened) and low-noise regions get few (→ small sparse stands). One field varies
     // both coverage AND grove size. Wavelength is in map pixels (8192 wide), so ~900 ≈ 9 lobes across.
-    public const float NoiseAmp        = 3.5f;    // density factor = (1-amp)+2*amp*noise, clamped ≥0 → bare↔~4.5x
+    public const float NoiseAmp        = 3.5f;    // PEAK density multiplier; factor = amp*noise ∈ [0, amp]
     public const float NoiseWavelength = 450f;    // ~18 lobes across the 8192px map (smaller features)
     public const int   NoiseSeed       = 1234;
 
     /// <summary>Debug-only amplitude override (set by TerrainLab to preview different strengths). &lt;0 = use the const.</summary>
     public static float NoiseAmpOverride = -1f;
 
-    /// <summary>Density multiplier at a pixel from the large-scale noise field: [1-amp, 1+amp] (clamped ≥0).</summary>
+    /// <summary>Density multiplier from the large-scale noise field: amp*noise ∈ [0, amp]. No negatives,
+    /// no clamp artefact — low-noise regions taper smoothly toward bare, peaks reach amp×. Mean ≈ amp/2.</summary>
     public static float DensityFactor(float x, float y)
     {
         float amp = NoiseAmpOverride >= 0f ? NoiseAmpOverride : NoiseAmp;
-        float f = (1f - amp) + 2f * amp * ValueNoise2D(x, y, NoiseWavelength, NoiseSeed);
-        return f < 0f ? 0f : f;   // large amp can drive the low side negative → treat as bare
+        return amp * ValueNoise2D(x, y, NoiseWavelength, NoiseSeed);
     }
 
     /// <summary>Raw noise field value [0,1] at a pixel — for the debug overlay.</summary>
