@@ -28,6 +28,7 @@ static class Program
         float vegTreeline = 0.6f;   // elevation filter: reject land trees with height01 above this
         bool vegElev = true;        // run the elevation filter (needs heightmap pre-pass)
         bool vegUnified = false;    // render all vegetation rules at once, each its own colour
+        bool meshGraph = false;     // render the rule→mesh graph (no Azgaar data needed)
         int seed = 42;
         float strength = 0.25f, roughnessNorm = 1.0f;
         int nodesPerCell = 4;
@@ -125,6 +126,7 @@ static class Program
                 case "--veg-treeline":      vegTreeline     = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--no-veg-elev":       vegElev         = false; break;
                 case "--unified":           vegUnified      = true; break;
+                case "--mesh-graph":        meshGraph       = true; break;
                 case "--compare":
                     comparePathA = args[++i];
                     comparePathB = args[++i];
@@ -146,6 +148,13 @@ static class Program
         if (genMaterials)
         {
             return GenerateCk3MaterialBytes(genMaterialsCk3Dir, genMaterialsOut);
+        }
+
+        // ── Vegetation rule→mesh graph — no Azgaar data needed ──────────────
+        if (meshGraph)
+        {
+            VegetationDebug.RenderMeshGraph(outputPath ?? "mesh_graph.png");
+            return 0;
         }
 
         // ── Pixel comparison mode — no Azgaar data needed ────────────────────

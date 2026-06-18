@@ -217,20 +217,112 @@ static class VegetationDebug
     // Each vegetated biome is its own rule: thickness = its blended weight, placed in its own
     // colour, tightened within its own set (per-mesh). Rules ADD UP — across biomes the blend
     // keeps the total bounded (a pixel's biome shares sum to 1), so edges mingle without crowding.
-    public sealed record Rule(AzgaarBiome Biome, float MaxPerSquare, byte R, byte G, byte B, string Label);
+    // A rule = one ecological category: a biome, a density, a debug colour, and the set of CK3
+    // meshes that fill it (variants — picked at random per tree for visual variety).
+    public sealed record Rule(AzgaarBiome Biome, float MaxPerSquare, byte R, byte G, byte B, string Label, string[] Meshes);
 
     // Drawn in this order: sparse ground cover first, dense forest painted on top.
+    // Mesh names verified present in CK3 generated/*.txt (the 22-mesh foliage inventory).
     static readonly Rule[] Rules =
     {
-        new(AzgaarBiome.Grassland,                1.5f, 150, 180,  90, "grassland"),
-        new(AzgaarBiome.Savanna,                  2.0f, 181, 160,  70, "savanna bush"),
-        new(AzgaarBiome.Wetland,                  3.0f,  90, 120,  80, "wetland reeds"),
-        new(AzgaarBiome.TropicalSeasonalForest,   5.0f, 140, 160,  50, "tropical seasonal"),
-        new(AzgaarBiome.Taiga,                    5.0f,  60,  95,  80, "taiga"),
-        new(AzgaarBiome.TemperateRainforest,      6.0f,  35,  95,  85, "pine (temp. rainforest)"),
-        new(AzgaarBiome.TemperateDeciduousForest, 6.0f,  40, 120,  45, "deciduous"),
-        new(AzgaarBiome.TropicalRainforest,       6.0f,  15,  85,  55, "jungle (trop. rainforest)"),
+        new(AzgaarBiome.Grassland,                1.5f, 150, 180,  90, "grassland",
+            new[] { "steppe_bush_01_mesh" }),
+        new(AzgaarBiome.Savanna,                  2.0f, 181, 160,  70, "savanna bush",
+            new[] { "steppe_bush_01_mesh", "tree_palm_01_a_mesh" }),
+        new(AzgaarBiome.Wetland,                  3.0f,  90, 120,  80, "wetland reeds",
+            new[] { "reeds_01_tall_grass_mesh", "reeds_06_grass_mesh", "reeds_07_grass_mesh" }),
+        new(AzgaarBiome.TropicalSeasonalForest,   5.0f, 140, 160,  50, "tropical seasonal",
+            new[] { "tree_palm_01_a_mesh", "tree_jungle_01_c_mesh" }),
+        new(AzgaarBiome.Taiga,                    5.0f,  60,  95,  80, "taiga",
+            new[] { "tree_pine_01_b_mesh", "tree_pine_single_01_a_mesh", "tree_pine_impassable_01_a_mesh" }),
+        new(AzgaarBiome.TemperateRainforest,      6.0f,  35,  95,  85, "pine (temp. rainforest)",
+            new[] { "tree_pine_single_01_a_mesh", "tree_pine_single_01_b_mesh", "tree_pine_single_01_c_mesh", "tree_pine_01_b_mesh" }),
+        new(AzgaarBiome.TemperateDeciduousForest, 6.0f,  40, 120,  45, "deciduous",
+            new[] { "tree_leaf_01_a_mesh", "tree_leaf_01_b_mesh", "tree_leaf_01_c_mesh", "tree_leaf_01_single_a_mesh" }),
+        new(AzgaarBiome.TropicalRainforest,       6.0f,  15,  85,  55, "jungle (trop. rainforest)",
+            new[] { "tree_jungle_01_c_mesh", "tree_jungle_01_d_mesh", "tree_palm_01_a_mesh" }),
     };
+
+    // CK3 foliage meshes that exist but map to no Azgaar biome (flavour / no matching biome).
+    static readonly (string Label, string[] Meshes)[] Unassigned =
+    {
+        ("mediterranean / dry — no Azgaar biome", new[] { "tree_cypress_01_a_mesh", "tree_cypress_01_b_mesh", "tree_cypress_01_c_mesh" }),
+        ("East-Asia flavour — not biome-driven",  new[] { "tree_sakura_01_mesh", "tree_sakura_02_mesh", "tree_sakura_03_mesh" }),
+    };
+
+    // Diagram: each rule and the meshes it draws from, grouped by rule. No Azgaar data needed.
+    public static void RenderMeshGraph(string outPath)
+    {
+        const int Wd = 1500, Ht = 1000;
+        const string font = "C:\\Windows\\Fonts\\arial.ttf";
+        static string Shorten(string m) => (m.StartsWith("tree_") ? m[5..] : m).Replace("_mesh", "");
+
+        using var img = new MagickImage("xc:white", new MagickReadSettings { Width = Wd, Height = Ht });
+        var d = new Drawables();
+        d.Font(font);
+        d.StrokeColor(MagickColors.None).FillColor(MagickColors.Black).FontPointSize(22)
+         .Text(30, 42, "Vegetation rules → CK3 meshes (variants), grouped by rule");
+        d.FontPointSize(12).FillColor(new MagickColor("#555555"))
+         .Text(30, 66, "8 biome rules · 22 distinct foliage meshes available · each rule fills its thickness budget by random pick among its variants");
+
+        const int ruleX1 = 30, ruleX2 = 340, rowH = 74, pillW = 176, pillGap = 12, pillH = 56;
+        int rowY = 100;
+        foreach (var rule in Rules)
+        {
+            string hex = $"#{rule.R:X2}{rule.G:X2}{rule.B:X2}";
+            double lum = 0.299 * rule.R + 0.587 * rule.G + 0.114 * rule.B;
+            var txt = lum < 140 ? MagickColors.White : MagickColors.Black;
+
+            d.StrokeColor(MagickColors.Black).StrokeWidth(1).FillColor(new MagickColor(hex))
+             .Rectangle(ruleX1, rowY, ruleX2, rowY + pillH);
+            d.StrokeColor(MagickColors.None).FillColor(txt).FontPointSize(15)
+             .Text(ruleX1 + 10, rowY + 24, rule.Label);
+            d.FontPointSize(11)
+             .Text(ruleX1 + 10, rowY + 44, $"max/sq {rule.MaxPerSquare}  ·  {rule.Meshes.Length} variant(s)");
+
+            double cy = rowY + pillH / 2.0;
+            int firstX = ruleX2 + 40;
+            int lastRight = firstX + rule.Meshes.Length * (pillW + pillGap) - pillGap;
+            // connector spine first, so pills paint over it (no strikethrough through pills)
+            d.StrokeColor(new MagickColor("#aaaaaa")).StrokeWidth(1).FillColor(MagickColors.None)
+             .Line(ruleX2, cy, lastRight, cy);
+            int mx = firstX;
+            foreach (var m in rule.Meshes)
+            {
+                d.StrokeColor(MagickColors.Black).FillColor(new MagickColor("#eef3e8"))
+                 .RoundRectangle(mx, rowY + 6, mx + pillW, rowY + pillH - 6, 6, 6);
+                d.StrokeColor(MagickColors.None).FillColor(MagickColors.Black).FontPointSize(12)
+                 .Text(mx + 9, rowY + pillH / 2.0 + 4, Shorten(m));
+                mx += pillW + pillGap;
+            }
+            rowY += rowH;
+        }
+
+        rowY += 8;
+        d.StrokeColor(MagickColors.None).FillColor(new MagickColor("#883333")).FontPointSize(15)
+         .Text(ruleX1, rowY, "Available, not yet assigned to a rule:");
+        rowY += 22;
+        foreach (var (label, meshes) in Unassigned)
+        {
+            d.FillColor(new MagickColor("#555555")).FontPointSize(12).Text(ruleX1, rowY + 18, label);
+            int mx = ruleX2 + 40;
+            foreach (var m in meshes)
+            {
+                d.StrokeColor(MagickColors.Black).FillColor(new MagickColor("#f3eee4"))
+                 .RoundRectangle(mx, rowY, mx + pillW, rowY + 28, 6, 6);
+                d.StrokeColor(MagickColors.None).FillColor(MagickColors.Black).FontPointSize(12)
+                 .Text(mx + 9, rowY + 19, Shorten(m));
+                mx += pillW + pillGap;
+            }
+            rowY += 40;
+        }
+
+        img.Draw(d);
+        var full = Path.GetFullPath(outPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+        img.Write(full, MagickFormat.Png);
+        Console.WriteLine($"Wrote mesh graph: {full} ({Wd}x{Ht})");
+    }
 
     public static void RenderUnified(
         IReadOnlyDictionary<int, Cell> cells, AzgaarMapCoordinates coords,
