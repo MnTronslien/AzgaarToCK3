@@ -143,7 +143,7 @@ public static class VegetationWriter
                     if (heightBytes != null)
                     {
                         byte hb = heightBytes[(int)py * W + (int)px];
-                        if (hb <= HeightmapAlgorithm.MaxWaterByte) continue;     // underwater
+                        if (hb <= HeightmapAlgorithm.MaxWaterByte + VegetationCore.WaterlineMarginBytes) continue;   // at/just-above waterline
                         float keep = VegetationCore.HeightKeepProb(hb);          // gradual treeline
                         if (keep <= 0f || (keep < 1f && rng.NextDouble() > keep)) continue;
                     }

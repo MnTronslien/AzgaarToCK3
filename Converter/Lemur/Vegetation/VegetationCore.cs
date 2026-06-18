@@ -11,6 +11,11 @@ public static class VegetationCore
     public const int TreelineLow  = 135;
     public const int TreelineHigh = 150;
 
+    // Hard underwater prune: reject any tree at or within this many bytes above the waterline
+    // (MaxWaterByte ≈ 20). The +margin keeps trees out of the shallow coastal band that renders
+    // under water. A tree is kept only if heightByte > MaxWaterByte + WaterlineMarginBytes.
+    public const int WaterlineMarginBytes = 2;
+
     // ── Large-scale density noise — breaks the "same clump size/coverage everywhere" uniformity ──
     // The field multiplies per-square density, so high-noise regions get many trees (→ big dense
     // groves once tightened) and low-noise regions get few (→ small sparse stands). One field varies

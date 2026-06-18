@@ -99,7 +99,7 @@ static class VegetationDebug
                     if (heightBytes != null)
                     {
                         byte hb = heightBytes[(int)py * W + (int)px];
-                        if (hb <= HeightmapAlgorithm.MaxWaterByte) { rejUnderwater++; continue; }
+                        if (hb <= HeightmapAlgorithm.MaxWaterByte + VegetationCore.WaterlineMarginBytes) { rejUnderwater++; continue; }
                         float keep = VegetationCore.HeightKeepProb(hb);
                         if (keep <= 0f || (keep < 1f && rng.NextDouble() > keep)) { rejTreeline++; continue; }
                         heights.Add(hb / 255f);
@@ -437,7 +437,7 @@ static class VegetationDebug
                     if (heightBytes != null)
                     {
                         byte hb = heightBytes[(int)py * W + (int)px];
-                        if (hb <= HeightmapAlgorithm.MaxWaterByte) continue;   // underwater
+                        if (hb <= HeightmapAlgorithm.MaxWaterByte + VegetationCore.WaterlineMarginBytes) continue;   // at/just-above waterline
                         float keep = VegetationCore.HeightKeepProb(hb);
                         if (keep <= 0f || (keep < 1f && rng.NextDouble() > keep)) continue;
                     }
