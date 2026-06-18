@@ -125,10 +125,11 @@ public class Settings
     /// distance) get no strait — you can just walk around. Distinguishes a bay worth bridging from a
     /// shoreline. In PIXELS, not hops, so it is independent of Azgaar cell density (a 10k-cell and a
     /// 100k-cell map at the same resolution behave identically) — hence a single global value, not
-    /// interpolated. Binary-tuned on Showcase (2026-06-18): 800px admits genuine same-landmass bay
-    /// crossings without flooding (Showcase 57→58, Oncyia 10→11). The transition sits at ~900px.
+    /// interpolated. Binary-tuned + maintainer-approved on Showcase (2026-06-18): 500px admits the
+    /// genuine same-landmass bay crossings (Showcase 57→59, Oncyia 10→12). First crossing appears at
+    /// the ~900px transition; 500 lets in the next valid bay.
     /// </summary>
-    public double StraitMinimumSelfSeparation { get; set; } = 800;
+    public double StraitMinimumSelfSeparation { get; set; } = 500;
 
     /// <summary>
     /// Rule 2: maximum crossing length (cell-centre to cell-centre), in image pixels. Also bounds how
