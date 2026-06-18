@@ -124,9 +124,11 @@ public class Settings
     /// Rule 1: two cells joined by an overland path shorter than this (accumulated cell-centroid pixel
     /// distance) get no strait — you can just walk around. Distinguishes a bay worth bridging from a
     /// shoreline. In PIXELS, not hops, so it is independent of Azgaar cell density (a 10k-cell and a
-    /// 100k-cell map at the same resolution behave identically). Default ≈ the old 24-hop Oncyia tuning.
+    /// 100k-cell map at the same resolution behave identically) — hence a single global value, not
+    /// interpolated. Binary-tuned on Showcase (2026-06-18): 800px admits genuine same-landmass bay
+    /// crossings without flooding (Showcase 57→58, Oncyia 10→11). The transition sits at ~900px.
     /// </summary>
-    public double StraitMinimumSelfSeparation { get; set; } = 2000;
+    public double StraitMinimumSelfSeparation { get; set; } = 800;
 
     /// <summary>
     /// Rule 2: maximum crossing length (cell-centre to cell-centre), in image pixels. Also bounds how
