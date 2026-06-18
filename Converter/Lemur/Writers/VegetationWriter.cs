@@ -42,9 +42,10 @@ public static class VegetationWriter
     // Vegetation stops a little way up the mountainsides — for our terrain this stands in for a
     // steepness cutoff. Tune to taste.
     private const int   TreelineByte    = 35;
-    private const float TightenStrength = 0.40f;   // strong clustering into groves + clearings
-    private const int   TightenIters    = 5;
-    private const float MinGap          = 3f;      // floor: trees never pulled closer than this (fights collapse)
+    private const float DensityMul      = 1.20f;   // global density scale (+20% trees where vegetation exists)
+    private const float TightenStrength = 0.60f;   // very strong clustering into groves + clearings
+    private const int   TightenIters    = 6;
+    private const float MinGap          = 1f;      // floor: trees never pulled closer than this (fights collapse)
     private const int   SeedBase        = 1337;    // deterministic; not tied to --seed (MVP)
 
     // grass_layer for ground cover (reeds, bushes); tree_high_layer for everything else — matches vanilla.
@@ -132,7 +133,7 @@ public static class VegetationWriter
                 int cy = Math.Min(gy * GridPx + GridPx / 2, H - 1);
                 float thickness = biomes[cy * W + cx].WeightOf(biome);
                 if (thickness <= 0f) continue;
-                int count = (int)MathF.Round(thickness * maxPerSquare);
+                int count = (int)MathF.Round(thickness * maxPerSquare * DensityMul);
                 for (int k = 0; k < count; k++)
                 {
                     float px = gx * GridPx + (float)rng.NextDouble() * GridPx;

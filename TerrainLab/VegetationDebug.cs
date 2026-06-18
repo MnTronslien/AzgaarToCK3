@@ -25,6 +25,8 @@ namespace TerrainLab;
 // tuning harness; the flip only matters when emitting the real CK3 map_object_data file.
 static class VegetationDebug
 {
+    private const float DensityMul = 1.20f;   // global density scale (kept in sync with VegetationWriter)
+
     public readonly record struct Options(
         AzgaarBiome Rule,
         int GridPx,
@@ -84,7 +86,7 @@ static class VegetationDebug
                 int cy = Math.Min(gy * o.GridPx + o.GridPx / 2, H - 1);
                 float thickness = biomes[cy * W + cx].WeightOf(o.Rule);   // 0..1, blended
                 if (thickness <= 0f) continue;
-                int count = (int)MathF.Round(thickness * o.MaxPerSquare);
+                int count = (int)MathF.Round(thickness * o.MaxPerSquare * DensityMul);
                 for (int k = 0; k < count; k++)
                 {
                     float px = gx * o.GridPx + (float)rng.NextDouble() * o.GridPx;
@@ -115,7 +117,7 @@ static class VegetationDebug
         // ── Slight tightening (per-mesh; here all trees are one mesh) ──
         if (o.TightenStrength > 0f && o.TightenIters > 0)
         {
-            Tighten(trees, W, H, o.TightenStrength, o.TightenIters, k: 6, minGap: 3f);
+            Tighten(trees, W, H, o.TightenStrength, o.TightenIters, k: 6, minGap: 1f);
             Console.WriteLine($"Tightened: strength={o.TightenStrength}, iters={o.TightenIters}.");
         }
 
@@ -353,7 +355,7 @@ static class VegetationDebug
             var pts = Scatter(biomes, heightBytes, rule.Biome, o.GridPx, rule.MaxPerSquare,
                               o.Seed + (int)rule.Biome, o.TreelineByte);
             if (o.TightenStrength > 0f && o.TightenIters > 0)
-                Tighten(pts, W, H, o.TightenStrength, o.TightenIters, k: 6, minGap: 3f);
+                Tighten(pts, W, H, o.TightenStrength, o.TightenIters, k: 6, minGap: 1f);
             Console.WriteLine($"  {rule.Label,-26} {pts.Count,8}");
             perRule.Add((rule, pts));
         }
@@ -411,7 +413,7 @@ static class VegetationDebug
                 int cy = Math.Min(gy * gridPx + gridPx / 2, H - 1);
                 float thickness = biomes[cy * W + cx].WeightOf(biome);
                 if (thickness <= 0f) continue;
-                int count = (int)MathF.Round(thickness * maxPerSquare);
+                int count = (int)MathF.Round(thickness * maxPerSquare * DensityMul);
                 for (int k = 0; k < count; k++)
                 {
                     float px = gx * gridPx + (float)rng.NextDouble() * gridPx;
