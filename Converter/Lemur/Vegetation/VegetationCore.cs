@@ -16,7 +16,7 @@ public static class VegetationCore
     // groves once tightened) and low-noise regions get few (→ small sparse stands). One field varies
     // both coverage AND grove size. Wavelength is in map pixels (8192 wide), so ~900 ≈ 9 lobes across.
     public const float NoiseAmp        = 3.5f;    // PEAK density multiplier; factor = amp*noise ∈ [0, amp]
-    public const float NoiseWavelength = 450f;    // ~18 lobes across the 8192px map (smaller features)
+    public const float NoiseWavelength = 112f;    // 4x frequency — fine-scale patchwork (Mattias' pick)
     public const int   NoiseSeed       = 1234;
 
     /// <summary>Debug-only amplitude override (set by TerrainLab to preview different strengths). &lt;0 = use the const.</summary>
