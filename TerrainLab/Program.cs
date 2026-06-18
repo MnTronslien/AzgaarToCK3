@@ -29,6 +29,8 @@ static class Program
         bool vegElev = true;        // run the elevation filter (needs heightmap pre-pass)
         bool vegUnified = false;    // render all vegetation rules at once, each its own colour
         bool meshGraph = false;     // render the rule→mesh graph (no Azgaar data needed)
+        bool vegNoiseOverlay = false; // paint the noise field as the background
+        float vegNoiseAmp = -1f;    // override VegetationCore.NoiseAmp (<0 = use the const)
         int seed = 42;
         float strength = 0.25f, roughnessNorm = 1.0f;
         int nodesPerCell = 4;
@@ -127,6 +129,8 @@ static class Program
                 case "--no-veg-elev":       vegElev         = false; break;
                 case "--unified":           vegUnified      = true; break;
                 case "--mesh-graph":        meshGraph       = true; break;
+                case "--veg-noise-overlay": vegNoiseOverlay = true; break;
+                case "--veg-noise-amp":     vegNoiseAmp     = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--compare":
                     comparePathA = args[++i];
                     comparePathB = args[++i];
@@ -230,7 +234,8 @@ static class Program
             var opts = new VegetationDebug.Options(
                 Rule: rule, GridPx: vegGrid, MaxPerSquare: vegMax, Seed: seed,
                 Downscale: vegDownscale, ElevationFilter: vegElev, TreelineByte: vegTreeline,
-                TightenStrength: vegTighten, TightenIters: vegTightenIters);
+                TightenStrength: vegTighten, TightenIters: vegTightenIters, NoiseOverlay: vegNoiseOverlay);
+            if (vegNoiseAmp >= 0f) Converter.Lemur.Vegetation.VegetationCore.NoiseAmpOverride = vegNoiseAmp;
             if (vegUnified || string.Equals(vegRule, "all", StringComparison.OrdinalIgnoreCase))
                 VegetationDebug.RenderUnified(cells, vcoords, lonW, lonT, latS, latT, opts, vout);
             else

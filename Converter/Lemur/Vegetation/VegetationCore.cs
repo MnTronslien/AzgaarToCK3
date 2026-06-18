@@ -19,9 +19,19 @@ public static class VegetationCore
     public const float NoiseWavelength = 900f;
     public const int   NoiseSeed       = 1234;
 
-    /// <summary>Density multiplier at a pixel from the large-scale noise field: [1-NoiseAmp, 1+NoiseAmp].</summary>
+    /// <summary>Debug-only amplitude override (set by TerrainLab to preview different strengths). &lt;0 = use the const.</summary>
+    public static float NoiseAmpOverride = -1f;
+
+    /// <summary>Density multiplier at a pixel from the large-scale noise field: [1-amp, 1+amp] (clamped ≥0).</summary>
     public static float DensityFactor(float x, float y)
-        => (1f - NoiseAmp) + 2f * NoiseAmp * ValueNoise2D(x, y, NoiseWavelength, NoiseSeed);
+    {
+        float amp = NoiseAmpOverride >= 0f ? NoiseAmpOverride : NoiseAmp;
+        float f = (1f - amp) + 2f * amp * ValueNoise2D(x, y, NoiseWavelength, NoiseSeed);
+        return f < 0f ? 0f : f;   // large amp can drive the low side negative → treat as bare
+    }
+
+    /// <summary>Raw noise field value [0,1] at a pixel — for the debug overlay.</summary>
+    public static float NoiseRaw(float x, float y) => ValueNoise2D(x, y, NoiseWavelength, NoiseSeed);
 
     /// <summary>Probability [0..1] a tree at heightmap byte <paramref name="hb"/> survives the gradual treeline.</summary>
     public static float HeightKeepProb(int hb)

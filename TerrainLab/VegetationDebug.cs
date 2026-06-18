@@ -37,7 +37,8 @@ static class VegetationDebug
         bool ElevationFilter,
         int TreelineByte,        // reject land trees with heightmap byte above this (waterline ≈ 20)
         float TightenStrength,   // 0 = off
-        int TightenIters);
+        int TightenIters,
+        bool NoiseOverlay = false);   // debug: paint the noise field as the background
 
     public static void Render(
         IReadOnlyDictionary<int, Cell> cells,
@@ -375,6 +376,14 @@ static class VegetationDebug
                 bool land = bt.W0 > 0 || bt.W1 > 0 || bt.W2 > 0;
                 int idx = (y * cw + x) * 3;
                 if (!land) { buf[idx] = 198; buf[idx + 1] = 214; buf[idx + 2] = 232; }   // sea
+                else if (o.NoiseOverlay)
+                {
+                    // heatmap of the noise field: low = dark purple, high = bright yellow
+                    float n = VegetationCore.NoiseRaw(sx, sy);
+                    buf[idx]     = (byte)(40 + 200 * n);
+                    buf[idx + 1] = (byte)(30 + 200 * n);
+                    buf[idx + 2] = (byte)(70 + 30 * n);
+                }
                 else       { buf[idx] = 226; buf[idx + 1] = 220; buf[idx + 2] = 198; }   // tan
             }
         foreach (var (rule, pts) in perRule)
