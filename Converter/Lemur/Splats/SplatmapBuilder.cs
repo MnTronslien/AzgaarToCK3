@@ -26,14 +26,17 @@ public static class SplatmapBuilder
         AzgaarMapCoordinates coords,
         float[]? heightmapF = null,
         byte[]? heightmapBytes = null,
-        float[]? precomputedSteepness = null)
+        float[]? precomputedSteepness = null,
+        BiomeWeightTriple[]? precomputedBiomes = null)
     {
         int width = Map.MapWidth;
         int height = Map.MapHeight;
         byte maxWaterByte = HeightmapAlgorithm.MaxWaterByte;
 
         // ── Phase A: per-pixel biome weights ──────────────────────────────────
-        var biomes = BiomeWeightField.Build(cells, coords);
+        // Reuse the shared field if the caller built it (pipeline builds it once, shares with the
+        // vegetation writer); else build here (e.g. the TerrainLab paint path). Identical either way.
+        var biomes = precomputedBiomes ?? BiomeWeightField.Build(cells, coords);
 
         // ── Phase B: per-pixel steepness ──────────────────────────────────────
         // Use the shared field if the caller already computed it (the pipeline computes it once in

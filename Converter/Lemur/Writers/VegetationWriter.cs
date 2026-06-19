@@ -66,7 +66,10 @@ public static class VegetationWriter
         using var _ = OperationTimer.Start("Writing vegetation (map object generators)");
 
         int W = L.Map.MapWidth, H = L.Map.MapHeight;
-        var biomes = BiomeWeightField.Build(map.Cells!, map.JsonMap.mapCoordinates);
+        // Reuse the shared blended biome field (built once by TerrainMaskWriter). Only build here if
+        // it's missing — e.g. the terrain-mask writer was disabled. It's the priciest field in the
+        // pipeline, so we never want to rasterise it twice.
+        var biomes = map.BiomeWeights ??= BiomeWeightField.Build(map.Cells!, map.JsonMap.mapCoordinates);
         byte[]? heightBytes = map.HeightmapPixels;       // populated by HeightmapWriter (runs earlier)
         float[]? steepness = map.SteepnessField;         // shared field, computed once in HeightmapWriter
         if (heightBytes == null)

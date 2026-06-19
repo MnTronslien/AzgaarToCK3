@@ -36,6 +36,10 @@ namespace Converter.Lemur.Entities
         // and shared by the splatmap (hills/mountain materials) and vegetation (steep-slope veto) —
         // so neither recomputes it. Null if the heightmap pipeline hasn't run.
         public float[]? SteepnessField { get; set; }
+        // Per-pixel blended biome weights (Delaunay + barycentric over the whole map — the single
+        // most expensive field in the pipeline). Built ONCE by the first consumer (TerrainMaskWriter's
+        // splatmap) and shared with the vegetation writer so it isn't rasterised twice. Null until built.
+        public Splats.BiomeWeightTriple[]? BiomeWeights { get; set; }
 
         public List<Barony>? Baronies { get; set; } = new();
 
