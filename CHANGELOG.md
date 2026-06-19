@@ -3,6 +3,8 @@
 ### Added
 - **Forests and vegetation.** Converted maps are now dressed with 3D trees, bushes, and reeds instead of bare terrain. Each biome grows the foliage that fits it — pine and leaf forests, jungle and palms, savanna scrub, wetland reeds — and placement is built to look natural rather than uniform: forests thin out gently toward their edges and blend where two biomes meet, large-scale variation keeps some stretches dense and others open instead of an even carpet, and a light clumping pulls trees into stands. Trees keep off the water, stop part-way up mountainsides (a treeline), and stay clear of steep slopes. Density is tuned to sit at or below the base game's, so it's visual flavour without a performance hit. On by default.
 
+![Forests on a converted Showcase map](docs/images/vegetation_showcase.jpg)
+
 ---
 
 # 1.9.0 — Map Editor — 2026-06-17
