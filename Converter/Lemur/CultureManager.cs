@@ -310,7 +310,9 @@ public static class CultureManager
             }
             // depth maxDepth → startYear - stepYears
             // depth 1        → startYear - (maxDepth * stepYears)
-            int year = startYear - ((maxDepth - d + 1) * stepYears);
+            // Floor at 0: a low start date (or a deep tree) can push this negative, and CK3
+            // dates cannot be below year 0.
+            int year = Math.Max(0, startYear - ((maxDepth - d + 1) * stepYears));
             culture.CreationDate = $"{year}.1.1";
         }
     }

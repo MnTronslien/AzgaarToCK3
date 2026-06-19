@@ -8,5 +8,11 @@ namespace Converter.Lemur.Entities;
 /// </summary>
 public readonly record struct StartDate(int Year, int Month, int Day)
 {
+    // CK3 dates cannot be below year 0 (a .info file in the engine data spells this out).
+    // Floor defensively at the source so a future negative year — e.g. a bad Azgaar export —
+    // can never emit an invalid date. Derived dates (births, culture creation) are floored at
+    // their own emit sites, since they subtract from this and can go negative on their own.
+    public int Year { get; init; } = Math.Max(0, Year);
+
     public override string ToString() => $"{Year}.{Month}.{Day}";
 }
