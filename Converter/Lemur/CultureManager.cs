@@ -118,8 +118,6 @@ public static class CultureManager
 
         // Pass 5: assign creation dates
         // Foundational cultures (no parents) are ancient — no created date.
-        // Depth 1 (derived from foundational): 867.1.1
-        // Depth 2+ (derived from derived): 1000.1.1
         AssignCreationDates(cultures, result, startYear);
 
         var sb = new System.Text.StringBuilder($"Assigned pillars to {result.Count} cultures (traditions assigned later by CultureTraditionAssigner).");
