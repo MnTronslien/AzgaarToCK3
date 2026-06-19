@@ -350,6 +350,8 @@ namespace Converter.Lemur
             }
             if (w.Locators)
                 await LocatorWriter.Write(map, Settings.OutputDirectory);
+            if (w.Vegetation)
+                await VegetationWriter.Write(map, Settings.OutputDirectory);
             if (w.Characters)
             {
                 using var _ = OperationTimer.Start("Writing characters");

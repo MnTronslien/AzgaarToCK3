@@ -17,6 +17,21 @@ static class Program
         string? cellsDumpPath = null;
         string? riversGeojsonPath = null;
         float riverCpSpacing = 5f;
+        // Vegetation MVP debug image (feature/vegetation-mvp)
+        bool vegetationMap = false;
+        string? vegRule = null;     // biome category driving thickness (default: deciduous)
+        int vegGrid = 16;           // coarse square size in image px
+        float vegMax = 6f;          // trees at full thickness per square
+        int vegDownscale = 4;       // debug canvas = mapW / this
+        float vegTighten = 0.20f;   // tighten strength (0 = off); light = solid vanilla-like fill
+        int vegTightenIters = 2;    // tighten passes
+        int vegTreeline = 35;       // elevation cutoff in heightmap BYTES (waterline ≈ 20); no veg above
+        bool vegElev = true;        // run the elevation filter (needs heightmap pre-pass)
+        bool vegUnified = false;    // render all vegetation rules at once, each its own colour
+        bool meshGraph = false;     // render the rule→mesh graph (no Azgaar data needed)
+        bool vanillaVegMap = false; // parse + plot vanilla CK3's tree generators (sanity check)
+        bool vegNoiseOverlay = false; // paint the noise field as the background
+        float vegNoiseAmp = -1f;    // override VegetationCore.NoiseAmp (<0 = use the const)
         int seed = 42;
         float strength = 0.25f, roughnessNorm = 1.0f;
         int nodesPerCell = 4;
@@ -104,6 +119,21 @@ static class Program
                 case "--cells":           cellsDumpPath     = args[++i]; break;
                 case "--rivers-geojson":  riversGeojsonPath = args[++i]; break;
                 case "--river-cp-spacing": riverCpSpacing  = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--vegetation-map":  vegetationMap = true; break;
+                case "--rule":            vegRule       = args[++i]; break;
+                case "--veg-grid":        vegGrid       = int.Parse(args[++i]); break;
+                case "--veg-max":         vegMax        = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--veg-downscale":   vegDownscale  = int.Parse(args[++i]); break;
+                case "--veg-tighten":       vegTighten      = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--veg-tighten-iters": vegTightenIters = int.Parse(args[++i]); break;
+                case "--veg-treeline":      vegTreeline     = int.Parse(args[++i]); break;
+                case "--no-veg-elev":       vegElev         = false; break;
+                case "--unified":           vegUnified      = true; break;
+                case "--mesh-graph":        meshGraph       = true; break;
+                case "--vanilla-veg-map":   vanillaVegMap   = true; break;
+                case "--veg-noise-overlay": vegNoiseOverlay = true; break;
+                case "--veg-noise-amp":     vegNoiseAmp     = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--veg-noise-wavelength": Converter.Lemur.Vegetation.VegetationCore.NoiseWavelengthOverride = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--compare":
                     comparePathA = args[++i];
                     comparePathB = args[++i];
@@ -125,6 +155,21 @@ static class Program
         if (genMaterials)
         {
             return GenerateCk3MaterialBytes(genMaterialsCk3Dir, genMaterialsOut);
+        }
+
+        // ── Vegetation rule→mesh graph — no Azgaar data needed ──────────────
+        if (meshGraph)
+        {
+            VegetationDebug.RenderMeshGraph(outputPath ?? "mesh_graph.png");
+            return 0;
+        }
+
+        // ── Vanilla vegetation density sanity check — no Azgaar data needed ──
+        if (vanillaVegMap)
+        {
+            var ck3 = genMaterialsCk3Dir ?? @"C:\Program Files (x86)\Steam\steamapps\common\Crusader Kings III";
+            VanillaVegDebug.Render(ck3, outputPath ?? "vanilla_veg.png");
+            return 0;
         }
 
         // ── Pixel comparison mode — no Azgaar data needed ────────────────────
@@ -187,6 +232,26 @@ static class Program
             lonW = mc.lonW; lonT = mc.lonT;
             latS = mc.latS; latT = mc.latT;
             Console.WriteLine($"Loaded {cells.Count} cells.");
+        }
+
+        // ── Vegetation MVP debug image (feature/vegetation-mvp) ──────────────
+        if (vegetationMap)
+        {
+            var vcoords = new Converter.Lemur.Deserialization.AzgaarMapCoordinates(
+                latT: latT, latN: latS + latT, latS: latS,
+                lonT: lonT, lonW: lonW,         lonE: lonW + lonT);
+            var rule = VegetationDebug.ParseRule(vegRule);
+            var vout = outputPath ?? "vegetation_debug.png";
+            var opts = new VegetationDebug.Options(
+                Rule: rule, GridPx: vegGrid, MaxPerSquare: vegMax, Seed: seed,
+                Downscale: vegDownscale, ElevationFilter: vegElev, TreelineByte: vegTreeline,
+                TightenStrength: vegTighten, TightenIters: vegTightenIters, NoiseOverlay: vegNoiseOverlay);
+            if (vegNoiseAmp >= 0f) Converter.Lemur.Vegetation.VegetationCore.NoiseAmpOverride = vegNoiseAmp;
+            if (vegUnified || string.Equals(vegRule, "all", StringComparison.OrdinalIgnoreCase))
+                VegetationDebug.RenderUnified(cells, vcoords, lonW, lonT, latS, latT, opts, vout);
+            else
+                VegetationDebug.Render(cells, vcoords, lonW, lonT, latS, latT, opts, vout);
+            return 0;
         }
 
         // ── Paint detail TGAs (real cell-painted versions for hot-reload iteration) ──

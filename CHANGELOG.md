@@ -1,3 +1,21 @@
+# Unreleased
+
+### Added
+- **Forests and vegetation.** Converted maps are now dressed with 3D trees, bushes, and reeds instead of bare terrain. Each biome grows the foliage that fits it — pine and leaf forests, jungle and palms, savanna scrub, wetland reeds — and placement is built to look natural rather than uniform: forests thin out gently toward their edges and blend where two biomes meet, large-scale variation keeps some stretches dense and others open instead of an even carpet, and a light clumping pulls trees into stands. Trees keep off the water, stop part-way up mountainsides (a treeline), and stay clear of steep slopes. Density is tuned to sit at or below the base game's, so it's visual flavour without a performance hit. On by default.
+
+![Forests on a converted Showcase map](docs/images/vegetation_showcase.jpg)
+
+| | |
+|---|---|
+| ![Groves clustering along grassland rivers](docs/images/vegetation_grassland_groves.jpg) | ![Savanna scrub thinning toward a coast](docs/images/vegetation_savanna_coast.jpg) |
+| *Large-scale variation and light clumping pull trees into stands rather than an even carpet.* | *Foliage thins toward biome edges and keeps off the water.* |
+| ![Bare snowy peaks above the treeline](docs/images/vegetation_winter_treeline.jpg) | ![Forest hugging mid-slopes below bare ridges](docs/images/vegetation_mountain_steepness.jpg) |
+| *Trees stop part-way up the mountainside — the treeline.* | *Steep slopes and high ridges stay clear; forest fills the gentler ground.* |
+
+![Highland valleys greening between bare ridgelines](docs/images/vegetation_highland_valleys.jpg)
+
+---
+
 # 1.9.0 — Map Editor — 2026-06-17
 
 A small maintenance release led by map-editor support: a converted mod now opens in CK3's in-game map editor with the terrain already painted from your map's biomes, instead of crashing or showing a blank pink canvas. Two long-standing rough edges are tidied up along the way — the program is now named `AzgaarToCK3.exe`, and release builds finally report their true version.
