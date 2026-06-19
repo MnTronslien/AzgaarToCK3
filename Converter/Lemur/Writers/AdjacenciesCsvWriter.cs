@@ -35,10 +35,13 @@ public static class AdjacenciesCsvWriter
                 continue;
             }
 
-            var start = Helper.GeoToImage(StraitGenerator.CentroidGeo(s.FromCell), map);
-            var stop = Helper.GeoToImage(StraitGenerator.CentroidGeo(s.ToCell), map);
+            // CK3 adjacency start/stop are WORLD pixels (origin bottom-left, Z north-up) — the same space
+            // as army-placement / map_object locators, NOT image space. Using GeoToImage (Y-down) mirrors
+            // the crossing visual to the opposite hemisphere. Verified vs vanilla adjacencies.csv + CK3 wiki.
+            var start = Helper.GeoToWorld(StraitGenerator.CentroidGeo(s.FromCell), map);
+            var stop = Helper.GeoToWorld(StraitGenerator.CentroidGeo(s.ToCell), map);
             lines.Add($"{fromId};{toId};sea;{throughId};" +
-                      $"{(int)start.X};{(int)start.Y};{(int)stop.X};{(int)stop.Y};" +
+                      $"{(int)start.X};{(int)start.Z};{(int)stop.X};{(int)stop.Z};" +
                       $"{from.Name}-{to.Name}");
         }
         lines.Add(Terminator);
