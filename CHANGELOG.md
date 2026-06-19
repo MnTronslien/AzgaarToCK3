@@ -14,6 +14,9 @@
 
 ![Highland valleys greening between bare ridgelines](docs/images/vegetation_highland_valleys.jpg)
 
+### Fixed
+- **Court pools no longer spawn people with no culture.** When a ruler's court ran low and the game spawned a new councillor to fill it, that character could come up cultureless. The base game picks the new arrival's culture from a list of real-world cultures keyed to real-world regions — none of which exist on a converted map — so for most rulers nothing matched and the character ended up with no culture at all. New court arrivals now simply take their host's culture, as you'd expect.
+
 ---
 
 # 1.9.0 — Map Editor — 2026-06-17
