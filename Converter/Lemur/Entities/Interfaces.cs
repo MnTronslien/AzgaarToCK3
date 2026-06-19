@@ -50,7 +50,7 @@ namespace Converter.Lemur.Entities
         /// <summary>
         /// CK3 government for this title. Resolved by <see cref="Converter.Lemur.Governments.GovernmentResolver"/>;
         /// populated for Kingdom and Duchy in the MVP, null elsewhere. Read by TitleHistoryWriter when
-        /// emitting the title's 1066.1.1 history block — null means "no government clause emitted".
+        /// emitting the title's <see cref="Map.StartDate"/> history block — null means "no government clause emitted".
         /// </summary>
         public Ck3Government? Government { get; set; }
 

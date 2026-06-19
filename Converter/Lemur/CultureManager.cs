@@ -72,7 +72,7 @@ public static class CultureManager
         ];
     }
 
-    public static Dictionary<int, Culture> Build(AzgaarCulture[] cultures, int seed)
+    public static Dictionary<int, Culture> Build(AzgaarCulture[] cultures, int seed, int startYear)
     {
         Converter.Lemur.Logger.Section("Building cultures");
         var result = new Dictionary<int, Culture>();
@@ -118,9 +118,7 @@ public static class CultureManager
 
         // Pass 5: assign creation dates
         // Foundational cultures (no parents) are ancient — no created date.
-        // Depth 1 (derived from foundational): 867.1.1
-        // Depth 2+ (derived from derived): 1000.1.1
-        AssignCreationDates(cultures, result);
+        AssignCreationDates(cultures, result, startYear);
 
         var sb = new System.Text.StringBuilder($"Assigned pillars to {result.Count} cultures (traditions assigned later by CultureTraditionAssigner).");
         foreach (var c in result.Values.OrderBy(c => c.AzgaarId))
@@ -245,7 +243,7 @@ public static class CultureManager
     // Helpers
     // ─────────────────────────────────────────────────────────────────────────
 
-    private static void AssignCreationDates(AzgaarCulture[] cultures, Dictionary<int, Culture> result)
+    private static void AssignCreationDates(AzgaarCulture[] cultures, Dictionary<int, Culture> result, int startYear)
     {
         var parentIds = new Dictionary<int, int[]>();
         foreach (var azc in cultures)
@@ -297,9 +295,8 @@ public static class CultureManager
             if (!depth.ContainsKey(id))
                 depth[id] = 1;
 
-        // Invert: deepest culture is created 100 years before start date,
+        // Invert: deepest culture is created 100 years before start date (startYear),
         // each level up adds another 100 years. Foundational (depth 0) = no date.
-        const int startYear = 1066;
         const int stepYears = 100;
         int maxDepth = depth.Values.DefaultIfEmpty(0).Max();
 
@@ -313,7 +310,9 @@ public static class CultureManager
             }
             // depth maxDepth → startYear - stepYears
             // depth 1        → startYear - (maxDepth * stepYears)
-            int year = startYear - ((maxDepth - d + 1) * stepYears);
+            // Floor at 0: a low start date (or a deep tree) can push this negative, and CK3
+            // dates cannot be below year 0.
+            int year = Math.Max(0, startYear - ((maxDepth - d + 1) * stepYears));
             culture.CreationDate = $"{year}.1.1";
         }
     }
