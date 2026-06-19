@@ -23,6 +23,16 @@ public static class VegetationWriter
 {
     // A rule = one ecological category: biome, density, and the CK3 mesh variants that fill it
     // (picked at random per tree for variety). Mesh names verified present in CK3 generated/*.txt.
+    //
+    // DELIBERATE divergence from the splatmap/faith/culture pattern (registry + context +
+    // per-entry `(in Ctx) => float` lambda). Those score HETEROGENEOUS entries — each material/
+    // tenet/tradition computes its weight differently — so a per-entry lambda earns its keep. Every
+    // vegetation rule scores IDENTICALLY (biome weight × density, then the shared noise/treeline/
+    // steepness/scatter pipeline), so a plain data table is the right fit; a lambda+context would be
+    // machinery for flexibility nothing needs (YAGNI). Reviewed and kept as a table on purpose
+    // (2026-06-19). Revisit ONLY when a rule needs logic beyond "biome × density" — then promote
+    // Rule to carry a `(in VegetationContext) => float` density and add the context, mirroring the
+    // splatmap. See vegetation-design-notes.md.
     private sealed record Rule(AzgaarBiome Biome, float MaxPerSquare, string[] Meshes);
 
     private static readonly Rule[] Rules =
