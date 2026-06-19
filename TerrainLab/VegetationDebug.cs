@@ -246,7 +246,7 @@ static class VegetationDebug
             new[] { "steppe_bush_01_mesh", "tree_palm_01_a_mesh" }),
         new(AzgaarBiome.Wetland,                  3.0f,  90, 120,  80, "wetland reeds",
             new[] { "reeds_01_tall_grass_mesh", "reeds_06_grass_mesh", "reeds_07_grass_mesh" }),
-        new(AzgaarBiome.TropicalSeasonalForest,   1.5f, 140, 160,  50, "tropical seasonal",
+        new(AzgaarBiome.TropicalSeasonalForest,   0.3f, 140, 160,  50, "tropical seasonal",
             new[] { "tree_palm_01_a_mesh", "tree_jungle_01_c_mesh" }),
         new(AzgaarBiome.Taiga,                    5.0f,  60,  95,  80, "taiga",
             new[] { "tree_pine_01_b_mesh", "tree_pine_single_01_a_mesh", "tree_pine_impassable_01_a_mesh" }),
