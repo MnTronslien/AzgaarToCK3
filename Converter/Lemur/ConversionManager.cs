@@ -97,7 +97,7 @@ namespace Converter.Lemur
                 $"{cellDist.CultureCellCounts.Count} cultures have at least one land cell.");
 
             map.Faiths = FaithManager.Build(map.JsonMap.pack.religions, cellDist.ReligionCellCounts);
-            map.Cultures = CultureManager.Build(map.JsonMap.pack.cultures, Settings.Instance.Seed!.Value);
+            map.Cultures = CultureManager.Build(map.JsonMap.pack.cultures, Settings.Instance.Seed!.Value, map.StartDate.Year);
 
             // ✅ Visualization checkpoint 1: Raw cells
             await ImageUtility.DrawCells(map.Cells!.Values.ToList(), map);
@@ -296,6 +296,7 @@ namespace Converter.Lemur
             using (var _ = OperationTimer.Start("Writing mod descriptor")) await ModDescriptorWriter.Write(Settings.Instance.ModName, Settings.Instance.ModsDirectory, Settings.OutputDirectory);
             await LandlessTitleStubsWriter.Write(Settings.OutputDirectory);
             await VanillaEventOverridesWriter.Write(Settings.OutputDirectory);
+            await PoolRepopulationOverrideWriter.Write(Settings.OutputDirectory);
             if (w.MapDefines)
             {
                 using var _ = OperationTimer.Start("Writing map defines");
@@ -352,6 +353,8 @@ namespace Converter.Lemur
             }
             if (w.Locators)
                 await LocatorWriter.Write(map, Settings.OutputDirectory);
+            if (w.Vegetation)
+                await VegetationWriter.Write(map, Settings.OutputDirectory);
             if (w.Characters)
             {
                 using var _ = OperationTimer.Start("Writing characters");

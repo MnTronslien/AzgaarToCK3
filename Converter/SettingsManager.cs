@@ -241,6 +241,7 @@ public class WriterFlags
     public bool TerrainMasks { get; set; } = true;
     public bool Flatmap { get; set; } = true;
     public bool Locators { get; set; } = true;
+    public bool Vegetation { get; set; } = true;
     public bool Characters { get; set; } = true;
     public bool TitleHistory { get; set; } = true;
     public bool ProvinceHistory { get; set; } = true;

@@ -368,3 +368,9 @@ FodyWeavers.xsd
 # See TestData/_user-submitted/README.md for the convention.
 TestData/_user-submitted/*
 !TestData/_user-submitted/README.md
+
+# vegetation debug scratch (not part of the feature)
+veg_*.png
+vanilla_veg.png
+veg_all/
+veg-boot-watch*.sh

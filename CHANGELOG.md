@@ -1,11 +1,25 @@
-# Unreleased — Down to the Waterline
-
-Sea straits. The converter now connects baronies that sit across narrow water, so a converted map is no longer a set of islands walled off by every sea gap.
+# Unreleased
 
 ### Added
+- **Forests and vegetation.** Converted maps are now dressed with 3D trees, bushes, and reeds instead of bare terrain. Each biome grows the foliage that fits it — pine and leaf forests, jungle and palms, savanna scrub, wetland reeds — and placement is built to look natural rather than uniform: forests thin out gently toward their edges and blend where two biomes meet, large-scale variation keeps some stretches dense and others open instead of an even carpet, and a light clumping pulls trees into stands. Trees keep off the water, stop part-way up mountainsides (a treeline), and stay clear of steep slopes. Density is tuned to sit at or below the base game's, so it's visual flavour without a performance hit. On by default.
+
+![Forests on a converted Showcase map](docs/images/vegetation_showcase.jpg)
+
+| | |
+|---|---|
+| ![Groves clustering along grassland rivers](docs/images/vegetation_grassland_groves.jpg) | ![Savanna scrub thinning toward a coast](docs/images/vegetation_savanna_coast.jpg) |
+| *Large-scale variation and light clumping pull trees into stands rather than an even carpet.* | *Foliage thins toward biome edges and keeps off the water.* |
+| ![Bare snowy peaks above the treeline](docs/images/vegetation_winter_treeline.jpg) | ![Forest hugging mid-slopes below bare ridges](docs/images/vegetation_mountain_steepness.jpg) |
+| *Trees stop part-way up the mountainside — the treeline.* | *Steep slopes and high ridges stay clear; forest fills the gentler ground.* |
+
+![Highland valleys greening between bare ridgelines](docs/images/vegetation_highland_valleys.jpg)
+
 - **Sea straits.** The converter now generates sea crossings in `adjacencies.csv`, joining baronies separated by a short stretch of water, including gaps to nearby islands and to islands sitting inside a large enough body of water. The maximum crossing length scales with your map's cell count, so sparse and dense maps both get sensible crossings; small lakes are left uncrossed. Tunable in `settings.json` (`StraitMaxDistance`, `StraitMinimumSelfSeparation`, `StraitMinimumClearance`, `StraitOceanMinimumArea`); see [Configuration](docs/CONFIGURATION.md).
 
 ![A generated sea strait, drawn as the crossing line to the central island](docs/images/ck3_strait_crossing.jpg)
+
+### Fixed
+- **Court pools no longer spawn people with no culture.** When a ruler's court ran low and the game spawned a new councillor to fill it, that character could come up cultureless. The base game picks the new arrival's culture from a list of real-world cultures keyed to real-world regions — none of which exist on a converted map — so for most rulers nothing matched and the character ended up with no culture at all. New court arrivals now simply take their host's culture, as you'd expect.
 
 ---
 

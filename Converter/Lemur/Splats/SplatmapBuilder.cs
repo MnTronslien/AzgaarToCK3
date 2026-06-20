@@ -25,19 +25,25 @@ public static class SplatmapBuilder
         IReadOnlyDictionary<int, Cell> cells,
         AzgaarMapCoordinates coords,
         float[]? heightmapF = null,
-        byte[]? heightmapBytes = null)
+        byte[]? heightmapBytes = null,
+        float[]? precomputedSteepness = null,
+        BiomeWeightTriple[]? precomputedBiomes = null)
     {
         int width = Map.MapWidth;
         int height = Map.MapHeight;
         byte maxWaterByte = HeightmapAlgorithm.MaxWaterByte;
 
         // ── Phase A: per-pixel biome weights ──────────────────────────────────
-        var biomes = BiomeWeightField.Build(cells, coords);
+        // Reuse the shared field if the caller built it (pipeline builds it once, shares with the
+        // vegetation writer); else build here (e.g. the TerrainLab paint path). Identical either way.
+        var biomes = precomputedBiomes ?? BiomeWeightField.Build(cells, coords);
 
-        // ── Phase B: per-pixel steepness (optional, requires heightmap) ───────
-        float[]? steepness = (heightmapF != null && heightmapBytes != null)
+        // ── Phase B: per-pixel steepness ──────────────────────────────────────
+        // Use the shared field if the caller already computed it (the pipeline computes it once in
+        // HeightmapWriter); else compute here (e.g. the TerrainLab paint path). Identical values.
+        float[]? steepness = precomputedSteepness ?? ((heightmapF != null && heightmapBytes != null)
             ? SteepnessField.Compute(heightmapF, heightmapBytes, width, height)
-            : null;
+            : null);
 
         // Pre-resolve each material's CK3 byte index once — looking it up per-pixel would be
         // 33M × N dict lookups, pointless work.

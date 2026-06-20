@@ -86,6 +86,9 @@ public static class HeightmapWriter
         // The TerrainMasks writer must run AFTER this one — ordering enforced in ConversionManager.
         map.HeightmapPixels = pixels;
         map.HeightmapF = heightmapF;
+        // Compute steepness ONCE here and share it (splatmap hills/mountain materials + vegetation
+        // steep-slope veto both read map.SteepnessField — neither recomputes the 33M-pixel field).
+        map.SteepnessField = Splats.SteepnessField.Compute(heightmapF, pixels, L.Map.MapWidth, L.Map.MapHeight);
 
         var masksDir = Helper.GetPath(outputDirectory, "gfx", "map", "terrain", "masks");
         var packed = await CreatePackedHeightmap(pixels, L.Map.MapWidth, L.Map.MapHeight);
