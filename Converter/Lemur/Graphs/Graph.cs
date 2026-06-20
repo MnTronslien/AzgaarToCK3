@@ -192,7 +192,12 @@ namespace Converter.Lemur.Graphs
             //Remove any nodes that are in the partition so as only to return nodes that are adjacent to the partition
             return adjacentNodes.Where(x => !adjacencyList.ContainsKey(x)).Distinct().ToList();
         }
-        public static List<Graph> PartitionGraph(Graph graph)
+        /// <param name="onStep">
+        /// Optional observer fired after each partition is seeded and after each leftover node is
+        /// placed, receiving the current partition list. Used by DuchyAnimator to capture frames;
+        /// null (the default) in normal runs.
+        /// </param>
+        public static List<Graph> PartitionGraph(Graph graph, Action<IReadOnlyList<Graph>>? onStep = null)
         {
             // Determine the number of partitions for this graph
             int numberOfPartitions = DetermineNumberOfPartitions(graph);
@@ -263,6 +268,7 @@ namespace Converter.Lemur.Graphs
                 isolatedSmallNeighbour.InSubGraph = true;
                 // Add the partition to the list of partitions
                 partitions.Add(partition);
+                onStep?.Invoke(partitions);
 
             }
 
@@ -296,12 +302,14 @@ namespace Converter.Lemur.Graphs
                         Graph isolatedPartition = new(graph);
                         isolatedPartition.AddNodeWithEdges(node, graph.adjacencyList[node]);
                         partitions.Add(isolatedPartition);
+                        onStep?.Invoke(partitions);
                         continue;
                     }
                     // Add this node to the partition where adding it would bring the partition closest to the ideal population
                     int idealPopulation = graph.Population() / numberOfPartitions;
                     Graph targetPartition = borderingPartitions.OrderBy(x => Math.Abs(x.Population() + node.Population - idealPopulation)).First();
                     targetPartition.AddNodeWithEdges(node, graph.adjacencyList[node]);
+                    onStep?.Invoke(partitions);
                 }
 
             }
