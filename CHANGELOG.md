@@ -1,3 +1,17 @@
+# 1.10.0 — 2026-06-20
+
+### Added
+- generate sea straits → adjacencies.csv + TerrainLab tuning harness
+- auto-scale MaxDistance by cell count (density hack)
+- emit realm-name flavour for empires
+
+### Fixed
+- drop non-barony + same-barony endpoints in the generator
+- rule-1 self-separation in pixels, not hops (density-independent)
+- adjacency start/stop in WORLD space, not image (visuals were mirrored)
+
+---
+
 # Unreleased
 
 ### Added
