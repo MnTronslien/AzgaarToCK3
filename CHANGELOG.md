@@ -1,18 +1,6 @@
-# 1.10.0 — 2026-06-20
+# 1.10.0 — Down to the Waterline — 2026-06-20
 
-### Added
-- generate sea straits → adjacencies.csv + TerrainLab tuning harness
-- auto-scale MaxDistance by cell count (density hack)
-- emit realm-name flavour for empires
-
-### Fixed
-- drop non-barony + same-barony endpoints in the generator
-- rule-1 self-separation in pixels, not hops (density-independent)
-- adjacency start/stop in WORLD space, not image (visuals were mirrored)
-
----
-
-# Unreleased
+Two changes lead this release. Sea straits add crossings over narrow water and to nearby islands, so a broken-up coastline plays as one connected world instead of a pile of unreachable islands. And converted maps are no longer bare — they now grow biome-appropriate forests and vegetation. Realm-name flavour also reaches empires, characters no longer spawn without a culture, and some quiet groundwork goes in for the next release's tech levels.
 
 ### Added
 - **Forests and vegetation.** Converted maps are now dressed with 3D trees, bushes, and reeds instead of bare terrain. Each biome grows the foliage that fits it — pine and leaf forests, jungle and palms, savanna scrub, wetland reeds — and placement is built to look natural rather than uniform: forests thin out gently toward their edges and blend where two biomes meet, large-scale variation keeps some stretches dense and others open instead of an even carpet, and a light clumping pulls trees into stands. Trees keep off the water, stop part-way up mountainsides (a treeline), and stay clear of steep slopes. Density is tuned to sit at or below the base game's, so it's visual flavour without a performance hit. On by default.
