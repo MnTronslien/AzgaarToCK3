@@ -9,10 +9,14 @@ namespace Converter.Lemur.Writers;
 /// tier+government default. Flavorization is runtime-evaluated by government, so the prefix
 /// follows the current holder: a feudal conqueror taking a theocracy reverts to "Kingdom of X".
 ///
-/// Mirrors <see cref="Governments.GovernmentResolver"/>'s two passes:
+/// Mirrors <see cref="Governments.GovernmentResolver"/>'s two passes, plus an empire pass:
 ///   * one entry per surviving kingdom, keyed on its own Azgaar state;
 ///   * one entry per absorbed duchy (its parent state dissolved in MergeTinyKingdoms), keyed
-///     on the duchy's original state — preserving flavour even under a foreign liege.
+///     on the duchy's original state — preserving flavour even under a foreign liege;
+///   * one entry per empire that heads a de facto realm, reusing the flavour of its seating
+///     kingdom (<see cref="L.Empire.CapitalKingdom"/> — the kingdom whose territory holds the
+///     empire's capital, set by <see cref="EmpireDeFactoBuilder"/>). Capital location is a strong
+///     signal for the state the empire originated from, so the seat's formName carries over.
 ///
 /// The <c>governments</c> selector lists the resolved government plus its DLC fallback chain
 /// (<see cref="Governments.Ck3Government.KeyWithFallbacks"/>) so the prefix survives the engine's
@@ -40,7 +44,7 @@ public static class FlavorizationWriter
         };
         var loc = new List<string> { "l_english:" };
 
-        int kingdomCount = 0, duchyCount = 0;
+        int kingdomCount = 0, duchyCount = 0, empireCount = 0;
 
         foreach (var kingdom in map.Kingdoms)
         {
@@ -56,6 +60,17 @@ public static class FlavorizationWriter
                 duchyCount++;
         }
 
+        // Empires that head a de facto realm reuse their seating kingdom's flavour: the empire is
+        // seated in CapitalKingdom (its capital is that kingdom's capital — see EmpireDeFactoBuilder),
+        // so the seat's Azgaar state formName names the empire. Holderless culture/religion empires
+        // (CapitalKingdom == null) get no holder and so no flavour entry, matching CharacterFactory.
+        foreach (var empire in map.Empires!.Where(e => e.CapitalKingdom != null))
+        {
+            statesById.TryGetValue(empire.CapitalKingdom!.Id, out var state);
+            if (Emit(entries, loc, empire.Ck3_Id(), "empire", empire.Government, state?.formName))
+                empireCount++;
+        }
+
         var dir = Helper.GetPath(outputDirectory, "common", "flavorization");
         Directory.CreateDirectory(dir);
         await File.WriteAllLinesAsync(Helper.GetPath(dir, "00_lemur_flavour.txt"), entries, Helper.Utf8Bom);
@@ -64,7 +79,7 @@ public static class FlavorizationWriter
         Directory.CreateDirectory(locDir);
         await File.WriteAllLinesAsync(Helper.GetPath(locDir, "lemur_flavour_l_english.yml"), loc, Helper.Utf8Bom);
 
-        Logger.Info($"Wrote 00_lemur_flavour.txt ({kingdomCount} kingdoms + {duchyCount} absorbed duchies)");
+        Logger.Info($"Wrote 00_lemur_flavour.txt ({kingdomCount} kingdoms + {duchyCount} absorbed duchies + {empireCount} empires)");
     }
 
     /// <summary>
