@@ -23,6 +23,13 @@ namespace Converter.Lemur.Entities
         public required AzgaarJsonMap JsonMap { get; set; }
         public required Settings Settings { get; set; }
 
+        /// <summary>
+        /// CK3 game-start date — single source of truth for every dated emission (title history,
+        /// bookmark, character births, culture creation dates). World data, not a setting; a future
+        /// loader will populate it from the Azgaar export. Default 1066.1.1.
+        /// </summary>
+        public StartDate StartDate { get; set; } = new(1066, 1, 1);
+
         public Dictionary<int, Cell>? Cells { get; set; }
         public Dictionary<int, Burg>? Burgs { get; set; }
 
@@ -32,6 +39,14 @@ namespace Converter.Lemur.Entities
         // which case splat painting falls back to biome-only output.
         public byte[]? HeightmapPixels { get; set; }
         public float[]? HeightmapF { get; set; }
+        // p95-normalised per-pixel steepness [0..1], computed ONCE from the heightmap (HeightmapWriter)
+        // and shared by the splatmap (hills/mountain materials) and vegetation (steep-slope veto) —
+        // so neither recomputes it. Null if the heightmap pipeline hasn't run.
+        public float[]? SteepnessField { get; set; }
+        // Per-pixel blended biome weights (Delaunay + barycentric over the whole map — the single
+        // most expensive field in the pipeline). Built ONCE by the first consumer (TerrainMaskWriter's
+        // splatmap) and shared with the vegetation writer so it isn't rasterised twice. Null until built.
+        public Splats.BiomeWeightTriple[]? BiomeWeights { get; set; }
 
         public List<Barony>? Baronies { get; set; } = new();
 
@@ -50,6 +65,9 @@ namespace Converter.Lemur.Entities
         public List<MajorRiverProvince> MajorRiverProvinces { get; set; } = new();
 
         public List<IProvince>? AllProvinces { get; set; }
+
+        /// <summary>Sea straits (PLAN_straits.md), generated after sea zones; written to adjacencies.csv.</summary>
+        public List<Straits.Strait> Straits { get; set; } = new();
 
         public List<Character> Characters { get; set; } = new();
         public Dictionary<int, Culture> Cultures { get; set; } = new();

@@ -97,7 +97,7 @@ namespace Converter.Lemur
                 $"{cellDist.CultureCellCounts.Count} cultures have at least one land cell.");
 
             map.Faiths = FaithManager.Build(map.JsonMap.pack.religions, cellDist.ReligionCellCounts);
-            map.Cultures = CultureManager.Build(map.JsonMap.pack.cultures, Settings.Instance.Seed!.Value);
+            map.Cultures = CultureManager.Build(map.JsonMap.pack.cultures, Settings.Instance.Seed!.Value, map.StartDate.Year);
 
             // ✅ Visualization checkpoint 1: Raw cells
             await ImageUtility.DrawCells(map.Cells!.Values.ToList(), map);
@@ -160,6 +160,8 @@ namespace Converter.Lemur
             AssignProvinceColors(map);
             await ShowSeaZones(map);
             using (var _ = OperationTimer.Start("DrawProvincesImage")) await ShowBaronies(map);
+
+            using (var _ = OperationTimer.Start("Generating straits")) GenerateStraits(map);
 
             var w = Settings.Instance.Writers;
 
@@ -283,7 +285,7 @@ namespace Converter.Lemur
             if (w.Adjacencies)
             {
                 using var _ = OperationTimer.Start("Writing adjacencies.csv");
-                await AdjacenciesCsvWriter.Write(Settings.OutputDirectory);
+                await AdjacenciesCsvWriter.Write(map, Settings.OutputDirectory);
             }
             if (w.LandedTitles)
                 await Task.WhenAll(
@@ -294,6 +296,7 @@ namespace Converter.Lemur
             using (var _ = OperationTimer.Start("Writing mod descriptor")) await ModDescriptorWriter.Write(Settings.Instance.ModName, Settings.Instance.ModsDirectory, Settings.OutputDirectory);
             await LandlessTitleStubsWriter.Write(Settings.OutputDirectory);
             await VanillaEventOverridesWriter.Write(Settings.OutputDirectory);
+            await PoolRepopulationOverrideWriter.Write(Settings.OutputDirectory);
             if (w.MapDefines)
             {
                 using var _ = OperationTimer.Start("Writing map defines");
@@ -350,6 +353,8 @@ namespace Converter.Lemur
             }
             if (w.Locators)
                 await LocatorWriter.Write(map, Settings.OutputDirectory);
+            if (w.Vegetation)
+                await VegetationWriter.Write(map, Settings.OutputDirectory);
             if (w.Characters)
             {
                 using var _ = OperationTimer.Start("Writing characters");
@@ -1438,6 +1443,36 @@ namespace Converter.Lemur
                 barony.Neighbors = adjacentBaronies!;
             }
             Logger.Info($"Built barony adjacency graph ({map.Baronies.Count} baronies)");
+        }
+
+        /// <summary>
+        /// Generate sea straits (PLAN_straits.md) and, when debug images are on, draw the tuning
+        /// image. Runs after sea zones + barony cell-assignment so the over-ocean validity gate and
+        /// the barony-pair collapse have everything they need. Output feeds AdjacenciesCsvWriter.
+        /// </summary>
+        private static void GenerateStraits(Map map)
+        {
+            var s = Settings.Instance;
+            double maxDist = Straits.StraitKnobs.ResolveMaxDistance(map.Cells!.Count, s.StraitMaxDistance);
+            var p = new Straits.StraitParams(
+                s.StraitMinimumSelfSeparation,
+                maxDist,
+                s.StraitMinimumClearance,
+                s.StraitOceanMinimumArea);
+            Logger.Info($"Strait MaxDistance = {maxDist:F0}px ({(s.StraitMaxDistance.HasValue ? "explicit" : $"auto from {map.Cells!.Count} cells")}).");
+
+            Func<GeoPoint, ImagePixel> project = g => Helper.GeoToImage(g, map);
+            map.Straits = Straits.StraitGenerator.Generate(map.Cells!, project, p, collapseByBarony: true);
+            Logger.Info($"Generated {map.Straits.Count} straits (sea crossings).");
+
+            if (s.GenerateDebugImages)
+            {
+                var debugRoot = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "AzgaarToCK3", "debug");
+                var path = Helper.GetPath(debugRoot, ImageUtility.GetDebugFolderName(), "10_straits.png");
+                Straits.StraitDebugImage.Write(map.Cells!, project, map.Straits, p.OceanMinimumArea, path);
+            }
         }
     }
 }

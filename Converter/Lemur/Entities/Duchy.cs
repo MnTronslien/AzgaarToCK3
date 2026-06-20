@@ -11,7 +11,7 @@ namespace Converter.Lemur.Entities
         /// CK3 government for this duchy, resolved once from its Azgaar state's form/formName
         /// by <see cref="Converter.Lemur.Governments.GovernmentResolver"/>. Null when the resolver
         /// hasn't run yet or there is no Azgaar state to read from (e.g. wasteland-derived duchies
-        /// with AzgaarStateId = 0). Read by TitleHistoryWriter when emitting the duchy's 1066.1.1 block.
+        /// with AzgaarStateId = 0). Read by TitleHistoryWriter when emitting the duchy's <see cref="Map.StartDate"/> block.
         /// </summary>
         public Ck3Government? Government { get; set; }
 

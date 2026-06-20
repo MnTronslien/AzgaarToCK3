@@ -9,9 +9,6 @@ namespace Converter.Lemur.Writers;
 /// </summary>
 public static class BookmarkWriter
 {
-    // Must match TitleHistoryWriter.StartDate — the bookmark date is when holders are assigned.
-    private const string StartDate = "1066.1.1";
-    private const string GroupKey = "bm_group_1066";
     private const string BookmarkKey = "bm_lemur";
 
     // How many of the largest realms to surface as selectable bookmark characters.
@@ -20,6 +17,11 @@ public static class BookmarkWriter
     public static async Task Write(L.Map map, string outputDirectory)
     {
         using var _ = OperationTimer.Start("Writing start bookmark");
+
+        // The bookmark date is when holders are assigned — single source of truth on Map.StartDate
+        // (the same date TitleHistoryWriter emits on every title-history block).
+        var startDate = map.StartDate.ToString();
+        var groupKey = $"bm_group_{map.StartDate.Year}";
 
         // Largest held realms first; kingdoms are the top playable tier (empires have no holder).
         var rulers = map.Kingdoms
@@ -36,15 +38,15 @@ public static class BookmarkWriter
         Directory.CreateDirectory(groupsDir);
         await File.WriteAllTextAsync(
             Helper.GetPath(groupsDir, "00_bookmark_groups.txt"),
-            $"{GroupKey} = {{\n\tdefault_start_date = {StartDate}\n}}\n",
+            $"{groupKey} = {{\n\tdefault_start_date = {startDate}\n}}\n",
             Helper.Utf8Bom);
 
         // --- bookmark + per-ruler character blocks ---
         var sb = new System.Text.StringBuilder();
         sb.AppendLine($"{BookmarkKey} = {{");
-        sb.AppendLine($"\tstart_date = {StartDate}");
+        sb.AppendLine($"\tstart_date = {startDate}");
         sb.AppendLine("\tis_playable = yes");
-        sb.AppendLine($"\tgroup = {GroupKey}");
+        sb.AppendLine($"\tgroup = {groupKey}");
         sb.AppendLine();
         sb.AppendLine("\tweight = { value = 100 }");
 

@@ -17,6 +17,21 @@ static class Program
         string? cellsDumpPath = null;
         string? riversGeojsonPath = null;
         float riverCpSpacing = 5f;
+        // Vegetation MVP debug image (feature/vegetation-mvp)
+        bool vegetationMap = false;
+        string? vegRule = null;     // biome category driving thickness (default: deciduous)
+        int vegGrid = 16;           // coarse square size in image px
+        float vegMax = 6f;          // trees at full thickness per square
+        int vegDownscale = 4;       // debug canvas = mapW / this
+        float vegTighten = 0.20f;   // tighten strength (0 = off); light = solid vanilla-like fill
+        int vegTightenIters = 2;    // tighten passes
+        int vegTreeline = 35;       // elevation cutoff in heightmap BYTES (waterline ≈ 20); no veg above
+        bool vegElev = true;        // run the elevation filter (needs heightmap pre-pass)
+        bool vegUnified = false;    // render all vegetation rules at once, each its own colour
+        bool meshGraph = false;     // render the rule→mesh graph (no Azgaar data needed)
+        bool vanillaVegMap = false; // parse + plot vanilla CK3's tree generators (sanity check)
+        bool vegNoiseOverlay = false; // paint the noise field as the background
+        float vegNoiseAmp = -1f;    // override VegetationCore.NoiseAmp (<0 = use the const)
         int seed = 42;
         float strength = 0.25f, roughnessNorm = 1.0f;
         int nodesPerCell = 4;
@@ -54,6 +69,9 @@ static class Program
         bool packHeightmap = false;
         bool packDebug = false;
         string? packOut = null;
+        bool straitMap = false;
+        double? straitMaxDist = null, straitClearance = null, straitSelfSep = null;
+        int? straitOceanArea = null;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -101,9 +119,29 @@ static class Program
                 case "--pack-heightmap":          packHeightmap        = true; break;
                 case "--pack-debug":              packDebug            = true; break;
                 case "--pack-out":                packOut              = args[++i]; break;
+                case "--strait-map":          straitMap        = true; break;
+                case "--strait-max-distance": straitMaxDist    = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--strait-clearance":    straitClearance  = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--strait-self-sep":     straitSelfSep    = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--strait-ocean-area":   straitOceanArea  = int.Parse(args[++i]); break;
                 case "--cells":           cellsDumpPath     = args[++i]; break;
                 case "--rivers-geojson":  riversGeojsonPath = args[++i]; break;
                 case "--river-cp-spacing": riverCpSpacing  = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--vegetation-map":  vegetationMap = true; break;
+                case "--rule":            vegRule       = args[++i]; break;
+                case "--veg-grid":        vegGrid       = int.Parse(args[++i]); break;
+                case "--veg-max":         vegMax        = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--veg-downscale":   vegDownscale  = int.Parse(args[++i]); break;
+                case "--veg-tighten":       vegTighten      = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--veg-tighten-iters": vegTightenIters = int.Parse(args[++i]); break;
+                case "--veg-treeline":      vegTreeline     = int.Parse(args[++i]); break;
+                case "--no-veg-elev":       vegElev         = false; break;
+                case "--unified":           vegUnified      = true; break;
+                case "--mesh-graph":        meshGraph       = true; break;
+                case "--vanilla-veg-map":   vanillaVegMap   = true; break;
+                case "--veg-noise-overlay": vegNoiseOverlay = true; break;
+                case "--veg-noise-amp":     vegNoiseAmp     = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--veg-noise-wavelength": Converter.Lemur.Vegetation.VegetationCore.NoiseWavelengthOverride = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--compare":
                     comparePathA = args[++i];
                     comparePathB = args[++i];
@@ -125,6 +163,21 @@ static class Program
         if (genMaterials)
         {
             return GenerateCk3MaterialBytes(genMaterialsCk3Dir, genMaterialsOut);
+        }
+
+        // ── Vegetation rule→mesh graph — no Azgaar data needed ──────────────
+        if (meshGraph)
+        {
+            VegetationDebug.RenderMeshGraph(outputPath ?? "mesh_graph.png");
+            return 0;
+        }
+
+        // ── Vanilla vegetation density sanity check — no Azgaar data needed ──
+        if (vanillaVegMap)
+        {
+            var ck3 = genMaterialsCk3Dir ?? @"C:\Program Files (x86)\Steam\steamapps\common\Crusader Kings III";
+            VanillaVegDebug.Render(ck3, outputPath ?? "vanilla_veg.png");
+            return 0;
         }
 
         // ── Pixel comparison mode — no Azgaar data needed ────────────────────
@@ -187,6 +240,61 @@ static class Program
             lonW = mc.lonW; lonT = mc.lonT;
             latS = mc.latS; latT = mc.latT;
             Console.WriteLine($"Loaded {cells.Count} cells.");
+        }
+
+        // ── Strait map: tune sea-strait knobs without a full converter run (PLAN_straits.md) ──
+        if (straitMap)
+        {
+            int W = Converter.Lemur.Entities.Map.MapWidth;
+            int H = Converter.Lemur.Entities.Map.MapHeight;
+            float lw = lonW, lt = lonT, ls = latS, lattot = latT;
+            Func<Converter.Lemur.GeoPoint, Converter.Lemur.ImagePixel> project =
+                g => new Converter.Lemur.ImagePixel((g.Lon - lw) / lt * W, H - (g.Lat - ls) / lattot * H);
+
+            if (!cells.Values.Any(c => c.IsRiverCell))
+                Console.WriteLine("WARNING: no river cells present. Pass a dump from `AzgaarToCK3 --dump-cells` via --cells "
+                                + "so major rivers act as strait barriers (PLAN_straits.md caveat 2).");
+
+            // Knob baseline mirrors the Converter.Settings defaults (kept in sync by hand — the lab
+            // doesn't construct Settings, which has required members). CLI flags override per-knob.
+            // MaxDistance: no flag ⇒ auto-scale by cell count (same resolver the converter uses).
+            var p = new Converter.Lemur.Straits.StraitParams(
+                straitSelfSep   ?? 500,
+                Converter.Lemur.Straits.StraitKnobs.ResolveMaxDistance(cells.Count, straitMaxDist),
+                straitClearance ?? 400,
+                straitOceanArea ?? 2000);
+
+            // collapseByBarony: false — cells-only mode has no baronies; show every geometric candidate.
+            var swGen = System.Diagnostics.Stopwatch.StartNew();
+            var straits = Converter.Lemur.Straits.StraitGenerator.Generate(cells, project, p, collapseByBarony: false);
+            swGen.Stop();
+            Console.WriteLine($"Generated {straits.Count} straits in {swGen.ElapsedMilliseconds}ms "
+                + $"(self-sep={p.MinimumSelfSeparation}, max-dist={p.MaxDistance}, clearance={p.MinimumClearance}, ocean-area={p.OceanMinimumArea}).");
+            var swImg = System.Diagnostics.Stopwatch.StartNew();
+            Converter.Lemur.Straits.StraitDebugImage.Write(cells, project, straits, p.OceanMinimumArea, outputPath!);
+            swImg.Stop();
+            Console.WriteLine($"Strait debug image written in {swImg.ElapsedMilliseconds}ms → {outputPath}");
+            return 0;
+        }
+
+        // ── Vegetation MVP debug image (feature/vegetation-mvp) ──────────────
+        if (vegetationMap)
+        {
+            var vcoords = new Converter.Lemur.Deserialization.AzgaarMapCoordinates(
+                latT: latT, latN: latS + latT, latS: latS,
+                lonT: lonT, lonW: lonW,         lonE: lonW + lonT);
+            var rule = VegetationDebug.ParseRule(vegRule);
+            var vout = outputPath ?? "vegetation_debug.png";
+            var opts = new VegetationDebug.Options(
+                Rule: rule, GridPx: vegGrid, MaxPerSquare: vegMax, Seed: seed,
+                Downscale: vegDownscale, ElevationFilter: vegElev, TreelineByte: vegTreeline,
+                TightenStrength: vegTighten, TightenIters: vegTightenIters, NoiseOverlay: vegNoiseOverlay);
+            if (vegNoiseAmp >= 0f) Converter.Lemur.Vegetation.VegetationCore.NoiseAmpOverride = vegNoiseAmp;
+            if (vegUnified || string.Equals(vegRule, "all", StringComparison.OrdinalIgnoreCase))
+                VegetationDebug.RenderUnified(cells, vcoords, lonW, lonT, latS, latT, opts, vout);
+            else
+                VegetationDebug.Render(cells, vcoords, lonW, lonT, latS, latT, opts, vout);
+            return 0;
         }
 
         // ── Paint detail TGAs (real cell-painted versions for hot-reload iteration) ──

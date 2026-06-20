@@ -115,6 +115,46 @@ public class Settings
     /// </summary>
     public int SeaZoneMinimumArea { get; set; } = 2500;
 
+    // ── Straits (sea crossings → adjacencies.csv). See PLAN_straits.md. ──
+    // All distances are in CK3 image-pixel units (8192 × 4096). Max-distance + self-separation
+    // tuned on Oncyia (2026-06-17); clearance + ocean-area still starting points. Tune via the
+    // TerrainLab --strait-map harness.
+
+    /// <summary>
+    /// Rule 1: two cells joined by an overland path shorter than this (accumulated cell-centroid pixel
+    /// distance) get no strait — you can just walk around. Distinguishes a bay worth bridging from a
+    /// shoreline. In PIXELS, not hops, so it is independent of Azgaar cell density (a 10k-cell and a
+    /// 100k-cell map at the same resolution behave identically) — hence a single global value, not
+    /// interpolated. Binary-tuned + maintainer-approved on Showcase (2026-06-18): 500px admits the
+    /// genuine same-landmass bay crossings (Showcase 57→59, Oncyia 10→12). First crossing appears at
+    /// the ~900px transition; 500 lets in the next valid bay.
+    /// </summary>
+    public double StraitMinimumSelfSeparation { get; set; } = 500;
+
+    /// <summary>
+    /// Rule 2: maximum crossing length (cell-centre to cell-centre), in image pixels. Also bounds how
+    /// wide a strait may be. <c>null</c> (default) auto-scales it by map cell count via
+    /// <see cref="Converter.Lemur.Straits.StraitKnobs.ResolveMaxDistance"/> — the one density-sensitive
+    /// knob (see STRAITS_TUNING.md). Set a value to pin it explicitly (explicit always wins).
+    /// </summary>
+    public double? StraitMaxDistance { get; set; } = null;
+
+    /// <summary>
+    /// Rule 3: minimum spacing between two straits joining the same landmass pair (midpoint to
+    /// midpoint), in image pixels. Shorter straits win; nearby parallel crossings are pruned.
+    /// </summary>
+    public double StraitMinimumClearance { get; set; } = 400;
+
+    /// <summary>
+    /// Water bodies whose summed cell area is at or above this are oceans (strait-able); smaller
+    /// bodies are lakes (never crossed by a sea strait). Azgaar cell-area units. Azgaar's one-ocean
+    /// limit means large seas are often mislabelled lakes, so we classify by size, not feature type.
+    /// 2000 (maintainer-approved on Showcase 2026-06-18): reaches lake-island enclaves without bridging
+    /// ponds — the MaxDistance/over-water/barony gates already block pond crossings, so this is low-risk.
+    /// May warrant per-map tuning like MaxDistance; verify on other maps.
+    /// </summary>
+    public int StraitOceanMinimumArea { get; set; } = 2000;
+
     /// <summary>
     /// Auto-detect newer .json/.geojson files in the directory and prompt to use them.
     /// If false, always uses the paths specified in InputJsonPath, InputGeojsonPath, and InputRiversGeojsonPath.
@@ -201,6 +241,7 @@ public class WriterFlags
     public bool TerrainMasks { get; set; } = true;
     public bool Flatmap { get; set; } = true;
     public bool Locators { get; set; } = true;
+    public bool Vegetation { get; set; } = true;
     public bool Characters { get; set; } = true;
     public bool TitleHistory { get; set; } = true;
     public bool ProvinceHistory { get; set; } = true;

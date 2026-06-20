@@ -38,8 +38,11 @@ public static class TerrainMaskWriter
         // masks too — so the editor opens onto exactly what the game renders, with smooth blended
         // weights instead of the old binary per-cell fill. map.HeightmapF/Pixels are populated by
         // HeightmapWriter (runs before this), enabling the steepness materials (hills, mountain).
+        // Build the blended biome field once and cache it on the map — the vegetation writer reuses
+        // it instead of rasterising the whole map a second time.
+        map.BiomeWeights ??= BiomeWeightField.Build(map.Cells!, map.JsonMap.mapCoordinates);
         var splat = SplatmapBuilder.Build(map.Cells!, map.JsonMap.mapCoordinates,
-            map.HeightmapF, map.HeightmapPixels);
+            map.HeightmapF, map.HeightmapPixels, map.SteepnessField, map.BiomeWeights);
 
         // Canonical blank PNG — created once, File.Copy'd into every non-painted mask slot + masks_gen.
         // Cache key includes "8bit": a prior build cached a 1-bit blank here, and File.Copy
