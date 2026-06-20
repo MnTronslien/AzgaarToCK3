@@ -18,6 +18,9 @@
 
 ![A generated sea strait, drawn as the crossing line to the central island](docs/images/ck3_strait_crossing.jpg)
 
+### Changed
+- **Groundwork for tech levels (coming next release).** Some under-the-hood plumbing landed to prepare an upcoming feature — cultures starting with technology that fits their era, rather than every culture beginning at the earliest tech. Nothing changes in-game this release; it's the foundation for the next one.
+
 ### Fixed
 - **Court pools no longer spawn people with no culture.** When a ruler's court ran low and the game spawned a new councillor to fill it, that character could come up cultureless. The base game picks the new arrival's culture from a list of real-world cultures keyed to real-world regions — none of which exist on a converted map — so for most rulers nothing matched and the character ended up with no culture at all. New court arrivals now simply take their host's culture, as you'd expect.
 
