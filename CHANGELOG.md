@@ -1,3 +1,14 @@
+# Unreleased — Down to the Waterline
+
+Sea straits. The converter now connects baronies that sit across narrow water, so a converted map is no longer a set of islands walled off by every sea gap.
+
+### Added
+- **Sea straits.** The converter now generates sea crossings in `adjacencies.csv`, joining baronies separated by a short stretch of water, including gaps to nearby islands and to islands sitting inside a large enough body of water. The maximum crossing length scales with your map's cell count, so sparse and dense maps both get sensible crossings; small lakes are left uncrossed. Tunable in `settings.json` (`StraitMaxDistance`, `StraitMinimumSelfSeparation`, `StraitMinimumClearance`, `StraitOceanMinimumArea`); see [Configuration](docs/CONFIGURATION.md).
+
+![A generated sea strait, drawn as the crossing line to the central island](docs/images/ck3_strait_crossing.jpg)
+
+---
+
 # 1.9.0 — Map Editor — 2026-06-17
 
 A small maintenance release led by map-editor support: a converted mod now opens in CK3's in-game map editor with the terrain already painted from your map's biomes, instead of crashing or showing a blank pink canvas. Two long-standing rough edges are tidied up along the way — the program is now named `AzgaarToCK3.exe`, and release builds finally report their true version.
