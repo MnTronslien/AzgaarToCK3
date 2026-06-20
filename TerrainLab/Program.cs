@@ -69,6 +69,9 @@ static class Program
         bool packHeightmap = false;
         bool packDebug = false;
         string? packOut = null;
+        bool straitMap = false;
+        double? straitMaxDist = null, straitClearance = null, straitSelfSep = null;
+        int? straitOceanArea = null;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -116,6 +119,11 @@ static class Program
                 case "--pack-heightmap":          packHeightmap        = true; break;
                 case "--pack-debug":              packDebug            = true; break;
                 case "--pack-out":                packOut              = args[++i]; break;
+                case "--strait-map":          straitMap        = true; break;
+                case "--strait-max-distance": straitMaxDist    = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--strait-clearance":    straitClearance  = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--strait-self-sep":     straitSelfSep    = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                case "--strait-ocean-area":   straitOceanArea  = int.Parse(args[++i]); break;
                 case "--cells":           cellsDumpPath     = args[++i]; break;
                 case "--rivers-geojson":  riversGeojsonPath = args[++i]; break;
                 case "--river-cp-spacing": riverCpSpacing  = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
@@ -232,6 +240,41 @@ static class Program
             lonW = mc.lonW; lonT = mc.lonT;
             latS = mc.latS; latT = mc.latT;
             Console.WriteLine($"Loaded {cells.Count} cells.");
+        }
+
+        // ── Strait map: tune sea-strait knobs without a full converter run (PLAN_straits.md) ──
+        if (straitMap)
+        {
+            int W = Converter.Lemur.Entities.Map.MapWidth;
+            int H = Converter.Lemur.Entities.Map.MapHeight;
+            float lw = lonW, lt = lonT, ls = latS, lattot = latT;
+            Func<Converter.Lemur.GeoPoint, Converter.Lemur.ImagePixel> project =
+                g => new Converter.Lemur.ImagePixel((g.Lon - lw) / lt * W, H - (g.Lat - ls) / lattot * H);
+
+            if (!cells.Values.Any(c => c.IsRiverCell))
+                Console.WriteLine("WARNING: no river cells present. Pass a dump from `AzgaarToCK3 --dump-cells` via --cells "
+                                + "so major rivers act as strait barriers (PLAN_straits.md caveat 2).");
+
+            // Knob baseline mirrors the Converter.Settings defaults (kept in sync by hand — the lab
+            // doesn't construct Settings, which has required members). CLI flags override per-knob.
+            // MaxDistance: no flag ⇒ auto-scale by cell count (same resolver the converter uses).
+            var p = new Converter.Lemur.Straits.StraitParams(
+                straitSelfSep   ?? 500,
+                Converter.Lemur.Straits.StraitKnobs.ResolveMaxDistance(cells.Count, straitMaxDist),
+                straitClearance ?? 400,
+                straitOceanArea ?? 2000);
+
+            // collapseByBarony: false — cells-only mode has no baronies; show every geometric candidate.
+            var swGen = System.Diagnostics.Stopwatch.StartNew();
+            var straits = Converter.Lemur.Straits.StraitGenerator.Generate(cells, project, p, collapseByBarony: false);
+            swGen.Stop();
+            Console.WriteLine($"Generated {straits.Count} straits in {swGen.ElapsedMilliseconds}ms "
+                + $"(self-sep={p.MinimumSelfSeparation}, max-dist={p.MaxDistance}, clearance={p.MinimumClearance}, ocean-area={p.OceanMinimumArea}).");
+            var swImg = System.Diagnostics.Stopwatch.StartNew();
+            Converter.Lemur.Straits.StraitDebugImage.Write(cells, project, straits, p.OceanMinimumArea, outputPath!);
+            swImg.Stop();
+            Console.WriteLine($"Strait debug image written in {swImg.ElapsedMilliseconds}ms → {outputPath}");
+            return 0;
         }
 
         // ── Vegetation MVP debug image (feature/vegetation-mvp) ──────────────

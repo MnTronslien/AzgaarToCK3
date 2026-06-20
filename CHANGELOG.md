@@ -14,6 +14,10 @@
 
 ![Highland valleys greening between bare ridgelines](docs/images/vegetation_highland_valleys.jpg)
 
+- **Sea straits.** The converter now generates sea crossings in `adjacencies.csv`, joining baronies separated by a short stretch of water, including gaps to nearby islands and to islands sitting inside a large enough body of water. The maximum crossing length scales with your map's cell count, so sparse and dense maps both get sensible crossings; small lakes are left uncrossed. Tunable in `settings.json` (`StraitMaxDistance`, `StraitMinimumSelfSeparation`, `StraitMinimumClearance`, `StraitOceanMinimumArea`); see [Configuration](docs/CONFIGURATION.md).
+
+![A generated sea strait, drawn as the crossing line to the central island](docs/images/ck3_strait_crossing.jpg)
+
 ### Fixed
 - **Court pools no longer spawn people with no culture.** When a ruler's court ran low and the game spawned a new councillor to fill it, that character could come up cultureless. The base game picks the new arrival's culture from a list of real-world cultures keyed to real-world regions — none of which exist on a converted map — so for most rulers nothing matched and the character ended up with no culture at all. New court arrivals now simply take their host's culture, as you'd expect.
 
