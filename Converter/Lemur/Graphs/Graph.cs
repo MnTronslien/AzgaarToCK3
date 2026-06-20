@@ -206,6 +206,7 @@ namespace Converter.Lemur.Graphs
             if (numberOfPartitions == 1)
             {
                 Logger.Debug("Graph is already a single partition");
+                onStep?.Invoke([graph]);
                 return [graph];
             }
 

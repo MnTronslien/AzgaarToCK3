@@ -98,7 +98,6 @@ namespace Converter.Lemur
 
             var coords = map.JsonMap.mapCoordinates;
             var bbox = ComputeBounds(cells, coords);
-            var safeName = Helper.ToCk3Id("d", duchy.Name, duchy.Id); // already filesystem-safe-ish
             var idTag = $"d{duchy.Id}";
 
             var growthPath = await WriteGifAsync(

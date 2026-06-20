@@ -959,10 +959,8 @@ namespace Converter.Lemur
                     : null;
 
                 //partition the graph into connected components
+                // (onStep captures one county frame per step, incl. the single-partition early return)
                 var partitions = Graph.PartitionGraph(graph, onStep);
-
-                // Guarantee a final, complete frame even if PartitionGraph returned early (single partition).
-                if (animateCounty) DuchyAnimator.CaptureCountyFrame(partitions, nodeToBarony!);
 
                 //Each partition is a county, so nearly there. First we translate back from graphs to baronies
                 var counties = new List<County>();
