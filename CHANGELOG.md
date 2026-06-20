@@ -18,6 +18,8 @@
 
 ![A generated sea strait, drawn as the crossing line to the central island](docs/images/ck3_strait_crossing.jpg)
 
+- **Empires keep their Azgaar names, too.** Realm-name flavour — which already replaced the generic "Kingdom of —" with each realm's original Azgaar name on kingdoms and absorbed duchies — now covers empires as well. An empire that heads a realm takes the flavour name of the state at its capital, shown on its title card and hover (not on the map), and follows the holder's government like the other tiers.
+
 ### Changed
 - **Groundwork for tech levels (coming next release).** Some under-the-hood plumbing landed to prepare an upcoming feature — cultures starting with technology that fits their era, rather than every culture beginning at the earliest tech. Nothing changes in-game this release; it's the foundation for the next one.
 
