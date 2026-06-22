@@ -206,6 +206,41 @@ public class Settings
     /// </summary>
     public float DoctrineMutationRate { get; set; } = 0.3f;
 
+    // ── Tech levels — culture innovations & eras. See PLAN_tech_levels.md. ──
+
+    /// <summary>
+    /// Baseline culture era for the whole world (an authorial choice, NOT derived from the start
+    /// date). Per-culture development variance shifts individual cultures ±1 era around it. The
+    /// baseline era unlocks at the start date; higher eras step forward by <see cref="EraStepYears"/>.
+    /// </summary>
+    public Converter.Lemur.Entities.CultureEra WorldTechLevel { get; set; } =
+        Converter.Lemur.Entities.CultureEra.EarlyMedieval;
+
+    /// <summary>Years between consecutive era unlocks (post-start era-year cadence). Default 150 (vanilla medieval cadence).</summary>
+    public int EraStepYears { get; set; } = 150;
+
+    /// <summary>"Good pacing" tail after late-medieval, used to derive END_DATE. Default 250 (vanilla 1453−1200, simplified).</summary>
+    public int EndTailYears { get; set; } = 250;
+
+    /// <summary>
+    /// Fraction of cultures (by rank of average territory development) in each of the backward
+    /// (bottom) and enlightened (top) bands. Bottom band demotes one era, top band promotes one,
+    /// middle stays at <see cref="WorldTechLevel"/>. Default 0.2 (bottom/top fifth).
+    /// </summary>
+    public double TechVarianceBandFraction { get; set; } = 0.2;
+
+    /// <summary>
+    /// Tech-count gradient knob A: fraction of an era's general pool a culture holds at its own
+    /// frontier era (distance 0). Default 3/14 ≈ 0.214 — lands the frontier on ~3 innovations.
+    /// </summary>
+    public double TechFrontierFraction { get; set; } = 3.0 / 14.0;
+
+    /// <summary>
+    /// Tech-count gradient knob B: additional fraction of the pool per era below the frontier.
+    /// fill(d) = min(1, TechFrontierFraction + TechFillStep × d). Default 0.30.
+    /// </summary>
+    public double TechFillStep { get; set; } = 0.30;
+
     /// <summary>
     /// Per-writer on/off switches. All default to true (current behaviour unchanged).
     /// Set individual flags to false in settings.json to skip specific writers during
@@ -248,6 +283,8 @@ public class WriterFlags
     public bool Heightmap { get; set; } = true;
     public bool Bookmark { get; set; } = true;
     public bool Flavorization { get; set; } = true;
+    /// <summary>Tech levels: culture innovations, start eras, era-year remap, END_DATE. See PLAN_tech_levels.md.</summary>
+    public bool Tech { get; set; } = true;
     // Editor-oriented terrain output: rasterise the per-material editor masks from the splatmap
     // so the CK3 map editor opens onto a fully painted, smoothly-blended map. Default ON — the
     // splatmap is already computed for runtime, so painting the masks is near-free. Turn off to

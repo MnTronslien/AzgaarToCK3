@@ -294,6 +294,12 @@ namespace Converter.Lemur
                 FaithTenetAssigner.Assign(map, faithTerrain, Settings.Instance.Seed!.Value);
             }
 
+            // Tech (eras + innovations): after counties (development variance) and traditions
+            // (freebie pairing) exist. Gated on Writers.Tech — off ⇒ no era/innovation output.
+            if (w.Tech)
+                using (var _ = OperationTimer.Start("Assigning culture tech"))
+                    TechAssigner.Assign(map, Settings.Instance.Seed!.Value);
+
             Logger.Section("Writing CK3 mod files");
 
             if (w.Adjacencies)

@@ -21,6 +21,18 @@ public class Culture
     public List<Culture> Parents { get; set; } = new();
 
     /// <summary>
+    /// Resolved culture era (baseline <c>WorldTechLevel</c> ± rank-based development variance, or the
+    /// highest parent era for hybrids). Set by <c>TechAssigner</c>; emitted as <c>join_era</c>.
+    /// </summary>
+    public CultureEra Era { get; set; } = CultureEra.Tribal;
+
+    /// <summary>
+    /// Innovations this culture starts with — general-pool picks plus any tradition-paired freebies.
+    /// Set by <c>TechAssigner</c>; emitted one <c>discover_innovation</c> each by CultureHistoryWriter.
+    /// </summary>
+    public List<Innovation> Innovations { get; set; } = new();
+
+    /// <summary>
     /// Creation date for derived/hybrid cultures. Null for foundational cultures (ancient, no created date needed).
     /// Written as `created = DATE` in culture history.
     /// </summary>
