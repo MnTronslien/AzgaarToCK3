@@ -96,6 +96,20 @@ namespace Converter.Lemur
                 $"Cell distribution: {cellDist.ReligionCellCounts.Count} religions and " +
                 $"{cellDist.CultureCellCounts.Count} cultures have at least one land cell.");
 
+            // Dynamic start date: Azgaar carries the world year in settings.options.year. Set it before
+            // the culture build (which reads StartDate.Year) and every dated emission. Absent on older
+            // exports → keep the 1066 default; StartDate floors negatives at 0. Month/day stay .1.1.
+            var azgaarYear = map.JsonMap.settings?.options?.year;
+            if (azgaarYear.HasValue)
+            {
+                map.StartDate = new StartDate(azgaarYear.Value, 1, 1);
+                Logger.Info($"Start date from Azgaar: {map.StartDate} (settings.options.year={azgaarYear.Value}).");
+            }
+            else
+            {
+                Logger.Info($"Start date: {map.StartDate} (Azgaar export has no year; using default).");
+            }
+
             map.Faiths = FaithManager.Build(map.JsonMap.pack.religions, cellDist.ReligionCellCounts);
             map.Cultures = CultureManager.Build(map.JsonMap.pack.cultures, Settings.Instance.Seed!.Value, map.StartDate.Year);
 
