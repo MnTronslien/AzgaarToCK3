@@ -360,6 +360,11 @@ namespace Converter.Lemur
             }
             if (w.Cultures)
                 await CultureWriter.Write(map, Settings.OutputDirectory);
+            if (w.Tech)
+            {
+                await CultureHistoryWriter.Write(map, Settings.OutputDirectory);
+                await TechDatesWriter.Write(map, Settings.Instance.Ck3Directory, Settings.OutputDirectory);
+            }
             if (w.GeographicalRegions)
                 await GeographicalRegionWriter.Write(map, Settings.OutputDirectory);
             if (w.ProvinceHistory)
