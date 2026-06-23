@@ -82,7 +82,10 @@ public static class TechAssigner
             var pool = InnovationData.GeneralPool((CultureEra)e).ToList();
             if (pool.Count == 0) continue;
             int d = (int)era - e;
-            double fill = Math.Min(1.0, s.TechFrontierFraction + s.TechFillStep * d);
+            // Anchor the frontier (d=0) at an absolute count regardless of pool size, then climb by
+            // FillStep of the pool per era below. round((count/pool)*pool) == count, so d0 == TechFrontierCount.
+            double frontierFrac = (double)s.TechFrontierCount / pool.Count;
+            double fill = Math.Min(1.0, frontierFrac + s.TechFillStep * d);
             int count = Math.Clamp(
                 (int)Math.Round(fill * pool.Count, MidpointRounding.AwayFromZero), 1, pool.Count);
             result.AddRange(PickDistinct(pool, count, rng));

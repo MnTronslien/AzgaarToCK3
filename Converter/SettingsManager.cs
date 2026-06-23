@@ -230,10 +230,11 @@ public class Settings
     public double TechVarianceBandFraction { get; set; } = 0.2;
 
     /// <summary>
-    /// Tech-count gradient knob A: fraction of an era's general pool a culture holds at its own
-    /// frontier era (distance 0). Default 3/14 ≈ 0.214 — lands the frontier on ~3 innovations.
+    /// Tech-count gradient knob A: how many innovations a culture holds at its OWN frontier era
+    /// (distance 0), as an absolute count independent of pool size — so the frontier stays this many
+    /// even as the general pool grows (e.g. when region innovations are demoted into it). Default 3.
     /// </summary>
-    public double TechFrontierFraction { get; set; } = 3.0 / 14.0;
+    public int TechFrontierCount { get; set; } = 3;
 
     /// <summary>
     /// Tech-count gradient knob B: additional fraction of the pool per era below the frontier.

@@ -6,12 +6,12 @@ namespace Converter.Lemur;
 /// Static catalog of CK3 culture innovations used by <c>TechAssigner</c>. Mirrors
 /// <see cref="TraditionData"/>.
 ///
-/// <para><b>Scope (deliberately narrow).</b> The <b>general pool</b> is exactly the base-game,
-/// non-region innovations from <c>00_{tribal,early,high,late}_innovations.txt</c> — 15/14/14/14
-/// per era (57 total). The per-era count matrix agreed with the maintainer is sized on these
-/// numbers, so the pool must stay these and only these. Region-gated, regional men-at-arms, and
-/// DLC innovations are NOT in the random pool — a "full" tribal culture in-game never holds the
-/// inflated 20, only the ~15 general ones.</para>
+/// <para><b>Scope.</b> The <b>general pool</b> is the base-game non-region innovations plus a handful
+/// of <i>demoted</i> region innovations whose effects are generic stat buffs with no unique unlock
+/// (e.g. ghilman, seigneurialism, condottieri) — fine for any culture to roll. Region innovations
+/// with a unique unlock (MaA/building/naval) stay OUT of the pool and are gated in <c>FreebieData</c>.
+/// The frontier count is held absolute (<c>TechFrontierCount</c>=3) so growing the pool doesn't
+/// inflate a culture's frontier-era tech.</para>
 ///
 /// <para><b>Freebies live elsewhere.</b> Region-gated innovations granted by a per-culture criterion
 /// (longboats, african_canoes, elephantry, war_camels, wootz_steel) are in <c>FreebieData</c> and
@@ -42,7 +42,14 @@ public static class InnovationData
         new("innovation_casus_belli",        CultureEra.Tribal, "civic"),
         new("innovation_plenary_assemblies", CultureEra.Tribal, "civic"),
         new("innovation_ledger",             CultureEra.Tribal, "civic"),
-        new("innovation_table_of_princes",   CultureEra.Tribal, "civic"),
+        // innovation_table_of_princes intentionally OMITTED: it unlocks single-heir-dynasty-house law,
+        // a mechanic we don't want to hand out blindly. (It's also potential-gated to czech/slovien,
+        // but per our force-grant model that gate is irrelevant — this omission is a judgement call.)
+
+        // Demoted from region-locked → general pool: a generic effect with no unique unlock, so it's
+        // fine for any culture to roll. all_things is FP1 content (unknown key / no-op on non-FP1
+        // installs — harmless error-log noise; applies normally where FP1 is owned).
+        new("innovation_all_things",         CultureEra.Tribal, "civic"),
 
         // ═══════════════════════════════════════════════════════════════════════
         // Early medieval — general pool (00_early_medieval_innovations.txt, non-region): 14
@@ -61,6 +68,9 @@ public static class InnovationData
         new("innovation_chronicle_writing", CultureEra.EarlyMedieval, "civic"),
         new("innovation_armilary_sphere",   CultureEra.EarlyMedieval, "civic"),
         new("innovation_baliffs",           CultureEra.EarlyMedieval, "civic"),
+        // Demoted region innovations (generic effects, no unique unlock):
+        new("innovation_ghilman",           CultureEra.EarlyMedieval, "military"),
+        new("innovation_stem_duchies",      CultureEra.EarlyMedieval, "civic"),
 
         // ═══════════════════════════════════════════════════════════════════════
         // High medieval — general pool (00_high_medieval_innovations.txt, non-region): 14
@@ -79,6 +89,11 @@ public static class InnovationData
         new("innovation_guilds",            CultureEra.HighMedieval, "civic"),
         new("innovation_development_03",    CultureEra.HighMedieval, "civic"),
         new("innovation_currency_03",       CultureEra.HighMedieval, "civic"),
+        // Demoted region innovations (generic effects, no unique unlock):
+        new("innovation_east_settling",     CultureEra.HighMedieval, "civic"),
+        new("innovation_french_peerage",    CultureEra.HighMedieval, "civic"),
+        new("innovation_muladi",            CultureEra.HighMedieval, "civic"),
+        new("innovation_seigneurialism",    CultureEra.HighMedieval, "civic"),
 
         // ═══════════════════════════════════════════════════════════════════════
         // Late medieval — general pool (00_late_medieval_innovations.txt, non-region): 14
@@ -97,12 +112,17 @@ public static class InnovationData
         new("innovation_court_officials",   CultureEra.LateMedieval, "civic"),
         new("innovation_development_04",    CultureEra.LateMedieval, "civic"),
         new("innovation_currency_04",       CultureEra.LateMedieval, "civic"),
+        // Demoted region innovations (generic effects, no unique unlock):
+        new("innovation_condottieri",       CultureEra.LateMedieval, "military"),
+        new("innovation_deccan_unity",      CultureEra.LateMedieval, "civic"),
+        new("innovation_wierdijks",         CultureEra.LateMedieval, "civic"),
     ];
 
     /// <summary>The seeded-random draw pool for one era (base-game, non-region innovations).</summary>
     public static IReadOnlyList<Innovation> GeneralPool(CultureEra era) =>
         All.Where(i => i.Era == era).ToList();
 
-    /// <summary>Size of an era's general pool (the matrix denominators: 15/14/14/14).</summary>
+    /// <summary>Size of an era's general pool. Grows as region innovations are demoted in; the
+    /// frontier count is held absolute (TechFrontierCount) so it stays 3 regardless of pool size.</summary>
     public static int GeneralPoolSize(CultureEra era) => GeneralPool(era).Count;
 }
