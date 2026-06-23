@@ -52,6 +52,9 @@ public static class TechAssigner
             }
 
         LogSummary(map);
+
+        // Region-gated freebies, post-pass (needs every culture's resolved era + traditions).
+        FreebieAssigner.Assign(map);
     }
 
     private static void Resolve(Culture c, Converter.Settings s, int shift, int seed)
@@ -64,19 +67,10 @@ public static class TechAssigner
         var era = ClampEra((int)baseEra + shift);
         c.Era = era;
 
-        var chosen = c.Parents.Count >= 2
+        // General-pool innovations only. Region-gated freebies are added afterwards by FreebieAssigner.
+        c.Innovations = c.Parents.Count >= 2
             ? HybridDraw(c, era, rng)
             : GeneralDraw(era, rng, s);
-
-        // Tradition-paired freebies: granted regardless of region when the culture holds the
-        // tradition and has reached the innovation's era. Flavour when it lines up, absent otherwise.
-        foreach (var f in InnovationData.Freebies)
-            if ((int)f.Era <= (int)era
-                && c.Traditions.Contains(f.PairedTradition!)
-                && !chosen.Any(x => x.Key == f.Key))
-                chosen.Add(f);
-
-        c.Innovations = chosen;
     }
 
     // Per-era gradient draw from the general pool (tribal up to the culture's era).
@@ -101,8 +95,9 @@ public static class TechAssigner
     // eras of the general pool if the union is short.
     private static List<Innovation> HybridDraw(Culture c, CultureEra era, Random rng)
     {
-        var a = c.Parents[0].Innovations.Where(i => i.PairedTradition is null).ToList();
-        var b = c.Parents[1].Innovations.Where(i => i.PairedTradition is null).ToList();
+        // Freebies are added in a later pass, so parent Innovations are general-pool only here.
+        var a = c.Parents[0].Innovations.ToList();
+        var b = c.Parents[1].Innovations.ToList();
         int A = a.Count, B = b.Count;
         int count = Math.Max(A, B) + (int)Math.Floor(Math.Min(A, B) * 0.5);
 
@@ -170,13 +165,9 @@ public static class TechAssigner
     private static void LogSummary(Map map)
     {
         var sb = new System.Text.StringBuilder(
-            $"Assigned tech to {map.Cultures.Count} cultures (id, name, era, #innovations):");
+            $"Assigned tech to {map.Cultures.Count} cultures (id, name, era, #general innovations):");
         foreach (var c in map.Cultures.Values.OrderBy(c => c.AzgaarId))
-        {
-            int freebies = c.Innovations.Count(i => i.PairedTradition is not null);
-            sb.Append($"\n- {c.Name} (id {c.AzgaarId}): era={c.Era}, innovations={c.Innovations.Count}"
-                + (freebies > 0 ? $" ({freebies} freebie)" : ""));
-        }
+            sb.Append($"\n- {c.Name} (id {c.AzgaarId}): era={c.Era}, innovations={c.Innovations.Count}");
         Logger.Info(sb.ToString());
     }
 }

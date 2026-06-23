@@ -137,7 +137,8 @@ namespace Converter.Lemur.Deserialization
         string color = "#808080",
         [property: JsonPropertyName("base")] int NameBaseIndex = 0,
         [property: JsonConverter(typeof(NullableIntArrayConverter))]
-        int[]? origins = null
+        int[]? origins = null,
+        string type = "Generic"   // Azgaar culture archetype: Generic|River|Lake|Naval|Nomadic|Hunting|Highland
     );
 
     public record AzgaarReligion(

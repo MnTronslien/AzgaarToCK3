@@ -13,14 +13,10 @@ namespace Converter.Lemur;
 /// DLC innovations are NOT in the random pool — a "full" tribal culture in-game never holds the
 /// inflated 20, only the ~15 general ones.</para>
 ///
-/// <para><b>Freebies.</b> A handful of iconic region-gated innovations are paired with a thematically
-/// matching tradition from <see cref="TraditionData"/>. When a culture holds that tradition and has
-/// reached the innovation's era, <c>TechAssigner</c> grants it as a freebie (regardless of region —
-/// we define no vanilla world regions on a generated map). CK3's tradition and innovation systems are
-/// otherwise independent (a tradition may be gated behind an innovation, never the reverse), so this
-/// pairing is a curated design choice, not mined from game data. The hyper-regional innovations
-/// (reconquista, ghilman, stem_duchies, the cultural MaA set, …) have no clean generic pairing and are
-/// intentionally omitted — never granted.</para>
+/// <para><b>Freebies live elsewhere.</b> Region-gated innovations granted by a per-culture criterion
+/// (longboats, african_canoes, elephantry, war_camels, wootz_steel) are in <c>FreebieData</c> and
+/// applied by <c>FreebieAssigner</c> — they are NOT in this pool. The hyper-regional innovations
+/// (reconquista, ghilman, stem_duchies, the cultural MaA set, …) are intentionally omitted everywhere.</para>
 ///
 /// Source: CK3 1.19 <c>common/culture/innovations/</c>. DLC innovations are excluded to keep the
 /// random draw DLC-noise-free and the matrix exact.
@@ -47,13 +43,6 @@ public static class InnovationData
         new("innovation_plenary_assemblies", CultureEra.Tribal, "civic"),
         new("innovation_ledger",             CultureEra.Tribal, "civic"),
         new("innovation_table_of_princes",   CultureEra.Tribal, "civic"),
-
-        // Tribal — region-gated freebies (paired with a tradition; not in the random pool)
-        new("innovation_longboats",      CultureEra.Tribal, "military", PairedTradition: "tradition_seafaring"),
-        new("innovation_african_canoes", CultureEra.Tribal, "military", PairedTradition: "tradition_fishermen"),
-        new("innovation_elephantry",     CultureEra.Tribal, "military", PairedTradition: "tradition_lords_of_the_elephant"),
-        new("innovation_war_camels",     CultureEra.Tribal, "military", PairedTradition: "tradition_desert_nomads"),
-        new("innovation_wootz_steel",    CultureEra.Tribal, "civic",    PairedTradition: "tradition_metal_craftsmanship"),
 
         // ═══════════════════════════════════════════════════════════════════════
         // Early medieval — general pool (00_early_medieval_innovations.txt, non-region): 14
@@ -110,14 +99,10 @@ public static class InnovationData
         new("innovation_currency_04",       CultureEra.LateMedieval, "civic"),
     ];
 
-    /// <summary>The seeded-random draw pool for one era: base-game, non-region, unpaired innovations.</summary>
+    /// <summary>The seeded-random draw pool for one era (base-game, non-region innovations).</summary>
     public static IReadOnlyList<Innovation> GeneralPool(CultureEra era) =>
-        All.Where(i => i.PairedTradition is null && i.Era == era).ToList();
+        All.Where(i => i.Era == era).ToList();
 
     /// <summary>Size of an era's general pool (the matrix denominators: 15/14/14/14).</summary>
     public static int GeneralPoolSize(CultureEra era) => GeneralPool(era).Count;
-
-    /// <summary>Innovations granted only as a tradition-paired freebie (keyed by paired tradition).</summary>
-    public static IReadOnlyList<Innovation> Freebies =>
-        All.Where(i => i.PairedTradition is not null).ToList();
 }

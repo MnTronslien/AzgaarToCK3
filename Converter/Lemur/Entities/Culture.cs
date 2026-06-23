@@ -1,11 +1,21 @@
 namespace Converter.Lemur.Entities;
 
+/// <summary>
+/// Azgaar's author-set culture archetype (the export's <c>culture.type</c>). Author-controllable
+/// (unlike our randomly-assigned traditions), so it's a reliable signal for tech/tradition gating.
+/// <c>River</c> drives the navigable-river-sailing freebies (canoes/longboats). See FreebieData.
+/// </summary>
+public enum AzgaarCultureType { Generic, River, Lake, Naval, Nomadic, Hunting, Highland }
+
 public class Culture
 {
     public int AzgaarId { get; set; }
     public string Name { get; set; } = "";
     public string CK3Key => $"lemur_culture_{AzgaarId}";
     public string HexColor { get; set; } = "#808080";
+
+    /// <summary>Azgaar culture archetype (author-set). Defaults to Generic for older exports.</summary>
+    public AzgaarCultureType Type { get; set; } = AzgaarCultureType.Generic;
 
     // Pillars
     public string Ethos { get; set; } = "ethos_communal";
