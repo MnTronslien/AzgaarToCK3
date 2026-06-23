@@ -25,9 +25,26 @@ public static class CultureHistoryWriter
             var lines = new List<string>
             {
                 $"# {c.Name} — generated start era + innovations",
-                $"{date} = {{",
-                $"\tjoin_era = culture_era_{EraKey(c.Era)}",
             };
+
+            // CK3 rejects a discover_innovation whose era is ABOVE the culture's current era, and a
+            // join_era placed in the same dated block does NOT take effect in time for discoveries in
+            // that same block (the engine still sees the pre-block era). So join the target era one
+            // year EARLIER, then discover everything at the start date — by then the culture is already
+            // in its final era and every innovation (all ≤ that era) is accepted.
+            bool earlierJoin = c.Era != CultureEra.Tribal && date.Year >= 1;
+            if (earlierJoin)
+            {
+                var joinDate = new StartDate(date.Year - 1, date.Month, date.Day);
+                lines.Add($"{joinDate} = {{");
+                lines.Add($"\tjoin_era = culture_era_{EraKey(c.Era)}");
+                lines.Add("}");
+            }
+
+            lines.Add($"{date} = {{");
+            // Year-0 edge only (can't date a block earlier than year 0): fall back to a same-block join.
+            if (!earlierJoin && c.Era != CultureEra.Tribal)
+                lines.Add($"\tjoin_era = culture_era_{EraKey(c.Era)}");
             foreach (var inno in c.Innovations.OrderBy(i => (int)i.Era).ThenBy(i => i.Key))
                 lines.Add($"\tdiscover_innovation = {inno.Key}");
             lines.Add("}");
