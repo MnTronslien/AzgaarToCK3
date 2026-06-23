@@ -34,39 +34,39 @@ public static class Helper
         => new((g.Lon - map.XOffset) * map.XRatio, (g.Lat - map.YOffset) * map.YRatio);
 
     /// <summary>
-    /// Azgaar burg canvas pixels → CK3 WORLD pixel. Burgs store canvas positions, not geo; this is the
-    /// canvas analogue of GeoToWorld (settlement/building locators use it).
+    /// Azgaar canvas pixels (e.g. burg positions) → CK3 WORLD pixel. Canvas Y is north=low (SVG, top of
+    /// screen); world Z is north=high — so the vertical axis FLIPS (Z = MapHeight − c.Y·yRatio), exactly
+    /// like GeoToImage's flip. Named for its source space (canvas), not its caller.
     /// </summary>
-    public static WorldPixel BurgToWorld(CanvasPoint c, Entities.Map map)
+    public static WorldPixel CanvasToWorld(CanvasPoint c, Entities.Map map)
     {
         double xRatio = (double)Entities.Map.MapWidth / map.JsonMap.info.width;
         double yRatio = (double)Entities.Map.MapHeight / map.JsonMap.info.height;
-        // Z = c.Y * yRatio (NO MapHeight flip): equals GeoToWorld(CanvasToGeo(c)).Z, so burg locators
-        // share the centroid/geo orientation (north = high Z). The old `MapHeight - c.Y*yRatio` mirrored
-        // burg-based locators (building/special/siege) about the equator vs the centroid-based ones.
-        return new(c.X * xRatio, c.Y * yRatio);
+        return new(c.X * xRatio, Entities.Map.MapHeight - c.Y * yRatio);
     }
 
     /// <summary>
-    /// Azgaar burg canvas pixels → Azgaar geo (lon, lat), the space cell GeoDataCoordinates live in.
-    /// Burg positions and cell geometry are DIFFERENT spaces; convert before comparing a burg against
-    /// a cell polygon. Inverse of GeoToCanvas (round-trips exactly regardless of axis flips).
+    /// Azgaar canvas pixels → Azgaar geo (lon, lat), the space cell GeoDataCoordinates live in. Canvas Y
+    /// is north=low; geo lat is north=high, so the vertical axis flips (same flip as CanvasToWorld).
+    /// Inverse of GeoToCanvas. Convert before comparing a canvas point against a cell's geo polygon.
     /// </summary>
     public static GeoPoint CanvasToGeo(CanvasPoint c, Entities.Map map)
     {
-        double ck3X = c.X * (double)Entities.Map.MapWidth / map.JsonMap.info.width;
-        double ck3Y = Entities.Map.MapHeight - c.Y * (double)Entities.Map.MapHeight / map.JsonMap.info.height;
-        double lon = ck3X / map.XRatio + map.XOffset;
-        double lat = (Entities.Map.MapHeight - ck3Y) / map.YRatio + map.YOffset;
+        double worldX = c.X * (double)Entities.Map.MapWidth / map.JsonMap.info.width;
+        // Canvas Y (north=low) → world Z (north=high): vertical flip, matching CanvasToWorld.
+        double worldZ = Entities.Map.MapHeight - c.Y * (double)Entities.Map.MapHeight / map.JsonMap.info.height;
+        double lon = worldX / map.XRatio + map.XOffset;
+        double lat = worldZ / map.YRatio + map.YOffset;
         return new(lon, lat);
     }
 
-    /// <summary>Azgaar geo (lon, lat) → burg canvas pixels. Inverse of <see cref="CanvasToGeo"/>.</summary>
+    /// <summary>Azgaar geo (lon, lat) → canvas pixels. Inverse of <see cref="CanvasToGeo"/>.</summary>
     public static CanvasPoint GeoToCanvas(GeoPoint g, Entities.Map map)
     {
         var p = GeoToImage(g, map);
         double x = p.X * map.JsonMap.info.width / (double)Entities.Map.MapWidth;
-        double y = (Entities.Map.MapHeight - p.Y) * map.JsonMap.info.height / (double)Entities.Map.MapHeight;
+        // Canvas Y and CK3 image Y share orientation (both north=top), so this is a pure scale — no flip.
+        double y = p.Y * map.JsonMap.info.height / (double)Entities.Map.MapHeight;
         return new(x, y);
     }
 
