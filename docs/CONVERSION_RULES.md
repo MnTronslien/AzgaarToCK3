@@ -284,6 +284,10 @@ Generated cultures start with an appropriate **era** and a real set of **innovat
 
 Region innovations whose effect is just a generic bonus (with no unique unit, building, or ability) aren't gated at all — they join the normal random pool and can show up on anyone. Selection is fully deterministic: the same seed produces the same eras and innovations.
 
+Of the signals above, the only one **you** set directly is the culture's Azgaar **`type`** (Generic / River / Naval / Nomadic / Hunting / Highland) — ethos and traditions are assigned by the converter. So the dependable way to make a culture sail major rivers, for example, is to give it `type: River` in Azgaar: a River culture always gets African canoes (and Longboats instead if it's also warlike).
+
+The knobs that tune all of this — `WorldTechLevel`, `InnovationsInOwnEra`, `PastEraFillBonus`, `YearsBetweenEras`, `EraOutlierFraction`, and the `Tech` writer toggle — are in the [Configuration reference](CONFIGURATION.md#culture-tech--innovations).
+
 ---
 
 ## Culture inheritance in practice
