@@ -121,8 +121,4 @@ public static class InnovationData
     /// <summary>The seeded-random draw pool for one era (base-game, non-region innovations).</summary>
     public static IReadOnlyList<Innovation> GeneralPool(CultureEra era) =>
         All.Where(i => i.Era == era).ToList();
-
-    /// <summary>Size of an era's general pool. Grows as region innovations are demoted in; the
-    /// own-era count is held absolute (InnovationsInOwnEra) so it stays 3 regardless of pool size.</summary>
-    public static int GeneralPoolSize(CultureEra era) => GeneralPool(era).Count;
 }

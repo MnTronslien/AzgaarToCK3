@@ -9,7 +9,7 @@ namespace Converter.Lemur.Writers;
 /// dated effect blocks, no inner wrapper. We emit a single block at <see cref="L.Map.StartDate"/>:
 /// a forced <c>join_era</c> plus one <c>discover_innovation</c> per entry in <c>Culture.Innovations</c>.
 /// <c>join_era</c>/<c>discover_innovation</c> are forced and ignore era <c>year</c>, so this fully
-/// determines each culture's start snapshot. See PLAN_tech_levels.md.
+/// determines each culture's start snapshot. See docs/CONVERSION_RULES.md.
 /// </summary>
 public static class CultureHistoryWriter
 {

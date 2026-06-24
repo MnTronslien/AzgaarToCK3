@@ -3,7 +3,7 @@ namespace Converter.Lemur.Entities;
 /// <summary>
 /// CK3's four culture eras (common/culture/eras/00_culture_eras.txt). The integer value is the
 /// ladder index used for both the start-relative era-year math and the tech-count gradient
-/// (distance below a culture's frontier era). See PLAN_tech_levels.md.
+/// (distance below a culture's frontier era). See docs/CONVERSION_RULES.md.
 /// </summary>
 public enum CultureEra
 {

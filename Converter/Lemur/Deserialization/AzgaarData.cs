@@ -284,7 +284,7 @@ namespace Converter.Lemur.Deserialization
 
     /// <summary>
     /// Azgaar's author-facing world options (the <c>settings.options</c> object). Only the calendar
-    /// fields are read: the numeric <c>year</c> drives <see cref="Entities.StartDate"/> (PLAN_tech_levels.md
+    /// fields are read: the numeric <c>year</c> drives <see cref="Entities.StartDate"/> (docs/CONVERSION_RULES.md
     /// "Dynamic start date"). The <c>era</c>/<c>eraShort</c> strings are fantasy labels
     /// (e.g. "Hatham Era" / "HE"), carried for a possible later bookmark name — NOT the tech baseline.
     /// All optional: older exports omit them, and unmapped option fields are ignored.

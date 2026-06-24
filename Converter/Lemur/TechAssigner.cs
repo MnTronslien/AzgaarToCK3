@@ -6,14 +6,14 @@ namespace Converter.Lemur;
 /// Resolves each culture's start <see cref="CultureEra"/> and starting <see cref="Innovation"/> set.
 /// Deferred out of <c>CultureManager.Build</c> (like <see cref="CultureTraditionAssigner"/>) so it can
 /// read the formed counties (for development-based variance) and the assigned traditions (for the
-/// freebie pairing). See PLAN_tech_levels.md. Deterministic for a fixed seed.
+/// freebie pairing). See docs/CONVERSION_RULES.md. Deterministic for a fixed seed.
 ///
 /// <para><b>Era</b> = world <c>WorldTechLevel</c> baseline (or, for a hybrid, the highest parent era),
 /// shifted ±1 by rank-based development variance (bottom/top band of cultures by average territory
 /// development), clamped to the era range.</para>
 ///
 /// <para><b>Innovations</b> — per era from tribal up to the resolved era, draw a count from that era's
-/// general pool via the gradient <c>fill(d) = min(1, FrontierFraction + FillStep × d)</c> where
+/// general pool via the gradient <c>fill(d) = min(1, InnovationsInOwnEra/poolSize + PastEraFillBonus × d)</c> where
 /// <c>d</c> is the era's distance below the frontier (full in the deep past, ~3 at the frontier).
 /// Hybrids instead draw imperfectly-additively from the union of their parents' innovations. Then any
 /// tradition-paired freebie whose era the culture has reached is added on top.</para>

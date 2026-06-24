@@ -5,7 +5,7 @@ using L = Converter.Lemur.Entities;
 namespace Converter.Lemur.Writers;
 
 /// <summary>
-/// Emits the two start-relative date files for the tech feature (PLAN_tech_levels.md):
+/// Emits the two start-relative date files for the tech feature (docs/CONVERSION_RULES.md):
 /// <list type="bullet">
 /// <item><b>Era override</b> → <c>common/culture/eras/00_culture_eras.txt</c>. CK3 culture-era
 /// definitions REPLACE per top-level key (they don't merge sub-fields), so to keep each era's

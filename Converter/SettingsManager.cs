@@ -279,7 +279,7 @@ public class WriterFlags
     public bool Heightmap { get; set; } = true;
     public bool Bookmark { get; set; } = true;
     public bool Flavorization { get; set; } = true;
-    /// <summary>Tech levels: culture innovations, start eras, era-year remap, END_DATE. See PLAN_tech_levels.md.</summary>
+    /// <summary>Tech levels: culture innovations, start eras, era-year remap, END_DATE. See docs/CONVERSION_RULES.md.</summary>
     public bool Tech { get; set; } = true;
     // Editor-oriented terrain output: rasterise the per-material editor masks from the splatmap
     // so the CK3 map editor opens onto a fully painted, smoothly-blended map. Default ON — the
