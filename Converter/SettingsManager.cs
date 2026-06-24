@@ -206,41 +206,36 @@ public class Settings
     /// </summary>
     public float DoctrineMutationRate { get; set; } = 0.3f;
 
-    // ── Tech levels — culture innovations & eras. See PLAN_tech_levels.md. ──
+    // ── Tech levels — culture innovations & eras. See docs/CONVERSION_RULES.md. ──
 
     /// <summary>
-    /// Baseline culture era for the whole world (an authorial choice, NOT derived from the start
-    /// date). Per-culture development variance shifts individual cultures ±1 era around it. The
-    /// baseline era unlocks at the start date; higher eras step forward by <see cref="EraStepYears"/>.
+    /// How advanced the world is: the baseline starting era every culture begins in before
+    /// development variance shifts it. One of tribal, early_medieval, high_medieval, late_medieval.
     /// </summary>
     public Converter.Lemur.Entities.CultureEra WorldTechLevel { get; set; } =
         Converter.Lemur.Entities.CultureEra.EarlyMedieval;
 
-    /// <summary>Years between consecutive era unlocks (post-start era-year cadence). Default 150 (vanilla medieval cadence).</summary>
-    public int EraStepYears { get; set; } = 150;
-
-    /// <summary>"Good pacing" tail after late-medieval, used to derive END_DATE. Default 250 (vanilla 1453−1200, simplified).</summary>
-    public int EndTailYears { get; set; } = 250;
+    /// <summary>
+    /// How many innovations a culture starts with in its own (highest) era. Older eras get more,
+    /// filling toward complete; this is the sparse leading edge. Default 3.
+    /// </summary>
+    public int InnovationsInOwnEra { get; set; } = 3;
 
     /// <summary>
-    /// Fraction of cultures (by rank of average territory development) in each of the backward
-    /// (bottom) and enlightened (top) bands. Bottom band demotes one era, top band promotes one,
-    /// middle stays at <see cref="WorldTechLevel"/>. Default 0.2 (bottom/top fifth).
+    /// How much more of each era a culture has the further back that era is: each era older than its
+    /// own adds this fraction of that era's innovations, until the distant past is complete. Default 0.30.
     /// </summary>
-    public double TechVarianceBandFraction { get; set; } = 0.2;
+    public double PastEraFillBonus { get; set; } = 0.30;
+
+    /// <summary>Years between one culture era unlocking and the next, after the game starts. Default 150.</summary>
+    public int YearsBetweenEras { get; set; } = 150;
 
     /// <summary>
-    /// Tech-count gradient knob A: how many innovations a culture holds at its OWN frontier era
-    /// (distance 0), as an absolute count independent of pool size — so the frontier stays this many
-    /// even as the general pool grows (e.g. when region innovations are demoted into it). Default 3.
+    /// How stratified the world's tech is: this fraction of cultures (ranked by how developed their
+    /// land is) at each end become outliers — the most-developed jump an era ahead, the least drop one
+    /// behind, the rest stay at the baseline. 0 = every culture at the baseline era. Default 0.20.
     /// </summary>
-    public int TechFrontierCount { get; set; } = 3;
-
-    /// <summary>
-    /// Tech-count gradient knob B: additional fraction of the pool per era below the frontier.
-    /// fill(d) = min(1, TechFrontierFraction + TechFillStep × d). Default 0.30.
-    /// </summary>
-    public double TechFillStep { get; set; } = 0.30;
+    public double EraOutlierFraction { get; set; } = 0.20;
 
     /// <summary>
     /// Per-writer on/off switches. All default to true (current behaviour unchanged).

@@ -26,7 +26,7 @@ public static class TechAssigner
         var s = Converter.Settings.Instance;
 
         // Per-culture era shift ∈ {-1,0,+1} from development rank.
-        var shift = ComputeVarianceShifts(map, s.TechVarianceBandFraction);
+        var shift = ComputeVarianceShifts(map, s.EraOutlierFraction);
 
         // Resolve parents before children (DAG fixed-point); leftover cycles resolved arbitrarily.
         var cultures = map.Cultures.Values.ToList();
@@ -82,10 +82,10 @@ public static class TechAssigner
             var pool = InnovationData.GeneralPool((CultureEra)e).ToList();
             if (pool.Count == 0) continue;
             int d = (int)era - e;
-            // Anchor the frontier (d=0) at an absolute count regardless of pool size, then climb by
-            // FillStep of the pool per era below. round((count/pool)*pool) == count, so d0 == TechFrontierCount.
-            double frontierFrac = (double)s.TechFrontierCount / pool.Count;
-            double fill = Math.Min(1.0, frontierFrac + s.TechFillStep * d);
+            // Anchor the own-era (d=0) count absolutely regardless of pool size, then climb by
+            // PastEraFillBonus of the pool per era below. round((count/pool)*pool) == count, so d0 == InnovationsInOwnEra.
+            double frontierFrac = (double)s.InnovationsInOwnEra / pool.Count;
+            double fill = Math.Min(1.0, frontierFrac + s.PastEraFillBonus * d);
             int count = Math.Clamp(
                 (int)Math.Round(fill * pool.Count, MidpointRounding.AwayFromZero), 1, pool.Count);
             result.AddRange(PickDistinct(pool, count, rng));
@@ -122,7 +122,7 @@ public static class TechAssigner
     }
 
     /// <summary>Average territory development per culture → rank → bottom band demotes, top band promotes.</summary>
-    private static Dictionary<int, int> ComputeVarianceShifts(Map map, double bandFraction)
+    private static Dictionary<int, int> ComputeVarianceShifts(Map map, double outlierFraction)
     {
         var dev = new Dictionary<int, (double sum, int n)>();
         foreach (var county in map.Counties ?? new List<County>())
@@ -140,7 +140,7 @@ public static class TechAssigner
             .Select(kv => kv.Key)
             .ToList();
         int n = ranked.Count;
-        int band = (int)Math.Floor(n * bandFraction);
+        int band = (int)Math.Floor(n * outlierFraction);
 
         var shifts = new Dictionary<int, int>();
         for (int i = 0; i < n; i++)

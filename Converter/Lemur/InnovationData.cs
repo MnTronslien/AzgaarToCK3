@@ -10,8 +10,8 @@ namespace Converter.Lemur;
 /// of <i>demoted</i> region innovations whose effects are generic stat buffs with no unique unlock
 /// (e.g. ghilman, seigneurialism, condottieri) — fine for any culture to roll. Region innovations
 /// with a unique unlock (MaA/building/naval) stay OUT of the pool and are gated in <c>FreebieData</c>.
-/// The frontier count is held absolute (<c>TechFrontierCount</c>=3) so growing the pool doesn't
-/// inflate a culture's frontier-era tech.</para>
+/// The own-era count is held absolute (<c>InnovationsInOwnEra</c>=3) so growing the pool doesn't
+/// inflate a culture's own-era tech.</para>
 ///
 /// <para><b>Freebies live elsewhere.</b> Region-gated innovations granted by a per-culture criterion
 /// (longboats, african_canoes, elephantry, war_camels, wootz_steel) are in <c>FreebieData</c> and
@@ -123,6 +123,6 @@ public static class InnovationData
         All.Where(i => i.Era == era).ToList();
 
     /// <summary>Size of an era's general pool. Grows as region innovations are demoted in; the
-    /// frontier count is held absolute (TechFrontierCount) so it stays 3 regardless of pool size.</summary>
+    /// own-era count is held absolute (InnovationsInOwnEra) so it stays 3 regardless of pool size.</summary>
     public static int GeneralPoolSize(CultureEra era) => GeneralPool(era).Count;
 }

@@ -24,10 +24,10 @@ public static class TechDatesWriter
         var s = Settings.Instance;
         int start = map.StartDate.Year;
         var baseline = s.WorldTechLevel;
-        int step = s.EraStepYears;
+        int step = s.YearsBetweenEras;
 
         await WriteEraOverride(ck3Directory, outputDirectory, start, baseline, step);
-        await WriteEndDate(outputDirectory, start, baseline, step, s.EndTailYears);
+        await WriteEndDate(outputDirectory, start, baseline, step);
     }
 
     private static async Task WriteEraOverride(
@@ -57,9 +57,9 @@ public static class TechDatesWriter
     }
 
     private static async Task WriteEndDate(
-        string outputDirectory, int start, CultureEra baseline, int step, int tail)
+        string outputDirectory, int start, CultureEra baseline, int step)
     {
-        int end = TechDates.EndYear(start, baseline, step, tail);
+        int end = TechDates.EndYear(start, baseline, step);
         var dir = Helper.GetPath(outputDirectory, "common", "defines");
         Directory.CreateDirectory(dir);
         var content = "# Generated: campaign end paired with the start date + tech ladder.\n" +
