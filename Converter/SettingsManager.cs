@@ -206,6 +206,37 @@ public class Settings
     /// </summary>
     public float DoctrineMutationRate { get; set; } = 0.3f;
 
+    // ── Tech levels — culture innovations & eras. See docs/CONVERSION_RULES.md. ──
+
+    /// <summary>
+    /// How advanced the world is: the baseline starting era every culture begins in before
+    /// development variance shifts it. One of tribal, early_medieval, high_medieval, late_medieval.
+    /// </summary>
+    public Converter.Lemur.Entities.CultureEra WorldTechLevel { get; set; } =
+        Converter.Lemur.Entities.CultureEra.EarlyMedieval;
+
+    /// <summary>
+    /// How many innovations a culture starts with in its own (highest) era. Older eras get more,
+    /// filling toward complete; this is the sparse leading edge. Default 3.
+    /// </summary>
+    public int InnovationsInOwnEra { get; set; } = 3;
+
+    /// <summary>
+    /// How much more of each era a culture has the further back that era is: each era older than its
+    /// own adds this fraction of that era's innovations, until the distant past is complete. Default 0.30.
+    /// </summary>
+    public double PastEraFillBonus { get; set; } = 0.30;
+
+    /// <summary>Years between one culture era unlocking and the next, after the game starts. Default 150.</summary>
+    public int YearsBetweenEras { get; set; } = 150;
+
+    /// <summary>
+    /// How stratified the world's tech is: this fraction of cultures (ranked by how developed their
+    /// land is) at each end become outliers — the most-developed jump an era ahead, the least drop one
+    /// behind, the rest stay at the baseline. 0 = every culture at the baseline era. Default 0.20.
+    /// </summary>
+    public double EraOutlierFraction { get; set; } = 0.20;
+
     /// <summary>
     /// Per-writer on/off switches. All default to true (current behaviour unchanged).
     /// Set individual flags to false in settings.json to skip specific writers during
@@ -248,6 +279,8 @@ public class WriterFlags
     public bool Heightmap { get; set; } = true;
     public bool Bookmark { get; set; } = true;
     public bool Flavorization { get; set; } = true;
+    /// <summary>Tech levels: culture innovations, start eras, era-year remap, END_DATE. See docs/CONVERSION_RULES.md.</summary>
+    public bool Tech { get; set; } = true;
     // Editor-oriented terrain output: rasterise the per-material editor masks from the splatmap
     // so the CK3 map editor opens onto a fully painted, smoothly-blended map. Default ON — the
     // splatmap is already computed for runtime, so painting the masks is near-free. Turn off to

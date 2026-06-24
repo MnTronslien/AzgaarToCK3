@@ -38,7 +38,7 @@ public static class LocatorWriter
         var sb = StartLocatorFile("buildings", "building_layer", clampToWaterLevel: true);
         foreach (var barony in map.Baronies!)
         {
-            var p = Helper.BurgToWorld(barony.burg.Position, map);
+            var p = Helper.CanvasToWorld(barony.burg.Position, map);
             AppendInstance(sb, id++, p.X, p.Z);
         }
         return ("building_locators.txt", EndLocatorFile(sb));
@@ -198,7 +198,7 @@ public static class LocatorWriter
     /// </summary>
     internal static (double x, double z) BurgNudgedTowardCentroid(L.Barony barony, L.Map map)
     {
-        var burg = Helper.BurgToWorld(barony.burg.Position, map);
+        var burg = Helper.CanvasToWorld(barony.burg.Position, map);
         var (cx, cz) = ComputeCentroid(barony.Cells, map);
 
         double dx = cx - burg.X;
@@ -219,7 +219,7 @@ public static class LocatorWriter
     /// </summary>
     internal static (double x, double z) PerpendicularTowardCentroid(L.Barony barony, L.Map map)
     {
-        var burg = Helper.BurgToWorld(barony.burg.Position, map);
+        var burg = Helper.CanvasToWorld(barony.burg.Position, map);
         var (cx, cz) = ComputeCentroid(barony.Cells, map);
 
         double dx = cx - burg.X;

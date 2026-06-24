@@ -88,6 +88,7 @@ public static class CultureManager
                 AzgaarId    = azc.i,
                 Name        = azc.name,
                 HexColor    = azc.color ?? "#808080",
+                Type        = ParseCultureType(azc.type),
                 Ethos        = Ethoses[rng.Next(Ethoses.Length)],
                 MartialCustom = MartialCustoms[rng.Next(MartialCustoms.Length)],
                 ThemeBundle  = ThemeBundles[rng.Next(ThemeBundles.Length)],
@@ -128,6 +129,12 @@ public static class CultureManager
 
         return result;
     }
+
+    /// <summary>Map the Azgaar <c>culture.type</c> string to the enum; unknown/empty → Generic.</summary>
+    private static Entities.AzgaarCultureType ParseCultureType(string? type) =>
+        Enum.TryParse<Entities.AzgaarCultureType>(type, ignoreCase: true, out var t)
+            ? t
+            : Entities.AzgaarCultureType.Generic;
 
     // ─────────────────────────────────────────────────────────────────────────
     // Pillar assignment

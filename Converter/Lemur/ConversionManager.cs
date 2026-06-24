@@ -96,6 +96,20 @@ namespace Converter.Lemur
                 $"Cell distribution: {cellDist.ReligionCellCounts.Count} religions and " +
                 $"{cellDist.CultureCellCounts.Count} cultures have at least one land cell.");
 
+            // Dynamic start date: Azgaar carries the world year in settings.options.year. Set it before
+            // the culture build (which reads StartDate.Year) and every dated emission. Absent on older
+            // exports → keep the 1066 default; StartDate floors negatives at 0. Month/day stay .1.1.
+            var azgaarYear = map.JsonMap.settings?.options?.year;
+            if (azgaarYear.HasValue)
+            {
+                map.StartDate = new StartDate(azgaarYear.Value, 1, 1);
+                Logger.Info($"Start date from Azgaar: {map.StartDate} (settings.options.year={azgaarYear.Value}).");
+            }
+            else
+            {
+                Logger.Info($"Start date: {map.StartDate} (Azgaar export has no year; using default).");
+            }
+
             map.Faiths = FaithManager.Build(map.JsonMap.pack.religions, cellDist.ReligionCellCounts);
             map.Cultures = CultureManager.Build(map.JsonMap.pack.cultures, Settings.Instance.Seed!.Value, map.StartDate.Year);
 
@@ -280,6 +294,12 @@ namespace Converter.Lemur
                 FaithTenetAssigner.Assign(map, faithTerrain, Settings.Instance.Seed!.Value);
             }
 
+            // Tech (eras + innovations): after counties (development variance) and traditions
+            // (freebie pairing) exist. Gated on Writers.Tech — off ⇒ no era/innovation output.
+            if (w.Tech)
+                using (var _ = OperationTimer.Start("Assigning culture tech"))
+                    TechAssigner.Assign(map, Settings.Instance.Seed!.Value);
+
             Logger.Section("Writing CK3 mod files");
 
             if (w.Adjacencies)
@@ -340,6 +360,11 @@ namespace Converter.Lemur
             }
             if (w.Cultures)
                 await CultureWriter.Write(map, Settings.OutputDirectory);
+            if (w.Tech)
+            {
+                await CultureHistoryWriter.Write(map, Settings.OutputDirectory);
+                await TechDatesWriter.Write(map, Settings.Instance.Ck3Directory, Settings.OutputDirectory);
+            }
             if (w.GeographicalRegions)
                 await GeographicalRegionWriter.Write(map, Settings.OutputDirectory);
             if (w.ProvinceHistory)
