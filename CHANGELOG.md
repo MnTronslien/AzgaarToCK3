@@ -1,3 +1,22 @@
+# 1.11.0 — 2026-06-25
+
+### Added
+- populate Map.StartDate from Azgaar settings.options.year
+- add Innovation entity, CultureEra enum, and innovation catalog
+- TechAssigner — resolve culture eras + innovations
+- emit culture history, era-year override, and END_DATE
+- criterion-based freebie registry + Azgaar culture type signal
+- terrain/type/ethos freebie signals across all eras + pool demotions
+
+### Fixed
+- correct canvas-Y flip across all canvas conversions; rename BurgToWorld→CanvasToWorld
+- join era a year before discovering innovations
+
+### Changed
+- user-facing setting names + hide the end-date tail
+
+---
+
 # Unreleased
 
 ### Added
