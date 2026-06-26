@@ -137,7 +137,8 @@ namespace Converter.Lemur.Deserialization
         string color = "#808080",
         [property: JsonPropertyName("base")] int NameBaseIndex = 0,
         [property: JsonConverter(typeof(NullableIntArrayConverter))]
-        int[]? origins = null
+        int[]? origins = null,
+        string type = "Generic"   // Azgaar culture archetype: Generic|River|Lake|Naval|Nomadic|Hunting|Highland
     );
 
     public record AzgaarReligion(
@@ -282,13 +283,32 @@ namespace Converter.Lemur.Deserialization
     }
 
     /// <summary>
+    /// Azgaar's author-facing world options (the <c>settings.options</c> object). Only the calendar
+    /// fields are read: the numeric <c>year</c> drives <see cref="Entities.StartDate"/> (docs/CONVERSION_RULES.md
+    /// "Dynamic start date"). The <c>era</c>/<c>eraShort</c> strings are fantasy labels
+    /// (e.g. "Hatham Era" / "HE"), carried for a possible later bookmark name — NOT the tech baseline.
+    /// All optional: older exports omit them, and unmapped option fields are ignored.
+    /// </summary>
+    public record AzgaarOptions(
+        int? year = null,
+        string? era = null,
+        string? eraShort = null
+    );
+
+    /// <summary>Azgaar <c>settings</c> block; we read only the nested <c>options</c>.</summary>
+    public record AzgaarSettings(
+        AzgaarOptions? options = null
+    );
+
+    /// <summary>
     /// Top-level Azgaar JSON map structure
     /// </summary>
     public record AzgaarJsonMap(
         AzgaarPack pack,
         AzgaarMapCoordinates mapCoordinates,
         AzgaarInfo info,
-        AzgaarNameBase[] nameBases
+        AzgaarNameBase[] nameBases,
+        AzgaarSettings? settings = null
     );
 
     // ========== GeoJSON DTOs ==========

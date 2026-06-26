@@ -258,6 +258,38 @@ Selection is fully deterministic — the same seed produces the same tenets. Con
 
 ---
 
+## Culture tech & innovations
+
+Generated cultures start in an **era** set by the world's tech level (shifted by how developed their land is) and a real set of **innovations**, instead of every culture booting at the tribal era with nothing discovered. Everything is relative to your world's start date — nothing is pinned to 1066.
+
+- **Starting era.** A culture begins at the world baseline (`WorldTechLevel`, default early medieval), then is nudged by how developed its land is: cultures are ranked by the average development of the counties they dominate, the bottom band is demoted one era (a backwater), the top band promoted one (an enlightened beacon), and the rest stay at baseline. A hybrid takes the higher of its parents' eras. Era-unlock years and the campaign end date are recomputed relative to the start date, so post-start progression keeps a sane pace whatever year you start in.
+- **Which innovations.** For each era from tribal up to a culture's own era, the converter draws some of that era's innovations at random, on a gradient: a culture holds only a few (default 3) of its **own era's** innovations and progressively more of each older era, until its deep past is essentially complete. So a high-medieval culture is fully stocked on tribal tech, well-stocked on early-medieval, and spotty in its own high-medieval era — the believable shape of a real people. Hybrids draw from the union of both parents' innovations, imperfectly additively (more than either parent, less than the sum).
+
+**Region & special innovations (by signal).** Some innovations are tied to specific places or peoples in the base game — naval raiding, war elephants, regional men-at-arms. A generated world has no real-world regions to gate them, so the converter grants them by a **signal** drawn from the culture itself: its author-set Azgaar archetype (`type`), its terrain make-up ("how much of its land is desert / jungle / hills…"), its ethos, or a tradition it was already assigned. These are kept *out* of the random pool — they appear only when a culture's character calls for them, and stay absent otherwise rather than cluttering every culture.
+
+| Innovation (what it represents) | Granted when the culture… |
+|---|---|
+| Longboats (naval raiding, river-sailing) | has a coastal-raider tradition (hird / coastal warriors), **or** is a **River** archetype with a bellicose ethos |
+| African canoes (lesser river-sailing) | is a **River** archetype and didn't already earn longboats (longboats supersedes it) |
+| War camels | has the desert-nomad tradition, **or** ≥20% of its land is desert / drylands |
+| War elephants | has the elephant-warfare tradition, **or** ≥20% jungle |
+| Wootz steel | has the metalworking tradition |
+| Caballeros (heavy cavalry) | bellicose, with ≥20% drylands / hills |
+| Sahel horsemen (light cavalry) | bellicose, with ≥20% desert |
+| Bamboo bows (archers) | bellicose, with ≥20% jungle |
+| Tiefutu (heavy infantry) | bellicose, with ≥20% taiga / mountains |
+| Hobelars (light horse) | bellicose, with ≥20% hills / wetlands |
+| Landsknechts (two-handed swords) | bellicose, with ≥20% forest / hills |
+| Reconquista (zealous warfare) | a bellicose **or** spiritual ethos |
+
+Region innovations whose effect is just a generic bonus (with no unique unit, building, or ability) aren't gated at all — they join the normal random pool and can show up on anyone. Selection is fully deterministic: the same seed produces the same eras and innovations.
+
+Of the signals above, the only one **you** set directly is the culture's Azgaar **`type`** (Generic / River / Naval / Nomadic / Hunting / Highland) — ethos and traditions are assigned by the converter. So the dependable way to make a culture sail major rivers, for example, is to give it `type: River` in Azgaar: a River culture always gets African canoes (and Longboats instead if it's also warlike).
+
+The knobs that tune all of this — `WorldTechLevel`, `InnovationsInOwnEra`, `PastEraFillBonus`, `YearsBetweenEras`, `EraOutlierFraction`, and the `Tech` writer toggle — are in the [Configuration reference](CONFIGURATION.md#culture-tech--innovations).
+
+---
+
 ## Culture inheritance in practice
 
 Each culture inherits its heritage and language from its Azgaar lineage. Ethos and traditions mutate slot-by-slot as you move down the tree — sibling cultures share the same ancestors but diverge independently.

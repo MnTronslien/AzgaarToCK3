@@ -470,7 +470,7 @@ namespace Converter.Lemur
                     var (px, pz)   = Writers.LocatorWriter.PerpendicularTowardCentroid(barony, map);
                     var (cx, cz)   = Writers.LocatorWriter.ComputeCentroid(barony.Cells, map);
 
-                    var burgPixel = Helper.BurgToWorld(barony.burg.Position, map);
+                    var burgPixel = Helper.CanvasToWorld(barony.burg.Position, map);
 
                     // All positions are in CK3 world Z (increases northward); convert to image Y (h - worldZ)
                     Dot(dots, MagickColors.Yellow,       radius, burgPixel.X,    h - burgPixel.Z);

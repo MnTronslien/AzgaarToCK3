@@ -108,6 +108,20 @@ image looks right, copy the values you settled on into `settings.json`.
 
 ---
 
+## Culture tech & innovations
+
+Starting eras and innovations for each generated culture. How these play out (the era ladder, the per-era fill, and the full freebie-signal table) is in [Conversion Rules](CONVERSION_RULES.md#culture-tech--innovations). Disable the whole feature with the `Tech` writer toggle below.
+
+| Key | CLI | Type | Default | Description |
+|-----|-----|------|---------|-------------|
+| `WorldTechLevel` | — | enum | `early_medieval` | How advanced the world starts: the baseline era every culture begins in (`tribal` / `early_medieval` / `high_medieval` / `late_medieval`). |
+| `InnovationsInOwnEra` | — | int | `3` | How many innovations a culture has in its own (highest) era; older eras fill toward complete. |
+| `PastEraFillBonus` | — | float | `0.30` | How much more of each era a culture holds the further back it is — this fraction of that era's innovations added per step into the past. |
+| `YearsBetweenEras` | — | int | `150` | Years between era unlocks after the game starts. |
+| `EraOutlierFraction` | — | float | `0.20` | Share of cultures at each end — ranked by how developed their land is — that jump an era ahead (most developed) or drop one behind (least). `0` = every culture at the baseline era. |
+
+---
+
 ## Logging & debug
 
 | Key | CLI | Type | Default | Description |
@@ -132,6 +146,7 @@ Individual writers can be disabled for faster bisection runs. All default to `tr
   "Characters": true,
   "TitleHistory": true,
   "ProvinceHistory": true,
+  "Tech": true,
   "Heightmap": true,
   "GeographicalRegions": true,
   "ProvinceTerrain": true,

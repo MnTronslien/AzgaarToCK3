@@ -7,8 +7,9 @@ namespace Converter.Lemur;
 // clustering bug (canvas burg positions compared against geo cell polygons). Keeping each space
 // a distinct type makes a cross-space mistake a COMPILE error instead of a silent wrong answer.
 //
-// Conversions that need the map's scale live in Helper (GeoToImage / GeoToWorld / BurgToWorld /
-// CanvasToGeo / GeoToCanvas). The pure Image<->World vertical flip lives here (no map needed).
+// Conversions that need the map's scale live in Helper (GeoToImage / GeoToWorld / CanvasToWorld /
+// CanvasToGeo / GeoToCanvas), each named <SourceSpace>To<DestSpace>. The pure Image<->World vertical
+// flip lives here (no map needed).
 
 /// <summary>Azgaar geographic coordinate (longitude, latitude). Cell GeoDataCoordinates live here.</summary>
 public readonly record struct GeoPoint(double Lon, double Lat);
