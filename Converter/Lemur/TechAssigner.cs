@@ -14,7 +14,7 @@ namespace Converter.Lemur;
 ///
 /// <para><b>Innovations</b> — per era from tribal up to the resolved era, draw a count from that era's
 /// general pool via the gradient <c>fill(d) = min(1, InnovationsInOwnEra/poolSize + PastEraFillBonus × d)</c> where
-/// <c>d</c> is the era's distance below the frontier (full in the deep past, ~3 at the frontier).
+/// <c>d</c> is the era's distance below the culture's own era (full in the deep past, ~3 in its own era).
 /// Hybrids instead draw imperfectly-additively from the union of their parents' innovations. Then any
 /// tradition-paired freebie whose era the culture has reached is added on top.</para>
 /// </summary>
@@ -84,8 +84,8 @@ public static class TechAssigner
             int d = (int)era - e;
             // Anchor the own-era (d=0) count absolutely regardless of pool size, then climb by
             // PastEraFillBonus of the pool per era below. round((count/pool)*pool) == count, so d0 == InnovationsInOwnEra.
-            double frontierFrac = (double)s.InnovationsInOwnEra / pool.Count;
-            double fill = Math.Min(1.0, frontierFrac + s.PastEraFillBonus * d);
+            double ownEraFrac = (double)s.InnovationsInOwnEra / pool.Count;
+            double fill = Math.Min(1.0, ownEraFrac + s.PastEraFillBonus * d);
             int count = Math.Clamp(
                 (int)Math.Round(fill * pool.Count, MidpointRounding.AwayFromZero), 1, pool.Count);
             result.AddRange(PickDistinct(pool, count, rng));
