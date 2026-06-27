@@ -1,10 +1,12 @@
-# Unreleased
+# 1.11.0 — 2026-06-25
 
 ### Added
-- **Cultures start with eras and innovations.** Generated cultures no longer all boot at the tribal era with nothing discovered. Each gets a starting era from a world tech-level baseline, shifted by how developed its land is — a backwater drops an era, an enlightened beacon gains one — and a believable spread of innovations: nearly complete in its distant past, spotty at its current frontier. Special region-locked innovations (naval raiding, war elephants, regional men-at-arms, and so on) are handed out by *signals* read from the culture itself — its Azgaar archetype, terrain make-up, ethos, or traditions — so a river people sails, a desert people fields camels, and a warlike jungle people fields its own archers. The world's start date is now read from your Azgaar export, and era timings plus the campaign end date scale to it. See [Conversion Rules](docs/CONVERSION_RULES.md#culture-tech--innovations).
+- **Cultures start with eras and innovations.** Generated cultures no longer all boot at the tribal era with nothing discovered. Each gets a starting era from a world tech-level baseline, shifted by how developed its land is — a backwater drops an era, an enlightened beacon gains one — and a believable spread of innovations: nearly complete in its distant past, spotty in its own era. Special region-locked innovations (naval raiding, war elephants, regional men-at-arms, and so on) are handed out by *signals* read from the culture itself — its Azgaar archetype, terrain make-up, ethos, or traditions — so a river people sails, a desert people fields camels, and a warlike jungle people fields its own archers. The world's start date is now read from your Azgaar export, and era timings plus the campaign end date scale to it. See [Conversion Rules](docs/CONVERSION_RULES.md#culture-tech--innovations).
 
 ### Fixed
 - **Settlements are placed correctly again.** A regression in 1.10.0 mirrored every settlement's position from north to south on maps that have no large rivers, leaving holdings and other map markers in the wrong spot (maps with large rivers happened to escape it). Settlement placement is now correct on all maps.
+
+---
 
 # 1.10.0 — Down to the Waterline — 2026-06-20
 
