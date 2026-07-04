@@ -69,6 +69,16 @@ public class Settings
     /// </summary>
     /// <value>The maximum number of counties, default is 5.</value>
     public int MaxCounties { get; set; } = 5;
+
+    /// <summary>
+    /// When set (via <c>--animate-duchy &lt;id&gt;</c>), the converter runs only far enough to
+    /// form the counties of the given duchy (Azgaar province id), captures the barony-growth
+    /// and county-formation steps as frames, writes two GIFs to the debug folder, and exits.
+    /// CLI-only debug tool; never persisted to settings.json.
+    /// </summary>
+    [JsonIgnore]
+    public int? AnimateDuchyId { get; set; } = null;
+
     /// <summary>
     /// If true then de jure empires will form based on culture.
     /// If false then de jure empires will form based on religion.

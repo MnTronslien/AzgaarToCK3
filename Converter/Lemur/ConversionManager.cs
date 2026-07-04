@@ -211,6 +211,14 @@ namespace Converter.Lemur
             GenerateBaronyAdjacency(map);
             GenerateCounties(map);
 
+            // --animate-duchy: the GIFs only need the territory up to county formation. Render and exit
+            // before the (expensive) writers run — this is a debug/illustration mode, not a real conversion.
+            if (Settings.Instance.AnimateDuchyId.HasValue)
+            {
+                await DuchyAnimator.RenderAsync(map);
+                return;
+            }
+
             using (var _ = OperationTimer.Start("HolySiteFactory.Build")) map.HolySites = HolySiteFactory.Build(map);
             Logger.Info($"Built {map.HolySites.Count} holy sites.");
 
@@ -648,6 +656,10 @@ namespace Converter.Lemur
                     .OrderByDescending(b => b!.burg!.Population)
                     .ToList();
 
+                // Only one duchy can match, so capturing into the (static) animator from this
+                // parallel branch is single-threaded for that duchy — no extra locking needed.
+                bool animate = DuchyAnimator.IsTarget(duchy);
+
                 // O(1) duchy-local cell lookup — prevents cross-duchy frontier expansion
                 var duchyCells = allCells.ToDictionary(c => c.Id);
 
@@ -673,6 +685,9 @@ namespace Converter.Lemur
                             pq.Enqueue(nc, b.burg.Cell.DistanceSquared(nc));
                     return (barony: b, frontier: pq);
                 }).ToList();
+
+                // Initial frame: just the burg seed cells, before any outward growth.
+                if (animate) DuchyAnimator.CaptureGrowthFrame(baronies!);
 
                 // Multi-source Voronoi expansion: each barony claims one nearest cell per round
                 while (unassigned.Count > 0)
@@ -730,6 +745,9 @@ namespace Converter.Lemur
                             if (unassigned.Contains(nId) && duchyCells.TryGetValue(nId, out var nc))
                                 closestFrontier.Enqueue(nc, closestBarony.burg.Cell!.DistanceSquared(nc));
                     }
+
+                    // One frame per expansion round.
+                    if (animate) DuchyAnimator.CaptureGrowthFrame(baronies!);
                 }
 
                 if (Settings.Instance.LogLevel <= LogLevel.Info && unassigned.Count > 0)
@@ -958,8 +976,18 @@ namespace Converter.Lemur
                     //add the edge to the graph
                     graph.AddEdge(baronyNode.Node, adjacentNodes);
                 }
+                // For the animated duchy, snapshot each partitioning step into the animator.
+                bool animateCounty = DuchyAnimator.IsTarget(duchy);
+                Dictionary<Node, Barony>? nodeToBarony = animateCounty
+                    ? baronyNodes.ToDictionary(bn => bn.Node, bn => bn.Barony)
+                    : null;
+                Action<IReadOnlyList<Graph>>? onStep = animateCounty
+                    ? parts => DuchyAnimator.CaptureCountyFrame(parts, nodeToBarony!)
+                    : null;
+
                 //partition the graph into connected components
-                var partitions = Graph.PartitionGraph(graph);
+                // (onStep captures one county frame per step, incl. the single-partition early return)
+                var partitions = Graph.PartitionGraph(graph, onStep);
 
                 //Each partition is a county, so nearly there. First we translate back from graphs to baronies
                 var counties = new List<County>();

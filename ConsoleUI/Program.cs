@@ -12,7 +12,8 @@ internal class Program
         int? minDuchiesPerKingdom = null, int? minKingdomsPerEmpire = null,
         bool noRivers = false, bool noWipe = false, string? svgPath = null, string? inputDir = null,
         int? seed = null, int? tenetCount = null, float? doctrineMutationRate = null, string? outputDir = null,
-        string? dumpCellsPath = null, bool riversOnly = false, bool? generateDebugImages = null)
+        string? dumpCellsPath = null, bool riversOnly = false, bool? generateDebugImages = null,
+        int? animateDuchyId = null)
     {
         Logger.Title();
 
@@ -66,6 +67,11 @@ internal class Program
         {
             Settings.Instance.MinimumKingdomsPerEmpire = minKingdomsPerEmpire.Value;
             Logger.Info($"Minimum kingdoms per empire: {minKingdomsPerEmpire.Value}");
+        }
+        if (animateDuchyId.HasValue)
+        {
+            Settings.Instance.AnimateDuchyId = animateDuchyId.Value;
+            Logger.Info($"Animate duchy: {animateDuchyId.Value} (process GIFs only; pipeline exits after county formation)");
         }
         if (seed.HasValue)
             Settings.Instance.Seed = seed.Value;
@@ -172,6 +178,14 @@ internal class Program
             await Converter.Lemur.ConversionManager.DrawRiversOnly(noRivers);
             return;
         }
+        // --animate-duchy: run the pipeline through county formation, write process GIFs, exit.
+        // ConversionManager.Run() detects AnimateDuchyId and returns after rendering the GIFs.
+        if (Settings.Instance.AnimateDuchyId.HasValue)
+        {
+            SettingsManager.Configure();
+            await Converter.Lemur.ConversionManager.Run(noRivers);
+            return;
+        }
 
         Console.Write("Start conversion? ");
         bool conversionRan = false;
@@ -238,6 +252,7 @@ internal class Program
             bool noRivers = false;
             bool noWipe = false;
             bool riversOnly = false;
+            int? animateDuchyId = null;
             bool? empireFromCulture = null;
             int? minDuchiesPerKingdom = null;
             int? minKingdomsPerEmpire = null;
@@ -272,6 +287,11 @@ internal class Program
                 else if (args[i] == "--rivers-only")
                 {
                     riversOnly = true;
+                }
+                else if (args[i] == "--animate-duchy" && i + 1 < args.Length)
+                {
+                    animateDuchyId = int.Parse(args[i + 1]);
+                    i++; // Skip the next argument
                 }
                 else if ((args[i] == "--input-dir" || args[i] == "-d") && i + 1 < args.Length)
                 {
@@ -453,7 +473,7 @@ internal class Program
                 return;
             }
 
-            await Run(jsonPath, geojsonPath, riversGeojsonPath, logLevel, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire, noRivers, noWipe, svgPath, inputDir, seed, tenetCount, doctrineMutationRate, outputDir, dumpCellsPath, riversOnly, generateDebugImages);
+            await Run(jsonPath, geojsonPath, riversGeojsonPath, logLevel, empireFromCulture, minDuchiesPerKingdom, minKingdomsPerEmpire, noRivers, noWipe, svgPath, inputDir, seed, tenetCount, doctrineMutationRate, outputDir, dumpCellsPath, riversOnly, generateDebugImages, animateDuchyId);
         }
         catch (Exception ex)
         {
@@ -574,6 +594,8 @@ internal class Program
         Console.WriteLine("Conversion Options:");
         Console.WriteLine("  --no-rivers                      Skip river drawing; write a blank rivers.png (runtime only, not saved)");
         Console.WriteLine("  --rivers-only                    Draw only rivers.png and exit (skips the rest of the pipeline; fast iteration)");
+        Console.WriteLine("  --animate-duchy <id>             Render two process GIFs (barony growth + county formation) for one duchy");
+        Console.WriteLine("                                   (Azgaar province id) to the debug folder, then exit. Debug/illustration only.");
         Console.WriteLine("  --svg, -s <path>                 Path to Azgaar SVG export for flatmap.dds (optional; fallback uses cell biome colors)");
         Console.WriteLine("  --log-level <verbose|debug|info|warning|error>  Set log verbosity (default: info)");
         Console.WriteLine("  --generate-debug-images <bool>   Override settings.json GenerateDebugImages (true/false); the setting is the default");
