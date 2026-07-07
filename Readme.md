@@ -25,11 +25,8 @@ Use this converter if:
 ## Quick start
 
 1. In Azgaar, export: **GeoJSON cells**, **JSON full data**, and optionally **Rivers** (GeoJSON)
-2. Download the latest release for your preferred platform (TODO: link to release section)
-2. Run the converter pointing at the folder containing those files:
-   ```
-   ./AzgaarToCK3 -d "path/to/your/export/folder"
-   ```
+2. Download the [latest release for your preferred (supported) platform](https://github.com/MnTronslien/AzgaarToCK3/releases)
+2. Run the converter
 3. On first run you'll be prompted for your CK3 path, mods directory, and mod name — these are saved and not asked again
 4. Enable the generated mod in your CK3 playset and launch
 
